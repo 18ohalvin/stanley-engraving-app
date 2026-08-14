@@ -1,0 +1,84 @@
+/* Font Classes for Live Engraving */
+.font-engraving-lato {
+  font-family: var(--font-lato);
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+}
+
+.font-engraving-lobster {
+  font-family: var(--font-lobster);
+  font-weight: 400;
+  letter-spacing: 1px;
+}
+
+.font-engraving-caveat {
+  font-family: var(--font-caveat);
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.font-engraving-pinyon {
+  font-family: var(--font-pinyon);
+  font-weight: 400;
+  letter-spacing: 1px;
+}
+
+.font-engraving-abeezee {
+  font-family: var(--font-abeezee);
+  font-weight: 400;
+  letter-spacing: 2px;
+}
+
+/* Stanley UI Typography */
+.text-display {
+  font-family: var(--font-brand);
+  font-size: 48px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.96px;
+}
+
+.text-title-1 {
+  font-family: var(--font-brand);
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.72px;
+}
+
+.text-title-2 {
+  font-family: var(--font-brand);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.text-body-1 {
+  font-family: var(--font-brand);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 400;
+  letter-spacing: -0.48px;
+}
+
+.text-body-2 {
+  font-family: var(--font-brand);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.text-caption {
+  font-family: var(--font-brand);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+.text-caption-bold {
+  font-family: var(--font-brand);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}

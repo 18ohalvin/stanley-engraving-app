@@ -1,0 +1,57 @@
+:root {
+  /* Colors */
+  --color-bg: #f2f2f2;
+  --color-bg-white: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-black: #000000;
+  --color-dark: #111827;
+  --color-gray-dark: #374151;
+  --color-gray-medium: #6b7280;
+  --color-gray-light: #ababab;
+  --color-gray-border: #e5e7eb;
+  --color-gray-bg: #f8f9fa;
+  --color-accent: #000000;
+  --color-error: #ef4444;
+  --color-error-bg: #fef2f2;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+
+  /* Typography */
+  --font-brand: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-brand-display: "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /* Custom Engraving Fonts */
+  --font-lato: "Lato", sans-serif;
+  --font-lobster: "Lobster", cursive;
+  --font-caveat: "Caveat", cursive;
+  --font-pinyon: "Pinyon Script", cursive;
+  --font-abeezee: "ABeeZee", sans-serif;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Container & Mobile Viewport exact from Figma & Adaptive to Mobile Toolbars */
+  --mobile-max-width: 430px;
+  --top-logo-top: calc(28px + env(safe-area-inset-top, 0px));
+  --top-logo-left: 32px;
+  --top-content-padding: calc(92px + env(safe-area-inset-top, 0px));
+  --bottom-content-padding: calc(24px + env(safe-area-inset-bottom, 0px));
+  --side-margin: 32px;
+}

@@ -1,0 +1,148 @@
+@import './variables.css';
+@import './typography.css';
+
+/* CSS Reset & Global Layout */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: #e5e5e5;
+  font-family: var(--font-brand);
+  color: var(--color-black);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+button, input, select, textarea, optgroup {
+  font-family: var(--font-brand);
+}
+
+#app {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background-color: #d8d8d8;
+}
+
+/* App Wrapper: Center mobile frame on desktop, 100% on mobile */
+.app-container {
+  width: 100%;
+  max-width: var(--mobile-max-width);
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100dvh;
+  background-color: var(--color-bg);
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 480px) {
+  html, body, #app {
+    background-color: var(--color-bg);
+  }
+  .app-container {
+    box-shadow: none;
+    max-width: 100%;
+    width: 100vw;
+  }
+}
+
+/* For widescreen/dashboard routes allow full width */
+.app-container.full-width-view {
+  max-width: 100%;
+  width: 100%;
+  min-height: 100vh;
+  height: auto;
+  overflow-y: visible;
+  background-color: var(--color-bg-white);
+  box-shadow: none;
+}
+
+.app-container.full-width-view:has(.login-screen) {
+  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: #111827;
+}
+
+/* Reusable buttons & inputs */
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  outline: none;
+  transition: transform var(--transition-fast), opacity var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  border: none;
+  background: transparent;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseSubtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.fade-in {
+  animation: fadeIn var(--transition-normal) forwards;
+}
+
+.pulse-subtle {
+  animation: pulseSubtle 2s infinite ease-in-out;
+}
