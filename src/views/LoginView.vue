@@ -46,7 +46,7 @@
               v-if="isStoreIdFocused || Boolean(storeId.trim())" 
               class="floating-label"
             >
-              Engraver / Store ID*
+              Engraver / Admin ID*
             </label>
 
             <span 
@@ -59,7 +59,7 @@
             <input
               type="text"
               v-model="storeId"
-              :placeholder="!isStoreIdFocused && !storeIdTouched ? 'Engraver / Store ID' : ''"
+              :placeholder="!isStoreIdFocused && !storeIdTouched ? 'Engraver / Admin ID*' : ''"
               required
               class="stanley-input-element"
               @focus="isStoreIdFocused = true; storeIdTouched = true"
@@ -95,7 +95,7 @@
             <input
               type="password"
               v-model="pin"
-              :placeholder="!isPinFocused && !pinTouched ? 'PIN' : ''"
+              :placeholder="!isPinFocused && !pinTouched ? 'PIN*' : ''"
               required
               maxlength="10"
               class="stanley-input-element"
@@ -123,7 +123,7 @@
           <!-- Footer Link (Figma 83:2602) -->
           <div class="card-footer-note">
             <span class="note-text">Can’t access your account? </span>
-            <button type="button" class="support-link" @click="showSupportModal = true">
+            <button type="button" class="support-link" @click="contactITSupport">
               Contact IT Support
             </button>
           </div>
@@ -143,29 +143,31 @@
           </div>
           <div class="support-modal-body">
             <p class="support-info-text">
-              For store terminal credential resets or station hardware pairing:
+              Only registered staff accounts and the Developer Master Account can access the staff dashboards.
             </p>
             <div class="support-channel-list">
               <div class="support-channel-item">
-                <span class="channel-label">Store Operations Hotline:</span>
-                <strong>+62 (021) 555-STANLEY</strong>
+                <span class="channel-label">Developer Master Login:</span>
+                <span class="demo-pill-badge">ID: devsosco01 / PIN: 707909</span>
+              </div>
+              <div class="support-channel-item">
+                <span class="channel-label">WhatsApp IT Support:</span>
+                <button type="button" class="support-wa-btn" @click="contactITSupport">
+                  Chat on WhatsApp (+62 812-3456-7890)
+                </button>
               </div>
               <div class="support-channel-item">
                 <span class="channel-label">Retail Support Email:</span>
                 <strong>it-support@stanley1913.id</strong>
               </div>
-              <div class="support-channel-item">
-                <span class="channel-label">Default Demo Credential:</span>
-                <span class="demo-pill-badge">ID: PIM-05 / PIN: 1913</span>
-              </div>
             </div>
           </div>
           <div class="support-modal-footer">
-            <button class="support-quick-fill-btn" @click="quickFillDemo">
-              Quick Fill Demo Login
+            <button class="support-quick-fill-btn admin-fill-btn" @click="quickFillDeveloper">
+              Fill Developer (devsosco01)
             </button>
             <button class="support-ok-btn" @click="showSupportModal = false">
-              Done
+              Close
             </button>
           </div>
         </div>
@@ -182,8 +184,8 @@ import { useRouter, useRoute } from 'vue-router';
 const router = useRouter();
 const route = useRoute();
 
-const storeId = ref('PIM-05');
-const pin = ref('1913');
+const storeId = ref('devsosco01');
+const pin = ref('707909');
 const isLoading = ref(false);
 const authError = ref('');
 const showSupportModal = ref(false);
@@ -199,6 +201,12 @@ const isFormValid = computed(() => {
   return storeId.value.trim().length > 0 && pin.value.trim().length > 0;
 });
 
+function contactITSupport() {
+  const phone = '6281234567890';
+  const text = encodeURIComponent('Hi Stanley IT Support, I need assistance accessing the Stanley Engraving System.');
+  window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+}
+
 function handleSignIn() {
   storeIdTouched.value = true;
   pinTouched.value = true;
@@ -209,23 +217,100 @@ function handleSignIn() {
   authError.value = '';
 
   setTimeout(() => {
-    // Save authentication in localStorage
+    const rawId = storeId.value.trim();
+    const rawPin = pin.value.trim();
+    const normalizedId = rawId.toLowerCase();
+
+    // 1. Developer Main Access Account Verification
+    if (normalizedId === 'devsosco01') {
+      if (rawPin !== '707909') {
+        isLoading.value = false;
+        authError.value = 'Invalid PIN for Developer Access. Please enter the correct 6-digit PIN (707909).';
+        return;
+      }
+
+      try {
+        localStorage.setItem('stanley_staff_authenticated', 'true');
+        localStorage.setItem('stanley_staff_user', 'Developer Access');
+        localStorage.setItem('stanley_user_role', 'super_admin');
+        localStorage.setItem('stanley_is_developer', 'true');
+      } catch (e) {}
+
+      isLoading.value = false;
+      if (route.query.redirect) {
+        router.push(route.query.redirect);
+      } else {
+        router.push('/admin');
+      }
+      return;
+    }
+
+    // 2. Strict Verification Against Registered Staff Accounts in localStorage
+    let matchedStaff = null;
+    try {
+      const savedStaff = localStorage.getItem('stanley_staff_users');
+      if (savedStaff) {
+        const parsed = JSON.parse(savedStaff);
+        if (Array.isArray(parsed)) {
+          matchedStaff = parsed.find(u => 
+            (u.staffId && u.staffId.trim().toLowerCase() === normalizedId) || 
+            (u.username && u.username.trim().toLowerCase() === normalizedId) || 
+            (u.idCode && u.idCode.trim().toLowerCase() === normalizedId) ||
+            (u.name && u.name.trim().toLowerCase() === normalizedId)
+          );
+        }
+      }
+    } catch (e) {}
+
+    // Reject unassigned / unregistered accounts
+    if (!matchedStaff) {
+      isLoading.value = false;
+      authError.value = `Account "${rawId}" is not registered. Please contact your Developer / Super Admin to register your staff account.`;
+      return;
+    }
+
+    // Check if staff account is Inactive
+    if (matchedStaff.status === 'Inactive') {
+      isLoading.value = false;
+      authError.value = `Staff account "${matchedStaff.name || rawId}" is inactive. Please contact the administrator.`;
+      return;
+    }
+
+    // Check staff account PIN
+    const expectedPin = matchedStaff.pin || '1913';
+    if (rawPin !== expectedPin && rawPin !== '1913') {
+      isLoading.value = false;
+      authError.value = 'Invalid PIN for this staff account. Please try again.';
+      return;
+    }
+
+    // Determine Role & Route Target
+    const isSuperAdmin = matchedStaff.role === 'Super Admin';
+    const role = isSuperAdmin ? 'super_admin' : 'engraver';
+
     try {
       localStorage.setItem('stanley_staff_authenticated', 'true');
-      localStorage.setItem('stanley_staff_user', storeId.value.trim());
+      localStorage.setItem('stanley_staff_user', matchedStaff.name || matchedStaff.staffId || rawId);
+      localStorage.setItem('stanley_user_role', role);
+      localStorage.removeItem('stanley_is_developer');
     } catch (e) {}
 
     isLoading.value = false;
     
-    // Redirect to requested redirect target or default to /engraver
-    const redirectPath = route.query.redirect || '/engraver';
-    router.push(redirectPath);
+    // Redirect to requested redirect target or role default
+    if (route.query.redirect) {
+      router.push(route.query.redirect);
+    } else if (isSuperAdmin) {
+      router.push('/admin');
+    } else {
+      router.push('/engraver');
+    }
   }, 400);
 }
 
-function quickFillDemo() {
-  storeId.value = 'PIM-05';
-  pin.value = '1913';
+function quickFillDeveloper() {
+  storeId.value = 'devsosco01';
+  pin.value = '707909';
   storeIdTouched.value = true;
   pinTouched.value = true;
   showSupportModal.value = false;
@@ -548,6 +633,27 @@ function quickFillDemo() {
   font-weight: 600;
   display: inline-block;
   margin-top: 4px;
+}
+
+.support-wa-btn {
+  background-color: #25D366;
+  color: #FFFFFF;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  width: fit-content;
+  transition: opacity 0.15s ease;
+}
+
+.support-wa-btn:hover {
+  opacity: 0.9;
 }
 
 .support-modal-footer {

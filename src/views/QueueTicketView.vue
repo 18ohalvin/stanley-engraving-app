@@ -221,7 +221,10 @@ const router = useRouter();
 const queueStore = useQueueStore();
 
 const orderId = computed(() => route.params.orderId);
-const order = ref(null);
+const fallbackOrder = ref(null);
+const order = computed(() => {
+  return queueStore.getOrderById(orderId.value) || fallbackOrder.value;
+});
 const showDetailsModal = ref(false);
 const showCancelModal = ref(false);
 const showDevDemo = ref(false);
@@ -270,28 +273,26 @@ const queueAheadCount = computed(() => {
   if (myIndex !== -1) {
     return myIndex;
   }
-  return 10;
+  return 0;
 });
 
 async function fetchOrder() {
   await queueStore.refreshFromStorage();
   const found = queueStore.getOrderById(orderId.value);
   if (found) {
-    order.value = found;
+    fallbackOrder.value = found;
   }
 }
 
 function manuallySetStatus(newStatus) {
   if (!order.value) return;
   queueStore.updateStatus(order.value.order_id, newStatus);
-  fetchOrder();
 }
 
 function handleConfirmCancel() {
   showCancelModal.value = false;
   if (!order.value) return;
   queueStore.cancelOrder(order.value.order_id);
-  fetchOrder();
 }
 
 function startNewOrder() {

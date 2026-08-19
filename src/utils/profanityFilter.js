@@ -45,6 +45,6 @@ export function containsProfanity(text) {
  */
 export function sanitizeEngravingText(text, maxLength = 7, forceUpperCase = false) {
   if (!text || typeof text !== 'string') return '';
-  const sliced = text.slice(0, maxLength);
-  return forceUpperCase ? sliced.toUpperCase() : sliced;
+  const trimmed = text.trim().slice(0, maxLength);
+  return forceUpperCase ? trimmed.toUpperCase() : trimmed;
 }

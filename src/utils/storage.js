@@ -1,6 +1,25 @@
 const STORAGE_KEY_ORDERS = 'stanley_engraving_orders';
 const STORAGE_KEY_CURRENT_ORDER = 'stanley_current_order_id';
 
+let syncChannel = null;
+if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+  try {
+    syncChannel = new BroadcastChannel('stanley_sync_channel');
+  } catch (e) {}
+}
+
+export function getBroadcastChannel() {
+  return syncChannel;
+}
+
+export function broadcastSyncMessage(type, payload) {
+  if (syncChannel) {
+    try {
+      syncChannel.postMessage({ type, payload, timestamp: Date.now() });
+    } catch (e) {}
+  }
+}
+
 /**
  * Get all stored orders from local cache
  */
@@ -22,6 +41,7 @@ export function saveStoredOrders(orders) {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(orders));
       window.dispatchEvent(new Event('stanley_orders_updated'));
+      broadcastSyncMessage('orders_updated', orders);
     }
     // Sync to central server for cross-device visibility
     syncToServer(orders);
@@ -41,6 +61,7 @@ export async function fetchServerOrders() {
       if (Array.isArray(orders) && typeof localStorage !== 'undefined') {
         localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(orders));
         window.dispatchEvent(new Event('stanley_orders_updated'));
+        broadcastSyncMessage('orders_updated', orders);
       }
       return orders;
     }

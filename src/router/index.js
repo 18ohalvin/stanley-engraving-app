@@ -8,6 +8,9 @@ import Step5View from '../views/Step5View.vue';
 import QueueTicketView from '../views/QueueTicketView.vue';
 import EngraverDashboardView from '../views/EngraverDashboardView.vue';
 import CustomerDashboardView from '../views/CustomerDashboardView.vue';
+import SuperAdminDashboardView from '../views/SuperAdminDashboardView.vue';
+import StoreListView from '../views/StoreListView.vue';
+import SettingsView from '../views/SettingsView.vue';
 import LoginView from '../views/LoginView.vue';
 
 const routes = [
@@ -70,6 +73,27 @@ const routes = [
     alias: '/customers',
     name: 'customer-dashboard',
     component: CustomerDashboardView,
+    meta: { fullWidth: true }
+  },
+  {
+    path: '/admin',
+    alias: ['/main-dashboard', '/super-admin', '/analytics'],
+    name: 'super-admin-dashboard',
+    component: SuperAdminDashboardView,
+    meta: { fullWidth: true }
+  },
+  {
+    path: '/stores',
+    alias: ['/store-list', '/admin/stores', '/admin/store-list'],
+    name: 'store-list',
+    component: StoreListView,
+    meta: { fullWidth: true }
+  },
+  {
+    path: '/settings',
+    alias: ['/admin/settings', '/setting'],
+    name: 'settings',
+    component: SettingsView,
     meta: { fullWidth: true }
   },
   {

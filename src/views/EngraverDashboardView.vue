@@ -697,7 +697,7 @@ function handleDoneNotify(machine) {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   justify-content: flex-end;
 }
 
@@ -715,6 +715,7 @@ function handleDoneNotify(machine) {
   font-size: 14px;
   font-weight: 500;
   font-family: inherit;
+  letter-spacing: -0.01em;
   cursor: pointer;
   transition: background-color 0.15s ease, transform 0.1s ease;
 }
@@ -730,6 +731,7 @@ function handleDoneNotify(machine) {
 .see-dashboard-btn {
   background-color: #000000;
   color: #FFFFFF;
+  border: 1px solid #000000;
   height: 40px;
   width: 148px;
   padding: 0 16px;
@@ -740,7 +742,8 @@ function handleDoneNotify(machine) {
   gap: 10px;
   font-size: 14px;
   font-weight: 500;
-  border: none;
+  font-family: inherit;
+  letter-spacing: -0.01em;
   text-decoration: none;
   cursor: pointer;
   transition: opacity 0.2s ease, transform 0.1s ease;

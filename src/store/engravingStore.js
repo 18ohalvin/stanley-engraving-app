@@ -18,17 +18,54 @@ export const CUP_MODELS = [
     shortName: 'IceFlow Flip Straw',
     sizes: ['40oz', '30oz', '20oz'],
     image: '/src/assets/images/product-step1.png',
-    placementImage: '/src/assets/images/product-step1.png'
+    placementImage: '/src/assets/images/product-step2.png',
+    positions: ['Horizontal', 'Vertical']
   },
   {
-    id: 'iceflow-fastflow',
-    name: 'IceFlow™ Bottle with Fast Flow Lid',
-    shortName: 'Fast Flow Bottle',
-    sizes: ['24oz', '36oz'],
+    id: 'quencher-h20',
+    name: 'Quencher H2.0 30oz',
+    shortName: 'Quencher H2.0',
+    sizes: ['20 Oz', '30 Oz', '40 Oz'],
+    image: '/src/assets/images/machine-cup-1.png',
+    placementImage: '/src/assets/images/product-step2.png',
+    positions: ['Horizontal', 'Vertical']
+  },
+  {
+    id: 'aerolight-transit',
+    name: 'The Aerolight™ Transit Bottle',
+    shortName: 'Aerolight Transit',
+    sizes: ['16 Oz', '20 Oz'],
     image: '/src/assets/images/product-iceflow-fastflow.png',
-    placementImage: '/src/assets/images/product-iceflow-fastflow.png'
+    placementImage: '/src/assets/images/product-step2.png',
+    positions: ['Horizontal', 'Vertical']
   }
 ];
+
+export function getCatalogCupModels() {
+  try {
+    const saved = localStorage.getItem('stanley_product_catalog_order');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const active = parsed.filter(p => p.isActive !== false);
+        if (active.length > 0) {
+          return active.map(p => ({
+            id: p.id || p.modelKey || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            name: p.name,
+            shortName: p.name.replace(/™|®/g, '').split(' ').slice(0, 2).join(' '),
+            sizes: (p.availableSizes && p.availableSizes.length > 0) ? p.availableSizes : ['20 Oz', '30 Oz', '40 Oz'],
+            image: p.image || '/src/assets/images/product-step1.png',
+            placementImage: p.engravedImage || '/src/assets/images/product-step2.png',
+            positions: (p.availablePositions && p.availablePositions.length > 0) ? p.availablePositions : ['Horizontal', 'Vertical']
+          }));
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error reading catalog cup models:', e);
+  }
+  return CUP_MODELS;
+}
 
 export const useEngravingStore = defineStore('engraving', {
   state: () => ({

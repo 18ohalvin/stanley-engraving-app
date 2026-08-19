@@ -67,20 +67,22 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import StepHeader from '../components/StepHeader.vue';
 import CTAButton from '../components/CTAButton.vue';
-import { useEngravingStore, CUP_MODELS } from '../store/engravingStore';
+import { useEngravingStore, CUP_MODELS, getCatalogCupModels } from '../store/engravingStore';
 
 const router = useRouter();
 const engravingStore = useEngravingStore();
 
+const cupModels = ref(getCatalogCupModels());
 const currentModelIndex = ref(0);
-const currentModel = computed(() => CUP_MODELS[currentModelIndex.value] || CUP_MODELS[0]);
+const currentModel = computed(() => cupModels.value[currentModelIndex.value] || cupModels.value[0] || CUP_MODELS[0]);
 const selectedSize = computed(() => engravingStore.currentItem.size);
 
 // Requires size to be selected explicitly
 const isStepValid = computed(() => Boolean(engravingStore.currentItem.model && engravingStore.currentItem.size));
 
 onMounted(() => {
-  const idx = CUP_MODELS.findIndex(m => m.name === engravingStore.currentItem.model);
+  cupModels.value = getCatalogCupModels();
+  const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem.model);
   if (idx !== -1) {
     currentModelIndex.value = idx;
   } else {
@@ -103,12 +105,14 @@ function updateModelSelection() {
 }
 
 function nextModel() {
-  currentModelIndex.value = (currentModelIndex.value + 1) % CUP_MODELS.length;
+  const total = cupModels.value.length;
+  currentModelIndex.value = (currentModelIndex.value + 1) % (total || 1);
   updateModelSelection();
 }
 
 function prevModel() {
-  currentModelIndex.value = (currentModelIndex.value - 1 + CUP_MODELS.length) % CUP_MODELS.length;
+  const total = cupModels.value.length;
+  currentModelIndex.value = (currentModelIndex.value - 1 + (total || 1)) % (total || 1);
   updateModelSelection();
 }
 

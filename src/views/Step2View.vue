@@ -28,7 +28,7 @@
           <!-- Position Selector Buttons Horizontal / Vertical (Figma 66:845) -->
           <div class="position-toggles">
             <button
-              v-for="pos in ['Horizontal', 'Vertical']"
+              v-for="pos in availablePositions"
               :key="pos"
               class="position-btn"
               :class="{ 'is-active': selectedPosition === pos }"
@@ -57,19 +57,24 @@ import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import StepHeader from '../components/StepHeader.vue';
 import CTAButton from '../components/CTAButton.vue';
-import { useEngravingStore, CUP_MODELS } from '../store/engravingStore';
+import { useEngravingStore, CUP_MODELS, getCatalogCupModels } from '../store/engravingStore';
 
 const router = useRouter();
 const engravingStore = useEngravingStore();
 
-onMounted(() => {
-  if (!engravingStore.currentItem.position) {
-    engravingStore.setPosition('Horizontal');
-  }
+const currentModel = computed(() => {
+  const models = getCatalogCupModels();
+  return models.find(m => m.name === engravingStore.currentItem.model) || models[0] || CUP_MODELS[0];
 });
 
-const currentModel = computed(() => {
-  return CUP_MODELS.find(m => m.name === engravingStore.currentItem.model) || CUP_MODELS[0];
+const availablePositions = computed(() => {
+  return currentModel.value?.positions || ['Horizontal', 'Vertical'];
+});
+
+onMounted(() => {
+  if (!engravingStore.currentItem.position || !availablePositions.value.includes(engravingStore.currentItem.position)) {
+    engravingStore.setPosition(availablePositions.value[0] || 'Horizontal');
+  }
 });
 
 const selectedPosition = computed(() => engravingStore.currentItem.position || 'Horizontal');

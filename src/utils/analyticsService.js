@@ -50,6 +50,18 @@ export function getAnalyticsLogs() {
 }
 
 /**
+ * Clear all stored analytics and webhook logs
+ */
+export function clearAnalyticsLogs() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY_ANALYTICS);
+      localStorage.removeItem(STORAGE_KEY_WHATSAPP);
+    }
+  } catch (e) {}
+}
+
+/**
  * Trigger simulated WhatsApp Webhook notification upon job completion
  * @param {Object} order 
  */

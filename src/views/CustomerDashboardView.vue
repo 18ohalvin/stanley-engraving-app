@@ -11,7 +11,7 @@
           />
           <h1 class="station-heading">ENGRAVING STATION</h1>
           <div class="header-divider"></div>
-          <p class="store-location">STANLEY PONDOK INDAH MALL 5</p>
+          <p class="store-location">{{ currentStoreTitle }}</p>
         </div>
 
         <div class="header-actions">
@@ -34,10 +34,15 @@
             </svg>
           </button>
 
-          <router-link to="/engraver" class="back-station-btn">
+          <button 
+            type="button" 
+            class="back-station-btn"
+            @click="handleBackNavigation"
+            :title="isFromStoreList ? 'Return to Admin Store List' : 'Return to Engraver Station'"
+          >
             <span class="back-arrow">‹</span>
-            <span>Back to Home</span>
-          </router-link>
+            <span>{{ isFromStoreList ? 'Back to Store List' : 'Back to Home' }}</span>
+          </button>
         </div>
       </div>
     </header>
@@ -442,8 +447,31 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';
 import { FONT_OPTIONS } from '../store/engravingStore.js';
+
+const route = useRoute();
+const router = useRouter();
+
+const isFromStoreList = computed(() => {
+  return route.query.from === 'stores' || route.query.from === 'store-list';
+});
+
+const currentStoreTitle = computed(() => {
+  if (route.query.storeName) {
+    return String(route.query.storeName).toUpperCase();
+  }
+  return 'STANLEY PONDOK INDAH MALL 5';
+});
+
+function handleBackNavigation() {
+  if (isFromStoreList.value) {
+    router.push('/stores');
+  } else {
+    router.push('/engraver');
+  }
+}
 
 const queueStore = useQueueStore();
 const searchQuery = ref('');
@@ -953,9 +981,10 @@ function confirmDelete() {
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  font-family: var(--font-brand);
+  font-family: inherit;
   font-size: 14px;
   font-weight: 500;
+  letter-spacing: -0.01em;
   color: #000000;
   transition: background-color 0.15s ease, transform 0.1s ease;
 }
@@ -976,9 +1005,10 @@ function confirmDelete() {
 }
 
 .date-picker-label {
-  font-family: var(--font-brand);
+  font-family: inherit;
   font-size: 14px;
-  font-weight: 400;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   color: #000000;
   white-space: nowrap;
 }
@@ -996,16 +1026,19 @@ function confirmDelete() {
   color: #FFFFFF;
   border: 1px solid #000000;
   height: 40px;
+  min-width: 148px;
   padding: 0 16px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-family: var(--font-brand);
+  font-family: inherit;
   font-size: 14px;
-  font-weight: 400;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   text-decoration: none;
+  cursor: pointer;
   transition: opacity 0.15s ease, transform 0.1s ease;
 }
 
@@ -1020,8 +1053,8 @@ function confirmDelete() {
 .back-arrow {
   font-size: 16px;
   line-height: 1;
-  font-weight: 400;
-  font-family: var(--font-brand);
+  font-weight: 500;
+  font-family: inherit;
 }
 
 /* Dashboard Body */
@@ -2109,16 +2142,15 @@ function confirmDelete() {
 }
 
 /* Comprehensive Responsive Rules for Tablets, iPads & Mobile */
-@media (max-width: 960px) {
+@media (max-width: 1024px) {
   .dashboard-header {
-    height: auto;
-    padding: 12px 16px;
-    flex-wrap: wrap;
+    height: 64px;
+    padding: 0 16px;
     gap: 12px;
   }
   .header-titles {
-    gap: 10px;
-    height: auto;
+    gap: 12px;
+    height: 28px;
   }
   .station-heading, .store-location {
     font-size: 14px;
@@ -2127,30 +2159,25 @@ function confirmDelete() {
     padding: 16px;
   }
   .dashboard-content-wrap {
-    gap: 20px;
+    gap: 24px;
   }
-  .machines-status-grid {
-    grid-template-columns: 1fr;
+  .status-machines-grid {
+    flex-wrap: nowrap;
     gap: 12px;
   }
-  .page-title-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .search-and-stats {
-    width: 100%;
-    flex-direction: row;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .search-input {
-    width: 100%;
-    max-width: none;
+  .machine-status-card {
+    flex: 1;
+    min-width: 0;
+    padding: 16px;
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
+  .dashboard-header {
+    height: auto;
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
   .header-actions {
     width: 100%;
     justify-content: space-between;
@@ -2159,6 +2186,12 @@ function confirmDelete() {
     flex: 1;
     padding: 0 10px;
     font-size: 13px;
+  }
+  .status-machines-grid {
+    flex-wrap: wrap;
+  }
+  .machine-status-card {
+    width: 100%;
   }
 }
 </style>
