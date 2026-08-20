@@ -7,6 +7,7 @@ import {
   upsertSingleOrderInDb,
   getOrderByIdFromDb,
   clearAllOrdersInDb,
+  resetAllDatabaseExceptStaff,
   findStaffForAuth,
   getAllStaffUsersFromDb,
   saveStaffUserInDb,
@@ -227,7 +228,7 @@ function crossDeviceSyncPlugin() {
             return;
           }
 
-          clearAllOrdersInDb();
+          resetAllDatabaseExceptStaff();
           broadcast('orders_updated', []);
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
           res.end(JSON.stringify({ success: true, orders: [] }));

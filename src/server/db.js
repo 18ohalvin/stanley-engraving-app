@@ -298,6 +298,38 @@ export function clearAllOrdersInDb() {
   db.prepare(`DELETE FROM orders`).run();
 }
 
+export function resetAllDatabaseExceptStaff() {
+  db.prepare(`DELETE FROM orders`).run();
+  db.prepare(`DELETE FROM stores`).run();
+  db.prepare(`DELETE FROM settings`).run();
+  db.prepare(`DELETE FROM analytics_logs`).run();
+  db.prepare(`DELETE FROM auth_sessions`).run();
+
+  const devCheck = db.prepare(`SELECT count(*) as count FROM staff_users WHERE staff_id = 'devsosco01'`).get();
+  if (!devCheck || devCheck.count === 0) {
+    db.prepare(`
+      INSERT INTO staff_users (id, staff_id, name, username, whatsapp, pin, role, store, status, is_developer, is_protected, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)
+    `).run(
+      'devsosco01',
+      'devsosco01',
+      'Developer Access',
+      'devsosco01',
+      '+62 812-3456-7890',
+      '707909',
+      'Super Admin',
+      'HQ Central',
+      'Active',
+      new Date().toISOString()
+    );
+  }
+
+  const legacyOrdersFile = path.resolve(dataDir, 'orders.json');
+  try {
+    fs.writeFileSync(legacyOrdersFile, JSON.stringify([], null, 2), 'utf-8');
+  } catch (e) {}
+}
+
 // ----------------------------------------------------
 // STAFF AUTH & USER QUERIES
 // ----------------------------------------------------

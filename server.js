@@ -11,6 +11,7 @@ import {
   upsertSingleOrderInDb,
   getOrderByIdFromDb,
   clearAllOrdersInDb,
+  resetAllDatabaseExceptStaff,
   findStaffForAuth,
   getAllStaffUsersFromDb,
   saveStaffUserInDb,
@@ -192,7 +193,7 @@ app.post('/api/orders', requireAuth, (req, res) => {
 
 // POST reset database (Protected Super Admin)
 app.post('/api/reset', requireSuperAdmin, (req, res) => {
-  clearAllOrdersInDb();
+  resetAllDatabaseExceptStaff();
   broadcast('orders_updated', []);
   res.json({ success: true, orders: [] });
 });
