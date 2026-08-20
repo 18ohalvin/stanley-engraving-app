@@ -20,9 +20,9 @@
     </div>
 
     <!-- Main View Router Container -->
-    <router-view v-slot="{ Component }">
+    <router-view v-slot="{ Component, route }">
       <transition name="page-slide" mode="out-in">
-        <component :is="Component" />
+        <component :is="Component" :key="route.fullPath" />
       </transition>
     </router-view>
   </div>

@@ -250,10 +250,21 @@ const maskedPhone = computed(() => {
 });
 
 const queueAheadCount = computed(() => {
-  if (!order.value) return 1;
-  // All active orders in the queue sorted strictly by FIFO queue order
+  if (!order.value) return 0;
+  const targetStoreCode = (order.value.store_code || order.value.store_id || order.value.store_name || '').toLowerCase().trim();
+
+  // All active orders in the queue for THIS SPECIFIC STORE sorted strictly by FIFO queue order
   const activeOrders = queueStore.orders
     .filter(o => o.status === 'in_queue' || o.status === 'engraving_in_progress')
+    .filter(o => {
+      if (!targetStoreCode) return true;
+      const code = (o.store_code || '').toLowerCase().trim();
+      const id = (o.store_id || '').toLowerCase().trim();
+      const name = (o.store_name || '').toLowerCase().trim();
+      return (code && (code === targetStoreCode || targetStoreCode.includes(code))) ||
+             (id && (id === targetStoreCode || targetStoreCode.includes(id))) ||
+             (name && (name === targetStoreCode || targetStoreCode.includes(name)));
+    })
     .slice()
     .sort((a, b) => {
       const timeA = new Date(a.intake_at || a.created_at || 0).getTime();

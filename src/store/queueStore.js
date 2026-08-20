@@ -218,11 +218,22 @@ export const useQueueStore = defineStore('queue', {
       this.autoAssignMachines();
     },
 
-    getNextSystemQueueNumber() {
-      const highest = this.orders.reduce((max, o) => {
-        const num = parseInt(o.system_queue_number || o.short_code, 10);
-        return isNaN(num) ? max : Math.max(max, num);
-      }, 0);
+    getNextSystemQueueNumber(storeIdentifier) {
+      const target = (storeIdentifier || '').toLowerCase().trim();
+      const highest = this.orders
+        .filter(o => {
+          if (!target) return true;
+          const code = (o.store_code || '').toLowerCase().trim();
+          const id = (o.store_id || '').toLowerCase().trim();
+          const name = (o.store_name || '').toLowerCase().trim();
+          return (code && (code === target || target.includes(code))) ||
+                 (id && (id === target || target.includes(id))) ||
+                 (name && (name === target || target.includes(name)));
+        })
+        .reduce((max, o) => {
+          const num = parseInt(o.system_queue_number || o.short_code, 10);
+          return isNaN(num) ? max : Math.max(max, num);
+        }, 0);
       return formatSystemQueueNumber(highest + 1);
     },
 
@@ -337,7 +348,8 @@ export const useQueueStore = defineStore('queue', {
         };
       }
 
-      const nextQueueNumber = this.getNextSystemQueueNumber();
+      const storeIdentifier = order.store_code || order.store_id || order.store_name || '';
+      const nextQueueNumber = this.getNextSystemQueueNumber(storeIdentifier);
 
       return {
         success: true,
@@ -356,7 +368,8 @@ export const useQueueStore = defineStore('queue', {
         return { success: false, message: 'Order not found.' };
       }
 
-      const newQueueNumber = this.getNextSystemQueueNumber();
+      const storeIdentifier = order.store_code || order.store_id || order.store_name || '';
+      const newQueueNumber = this.getNextSystemQueueNumber(storeIdentifier);
       
       // Update order to in_queue with official 4-digit system queue number
       order.status = 'in_queue';
