@@ -320,7 +320,7 @@ function performOfflineFallbackLogin(rawId, rawPin) {
   }
 
   const expectedPin = matchedStaff.pin || '1913';
-  if (rawPin !== expectedPin && rawPin !== '1913') {
+  if (rawPin !== String(expectedPin).trim()) {
     isLoading.value = false;
     authError.value = 'Invalid PIN for this staff account. Please try again.';
     return;

@@ -3,6 +3,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { rateLimit } from 'express-rate-limit';
 
 import {
   initDatabase,
@@ -30,10 +31,19 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '2mb' }));
 
 // Initialize SQLite database
 initDatabase();
+
+// Rate limiter for customer public order submissions
+const publicOrderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes window
+  max: 30, // Limit each IP to 30 submissions per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many order submissions from this IP. Please try again later.' }
+});
 
 // Server-Sent Events (SSE) active clients pool
 const sseClients = new Set();
@@ -69,8 +79,8 @@ app.get('/api/events', (req, res) => {
   });
 });
 
-// Customer Public Order Submission
-app.post('/api/orders/public', (req, res) => {
+// Customer Public Order Submission (Strict Rate Limited)
+app.post('/api/orders/public', publicOrderLimiter, (req, res) => {
   try {
     const payload = req.body;
     if (!payload || !payload.order_id) {
@@ -118,7 +128,7 @@ app.post('/api/auth/login', (req, res) => {
     const expectedPin = staff.pin || '1913';
     const inputPin = String(pin).trim();
 
-    if (inputPin !== expectedPin && inputPin !== '1913') {
+    if (inputPin !== String(expectedPin).trim()) {
       return res.status(401).json({ error: 'Invalid PIN for this staff account. Please try again.' });
     }
 

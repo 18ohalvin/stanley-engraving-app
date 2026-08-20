@@ -270,7 +270,7 @@ function authenticateUser(id, pin) {
 
   // Check PIN
   const expectedPin = matched.pin || '1913';
-  if (rawPin !== expectedPin && rawPin !== '1913') {
+  if (rawPin !== String(expectedPin).trim()) {
     return { success: false, error: 'Invalid PIN' };
   }
 
