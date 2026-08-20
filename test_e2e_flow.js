@@ -548,6 +548,7 @@ const fetchedOrder = getAllOrdersFromDb().find(o => o.order_id === 'sql-test-101
 assert(fetchedOrder !== null, 'Order saved and fetched from SQLite database data/stanley.db');
 assert(fetchedOrder.customer_name === 'SQL Tester', 'Fetched SQLite order matches customer name');
 assert(fetchedOrder.items[0].text === 'SQLTEST', 'Fetched SQLite order preserves customized items JSON');
+clearAllOrdersInDb();
 
 // 4. Express authorization middleware mock test
 let reqMock = { headers: { authorization: `Bearer invalid_token` } };
