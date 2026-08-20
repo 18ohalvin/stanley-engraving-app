@@ -55,7 +55,9 @@ export function saveStoredOrders(orders) {
  */
 export async function fetchServerOrders() {
   try {
-    const res = await fetch('/api/orders');
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const res = await fetch('/api/orders', { headers });
     if (res.ok) {
       const orders = await res.json();
       if (Array.isArray(orders) && typeof localStorage !== 'undefined') {

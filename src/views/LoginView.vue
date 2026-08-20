@@ -143,13 +143,9 @@
           </div>
           <div class="support-modal-body">
             <p class="support-info-text">
-              Only registered staff accounts and the Developer Master Account can access the staff dashboards.
+              Only registered staff accounts and the Developer Master Account can access the staff dashboards. Contact IT Support below if you've lost access.
             </p>
             <div class="support-channel-list">
-              <div class="support-channel-item">
-                <span class="channel-label">Developer Master Login:</span>
-                <span class="demo-pill-badge">ID: devsosco01 / PIN: 707909</span>
-              </div>
               <div class="support-channel-item">
                 <span class="channel-label">WhatsApp IT Support:</span>
                 <button type="button" class="support-wa-btn" @click="contactITSupport">
@@ -163,9 +159,6 @@
             </div>
           </div>
           <div class="support-modal-footer">
-            <button class="support-quick-fill-btn admin-fill-btn" @click="quickFillDeveloper">
-              Fill Developer (devsosco01)
-            </button>
             <button class="support-ok-btn" @click="showSupportModal = false">
               Close
             </button>
@@ -184,8 +177,8 @@ import { useRouter, useRoute } from 'vue-router';
 const router = useRouter();
 const route = useRoute();
 
-const storeId = ref('devsosco01');
-const pin = ref('707909');
+const storeId = ref('');
+const pin = ref('');
 const isLoading = ref(false);
 const authError = ref('');
 const showSupportModal = ref(false);
@@ -261,99 +254,10 @@ async function handleSignIn() {
       router.push('/engraver');
     }
   } catch (err) {
-    // Fallback to local check if offline
-    performOfflineFallbackLogin(rawId, rawPin);
-  }
-}
-
-function performOfflineFallbackLogin(rawId, rawPin) {
-  const normalizedId = rawId.toLowerCase();
-
-  if (normalizedId === 'devsosco01') {
-    if (rawPin !== '707909') {
-      isLoading.value = false;
-      authError.value = 'Invalid PIN for Developer Access. Please enter the correct 6-digit PIN (707909).';
-      return;
-    }
-
-    try {
-      localStorage.setItem('stanley_staff_authenticated', 'true');
-      localStorage.setItem('stanley_staff_user', 'Developer Access');
-      localStorage.setItem('stanley_user_role', 'super_admin');
-      localStorage.setItem('stanley_is_developer', 'true');
-    } catch (e) {}
-
+    // Network/server unreachable — do not fall back to an insecure client-side check.
     isLoading.value = false;
-    if (route.query.redirect) {
-      router.push(route.query.redirect);
-    } else {
-      router.push('/admin');
-    }
-    return;
+    authError.value = 'Unable to reach the Stanley server right now. Please check your connection and try again.';
   }
-
-  let matchedStaff = null;
-  try {
-    const savedStaff = localStorage.getItem('stanley_staff_users');
-    if (savedStaff) {
-      const parsed = JSON.parse(savedStaff);
-      if (Array.isArray(parsed)) {
-        matchedStaff = parsed.find(u => 
-          (u.staffId && u.staffId.trim().toLowerCase() === normalizedId) || 
-          (u.username && u.username.trim().toLowerCase() === normalizedId) || 
-          (u.idCode && u.idCode.trim().toLowerCase() === normalizedId) ||
-          (u.name && u.name.trim().toLowerCase() === normalizedId)
-        );
-      }
-    }
-  } catch (e) {}
-
-  if (!matchedStaff) {
-    isLoading.value = false;
-    authError.value = `Account "${rawId}" is not registered. Please contact your Developer / Super Admin to register your staff account.`;
-    return;
-  }
-
-  if (matchedStaff.status === 'Inactive') {
-    isLoading.value = false;
-    authError.value = `Staff account "${matchedStaff.name || rawId}" is inactive. Please contact the administrator.`;
-    return;
-  }
-
-  const expectedPin = matchedStaff.pin || '1913';
-  if (rawPin !== String(expectedPin).trim()) {
-    isLoading.value = false;
-    authError.value = 'Invalid PIN for this staff account. Please try again.';
-    return;
-  }
-
-  const isSuperAdmin = matchedStaff.role === 'Super Admin';
-  const role = isSuperAdmin ? 'super_admin' : 'engraver';
-
-  try {
-    localStorage.setItem('stanley_staff_authenticated', 'true');
-    localStorage.setItem('stanley_staff_user', matchedStaff.name || matchedStaff.staffId || rawId);
-    localStorage.setItem('stanley_user_role', role);
-    localStorage.setItem('stanley_user_store', matchedStaff.store || '');
-    localStorage.removeItem('stanley_is_developer');
-  } catch (e) {}
-
-  isLoading.value = false;
-  if (route.query.redirect) {
-    router.push(route.query.redirect);
-  } else if (isSuperAdmin) {
-    router.push('/admin');
-  } else {
-    router.push('/engraver');
-  }
-}
-
-function quickFillDeveloper() {
-  storeId.value = 'devsosco01';
-  pin.value = '707909';
-  storeIdTouched.value = true;
-  pinTouched.value = true;
-  showSupportModal.value = false;
 }
 </script>
 

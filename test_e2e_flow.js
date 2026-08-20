@@ -14,6 +14,7 @@ import {
   clearAllOrdersInDb
 } from './src/server/db.js';
 import { requireAuth, requireSuperAdmin } from './src/server/authMiddleware.js';
+import bcrypt from 'bcryptjs';
 
 // Mock localStorage for Node environment
 global.localStorage = {
@@ -515,7 +516,8 @@ initDatabase();
 // 1. Check Developer Account in SQLite DB
 const devDbStaff = findStaffForAuth('devsosco01');
 assert(devDbStaff !== null, 'Developer Master account devsosco01 exists in SQLite staff_users');
-assert(devDbStaff.pin === '707909', 'Developer account PIN is 707909');
+assert(devDbStaff.pin !== process.env.DEVELOPER_MASTER_PIN, 'Developer account PIN is stored hashed, not plaintext');
+assert(bcrypt.compareSync(process.env.DEVELOPER_MASTER_PIN, devDbStaff.pin), 'Developer account PIN hash matches seeded PIN');
 assert(devDbStaff.isDeveloper === true, 'Developer account has isDeveloper flag');
 
 // 2. Auth session token generation & verification

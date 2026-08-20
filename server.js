@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { rateLimit } from 'express-rate-limit';
+import bcrypt from 'bcryptjs';
 
 import {
   initDatabase,
@@ -43,6 +44,15 @@ const publicOrderLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many order submissions from this IP. Please try again later.' }
+});
+
+// Rate limiter for staff PIN login attempts (brute-force protection)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes window
+  max: 10, // Limit each IP to 10 login attempts per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts from this IP. Please try again later.' }
 });
 
 // Server-Sent Events (SSE) active clients pool
@@ -109,7 +119,7 @@ app.get('/api/orders/public/:id', (req, res) => {
 // ----------------------------------------------------
 
 // POST /api/auth/login (PIN Authentication against SQLite)
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', loginLimiter, (req, res) => {
   try {
     const { idOrUsername, pin } = req.body;
     if (!idOrUsername || !pin) {
@@ -126,10 +136,9 @@ app.post('/api/auth/login', (req, res) => {
     }
 
     if (!staff.pin) return res.status(403).json({ error: 'Account has no PIN configured. Contact Admin.' });
-    const expectedPin = String(staff.pin).trim();
     const inputPin = String(pin).trim();
 
-    if (inputPin !== expectedPin) {
+    if (!bcrypt.compareSync(inputPin, staff.pin)) {
       return res.status(401).json({ error: 'Invalid PIN for this staff account. Please try again.' });
     }
 
@@ -177,9 +186,22 @@ app.post('/api/auth/logout', (req, res) => {
 // PROTECTED MANAGEMENT ENDPOINTS (Require Staff Auth)
 // ----------------------------------------------------
 
-// GET all orders from SQLite
+// Best-effort auth check: identifies a logged-in staff session without rejecting the request
+function getOptionalStaffSession(req) {
+  const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
+  if (!authHeader) return null;
+  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
+  return verifyAuthSessionToken(token);
+}
+
+// GET all orders from SQLite (public: strips customer PII; staff-authenticated: full detail)
 app.get('/api/orders', (req, res) => {
-  res.json(getAllOrdersFromDb());
+  const orders = getAllOrdersFromDb();
+  if (getOptionalStaffSession(req)) {
+    return res.json(orders);
+  }
+  const sanitized = orders.map(({ phone, email, ...rest }) => rest);
+  res.json(sanitized);
 });
 
 // POST save/upsert orders in SQLite (Protected)

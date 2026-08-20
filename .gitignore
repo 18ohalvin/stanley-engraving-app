@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Runtime SQLite database & legacy order data — contains real customer PII / staff PIN hashes once live
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/orders.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

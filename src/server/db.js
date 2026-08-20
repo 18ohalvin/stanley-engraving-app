@@ -2,6 +2,8 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -114,6 +116,10 @@ function seedDefaultMasterData() {
   // Seed Developer Access Master Account if empty
   const devCheck = db.prepare(`SELECT count(*) as count FROM staff_users WHERE staff_id = 'devsosco01'`).get();
   if (!devCheck || devCheck.count === 0) {
+    const seedPin = process.env.DEVELOPER_MASTER_PIN;
+    if (!seedPin) {
+      throw new Error('DEVELOPER_MASTER_PIN env var must be set to seed the Developer Access master account.');
+    }
     db.prepare(`
       INSERT INTO staff_users (id, staff_id, name, username, whatsapp, pin, role, store, status, is_developer, is_protected, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)
@@ -123,7 +129,7 @@ function seedDefaultMasterData() {
       'Developer Access',
       'devsosco01',
       '+62 812-3456-7890',
-      '707909',
+      bcrypt.hashSync(seedPin, 10),
       'Super Admin',
       'HQ Central',
       'Active',
@@ -307,6 +313,10 @@ export function resetAllDatabaseExceptStaff() {
 
   const devCheck = db.prepare(`SELECT count(*) as count FROM staff_users WHERE staff_id = 'devsosco01'`).get();
   if (!devCheck || devCheck.count === 0) {
+    const seedPin = process.env.DEVELOPER_MASTER_PIN;
+    if (!seedPin) {
+      throw new Error('DEVELOPER_MASTER_PIN env var must be set to seed the Developer Access master account.');
+    }
     db.prepare(`
       INSERT INTO staff_users (id, staff_id, name, username, whatsapp, pin, role, store, status, is_developer, is_protected, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)
@@ -316,7 +326,7 @@ export function resetAllDatabaseExceptStaff() {
       'Developer Access',
       'devsosco01',
       '+62 812-3456-7890',
-      '707909',
+      bcrypt.hashSync(seedPin, 10),
       'Super Admin',
       'HQ Central',
       'Active',
@@ -335,21 +345,6 @@ export function resetAllDatabaseExceptStaff() {
 // ----------------------------------------------------
 export function findStaffForAuth(idOrUsername) {
   const normalized = (idOrUsername || '').trim().toLowerCase();
-  
-  if (normalized === 'devsosco01') {
-    return {
-      id: 'devsosco01',
-      staffId: 'devsosco01',
-      username: 'devsosco01',
-      name: 'Developer Access',
-      pin: '707909',
-      role: 'Super Admin',
-      store: 'HQ Central',
-      status: 'Active',
-      isDeveloper: true,
-      isProtected: true
-    };
-  }
 
   const row = db.prepare(`
     SELECT * FROM staff_users 
@@ -381,7 +376,6 @@ export function getAllStaffUsersFromDb() {
     username: r.username,
     name: r.name,
     whatsapp: r.whatsapp,
-    pin: r.pin || '',
     role: r.role,
     store: r.store,
     status: r.status,
@@ -393,8 +387,10 @@ export function getAllStaffUsersFromDb() {
 export function saveStaffUserInDb(user) {
   const existing = db.prepare(`SELECT * FROM staff_users WHERE id = ? OR staff_id = ?`).get(user.id, user.staffId);
   const now = new Date().toISOString();
+  const newPin = (user.pin || '').trim();
 
   if (existing) {
+    const pinToStore = newPin ? bcrypt.hashSync(newPin, 10) : existing.pin;
     db.prepare(`
       UPDATE staff_users SET
         name = ?, username = ?, whatsapp = ?, pin = ?, role = ?, store = ?, status = ?
@@ -403,13 +399,16 @@ export function saveStaffUserInDb(user) {
       user.name,
       user.username || user.name,
       user.whatsapp || '',
-      user.pin || '',
+      pinToStore,
       user.role || 'Staff Store',
       user.store || '',
       user.status || 'Active',
       existing.id
     );
   } else {
+    if (!newPin) {
+      throw new Error('PIN is required to create a new staff account.');
+    }
     db.prepare(`
       INSERT INTO staff_users (id, staff_id, name, username, whatsapp, pin, role, store, status, is_developer, is_protected, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -419,7 +418,7 @@ export function saveStaffUserInDb(user) {
       user.name,
       user.username || user.name,
       user.whatsapp || '',
-      user.pin || '',
+      bcrypt.hashSync(newPin, 10),
       user.role || 'Staff Store',
       user.store || '',
       user.status || 'Active',
@@ -443,7 +442,7 @@ export function deleteStaffUserFromDb(id) {
 // AUTH SESSION TOKENS
 // ----------------------------------------------------
 export function createAuthSessionInDb(user) {
-  const token = `stk_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  const token = `stk_${crypto.randomBytes(32).toString('hex')}`;
   const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours expiry
   const now = new Date().toISOString();
 

@@ -73,7 +73,7 @@ const routes = [
     alias: '/customers',
     name: 'customer-dashboard',
     component: CustomerDashboardView,
-    meta: { fullWidth: true }
+    meta: { fullWidth: true, requiresAuth: true }
   },
   {
     path: '/admin',

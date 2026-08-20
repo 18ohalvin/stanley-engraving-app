@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "DEVELOPER_MASTER_PIN=dev-test-pin-000 node test_e2e_flow.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
     "express": "^5.2.1",

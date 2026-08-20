@@ -655,17 +655,17 @@
             <!-- Security Login PIN Input Row -->
             <div class="product-name-input-block" style="margin-top: 2px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <label class="param-col-title" style="margin: 0;">Security Login PIN*</label>
-                <span style="font-size: 11px; color: #71717A; font-weight: 500;">4–6 digit PIN for staff login</span>
+                <label class="param-col-title" style="margin: 0;">Security Login PIN{{ isEditStaffMode ? '' : '*' }}</label>
+                <span style="font-size: 11px; color: #71717A; font-weight: 500;">{{ isEditStaffMode ? 'Leave blank to keep current PIN' : '4–6 digit PIN for staff login' }}</span>
               </div>
               <div style="position: relative; display: flex; align-items: center;">
-                <input 
-                  v-model="staffForm.pin" 
-                  :type="showStaffPin ? 'text' : 'password'" 
-                  class="product-name-underline-input" 
-                  placeholder="e.g. 1913" 
+                <input
+                  v-model="staffForm.pin"
+                  :type="showStaffPin ? 'text' : 'password'"
+                  class="product-name-underline-input"
+                  :placeholder="isEditStaffMode ? 'Leave blank to keep current PIN' : 'e.g. 1913'"
                   maxlength="6"
-                  required 
+                  :required="!isEditStaffMode"
                   style="padding-right: 48px; letter-spacing: 2px; font-weight: 600;"
                 />
                 <button 
@@ -805,7 +805,7 @@ const staffForm = ref({
   name: '',
   username: '',
   whatsapp: '',
-  pin: '1913',
+  pin: '',
   role: 'Staff Store',
   store: '',
   status: 'Active'
@@ -1179,7 +1179,7 @@ function openAddStaffModal() {
     name: '',
     username: '',
     whatsapp: '',
-    pin: '1913',
+    pin: '',
     role: 'Staff Store',
     store: storeOptions.length > 0 ? storeOptions[0] : '',
     status: 'Active'
@@ -1199,7 +1199,7 @@ function openEditStaffModal(user) {
     name: user.name,
     username: user.username || user.name,
     whatsapp: user.whatsapp || '',
-    pin: user.pin || '1913',
+    pin: '',
     role: user.role || 'Staff Store',
     store: user.store || '',
     status: user.status || 'Active'

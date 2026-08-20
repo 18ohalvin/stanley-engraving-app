@@ -1,0 +1,8 @@
+node_modules
+dist
+dist-ssr
+.git
+data
+*.local
+*.log
+test_e2e_flow.js
