@@ -184,7 +184,7 @@
                         @click="openStoreForm(store)"
                         title="Open independent customer PWA form for this store"
                       >
-                        Form ↗
+                        Form
                       </button>
                     </div>
                   </td>
@@ -1592,26 +1592,25 @@ function openStoreForm(store) {
 }
 
 .open-pwa-form-btn {
-  height: 34px;
-  padding: 0 12px;
-  background: #F4F4F5;
-  color: #18181B;
-  border: 1px solid #E4E4E7;
-  border-radius: 6px;
-  font-size: 12.5px;
+  height: 38px;
+  padding: 0 20px;
+  background: #FFFFFF;
+  color: #000000;
+  border: 1px solid #000000;
+  border-radius: 8px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   white-space: nowrap;
 }
 
 .open-pwa-form-btn:hover {
-  background: #000000;
-  color: #FFFFFF;
+  background: #F4F4F5;
+  color: #000000;
   border-color: #000000;
 }
 
