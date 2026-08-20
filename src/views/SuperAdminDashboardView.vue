@@ -28,16 +28,6 @@
           <button 
             type="button" 
             class="outline-action-btn" 
-            style="color: #DC2626; border-color: #FCA5A5;"
-            @click="handleResetDatabase"
-            title="Reset system database (preserve staff accounts)"
-          >
-            Reset DB
-          </button>
-
-          <button 
-            type="button" 
-            class="outline-action-btn" 
             @click="handleLogout"
             title="Sign out of Admin Console"
           >
