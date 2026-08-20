@@ -125,10 +125,11 @@ app.post('/api/auth/login', (req, res) => {
       return res.status(403).json({ error: `Staff account "${staff.name}" is inactive. Please contact the administrator.` });
     }
 
-    const expectedPin = staff.pin || '1913';
+    if (!staff.pin) return res.status(403).json({ error: 'Account has no PIN configured. Contact Admin.' });
+    const expectedPin = String(staff.pin).trim();
     const inputPin = String(pin).trim();
 
-    if (inputPin !== String(expectedPin).trim()) {
+    if (inputPin !== expectedPin) {
       return res.status(401).json({ error: 'Invalid PIN for this staff account. Please try again.' });
     }
 
