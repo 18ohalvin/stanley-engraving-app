@@ -11,7 +11,7 @@
           />
           <h1 class="station-heading">ENGRAVING STATION</h1>
           <div class="header-divider"></div>
-          <p class="store-location">STANLEY PONDOK INDAH MALL 5</p>
+          <p class="store-location">{{ currentStoreLocation }}</p>
         </div>
 
         <!-- Header Actions (Figma 89:2713) -->
@@ -424,6 +424,15 @@ import { getAnalyticsSummary, getWhatsAppLogs } from '../utils/analyticsService.
 
 const router = useRouter();
 const queueStore = useQueueStore();
+
+const currentStoreLocation = computed(() => {
+  const userStore = localStorage.getItem('stanley_user_store');
+  if (userStore && userStore.trim()) {
+    const s = userStore.trim().toUpperCase();
+    return s.startsWith('STANLEY') ? s : `STANLEY ${s}`;
+  }
+  return 'STANLEY PONDOK INDAH MALL 5';
+});
 
 function handleLogout() {
   try {

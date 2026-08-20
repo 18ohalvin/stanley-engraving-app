@@ -834,7 +834,7 @@ const DEVELOPER_ACCOUNT = {
 const defaultStaffUsers = [DEVELOPER_ACCOUNT];
 const staffUsers = ref([...defaultStaffUsers]);
 
-onMounted(() => {
+onMounted(async () => {
   try {
     const saved = localStorage.getItem('stanley_product_catalog_order');
     if (saved) {
@@ -844,23 +844,28 @@ onMounted(() => {
       }
     }
     
-    // Ensure clean state: empty staff list except Developer Access devsosco01
-    const cleaned = localStorage.getItem('stanley_staff_cleaned_only_dev_v3');
-    if (!cleaned) {
-      staffUsers.value = [DEVELOPER_ACCOUNT];
-      localStorage.setItem('stanley_staff_users', JSON.stringify([DEVELOPER_ACCOUNT]));
-      localStorage.setItem('stanley_staff_cleaned_only_dev_v3', 'true');
-    } else {
-      const savedStaff = localStorage.getItem('stanley_staff_users');
-      if (savedStaff) {
-        const parsedStaff = JSON.parse(savedStaff);
-        if (Array.isArray(parsedStaff)) {
-          const withoutDev = parsedStaff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
-          staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
-        }
-      } else {
-        staffUsers.value = [DEVELOPER_ACCOUNT];
-        localStorage.setItem('stanley_staff_users', JSON.stringify([DEVELOPER_ACCOUNT]));
+    // Load initial staff accounts from local storage
+    const savedStaff = localStorage.getItem('stanley_staff_users');
+    if (savedStaff) {
+      const parsedStaff = JSON.parse(savedStaff);
+      if (Array.isArray(parsedStaff)) {
+        const withoutDev = parsedStaff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+        staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+      }
+    }
+
+    // Fetch master staff users from SQLite backend database
+    const token = localStorage.getItem('stanley_staff_token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('/api/staff', { headers });
+    if (res.ok) {
+      const serverStaff = await res.json();
+      if (Array.isArray(serverStaff)) {
+        const withoutDev = serverStaff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+        staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+        localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
       }
     }
   } catch (e) {
@@ -1206,10 +1211,11 @@ function closeStaffModal() {
   showStaffModal.value = false;
 }
 
-function saveStaffForm() {
+async function saveStaffForm() {
   if (!staffForm.value.name.trim() || !staffForm.value.staffId.trim()) return;
 
-  const cleanPin = (staffForm.value.pin || '1913').trim();
+  const cleanPin = (staffForm.value.pin || '').trim();
+  let targetUser = null;
 
   if (isEditStaffMode.value) {
     const idx = staffUsers.value.findIndex(u => u.id === staffForm.value.id);
@@ -1226,6 +1232,7 @@ function saveStaffForm() {
         store: staffForm.value.store.trim(),
         status: staffForm.value.status
       };
+      targetUser = staffUsers.value[idx];
       persistStaffUsers();
     }
   } else {
@@ -1242,13 +1249,31 @@ function saveStaffForm() {
       status: staffForm.value.status
     };
     staffUsers.value.push(newUser);
+    targetUser = newUser;
     persistStaffUsers();
+  }
+
+  // Sync to SQLite backend database
+  if (targetUser) {
+    try {
+      const token = localStorage.getItem('stanley_staff_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      await fetch('/api/staff', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(targetUser)
+      });
+    } catch (e) {
+      console.warn('Failed to sync staff user to SQLite backend:', e);
+    }
   }
 
   showStaffModal.value = false;
 }
 
-function deleteStaff(user) {
+async function deleteStaff(user) {
   if (user.isDeveloper || user.username === 'devsosco01' || user.staffId === 'devsosco01' || user.id === 'devsosco01') {
     return; // Developer master account cannot be deleted
   }
@@ -1258,6 +1283,19 @@ function deleteStaff(user) {
   if (idx > -1) {
     staffUsers.value.splice(idx, 1);
     persistStaffUsers();
+  }
+
+  try {
+    const token = localStorage.getItem('stanley_staff_token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    await fetch(`/api/staff/${user.id}`, {
+      method: 'DELETE',
+      headers
+    });
+  } catch (e) {
+    console.warn('Failed to delete staff user on SQLite server:', e);
   }
 }
 </script>

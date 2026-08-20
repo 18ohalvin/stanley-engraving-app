@@ -243,6 +243,7 @@ async function handleSignIn() {
       localStorage.setItem('stanley_staff_authenticated', 'true');
       localStorage.setItem('stanley_staff_user', user.name || user.staffId || rawId);
       localStorage.setItem('stanley_user_role', role);
+      localStorage.setItem('stanley_user_store', user.store || '');
       if (user.isDeveloper) {
         localStorage.setItem('stanley_is_developer', 'true');
       } else {
@@ -333,6 +334,7 @@ function performOfflineFallbackLogin(rawId, rawPin) {
     localStorage.setItem('stanley_staff_authenticated', 'true');
     localStorage.setItem('stanley_staff_user', matchedStaff.name || matchedStaff.staffId || rawId);
     localStorage.setItem('stanley_user_role', role);
+    localStorage.setItem('stanley_user_store', matchedStaff.store || '');
     localStorage.removeItem('stanley_is_developer');
   } catch (e) {}
 

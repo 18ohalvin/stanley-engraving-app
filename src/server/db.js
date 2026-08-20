@@ -353,8 +353,8 @@ export function findStaffForAuth(idOrUsername) {
 
   const row = db.prepare(`
     SELECT * FROM staff_users 
-    WHERE LOWER(staff_id) = ? OR LOWER(username) = ? OR LOWER(name) = ?
-  `).get(normalized, normalized, normalized);
+    WHERE LOWER(staff_id) = ? OR LOWER(username) = ? OR LOWER(name) = ? OR LOWER(id) = ?
+  `).get(normalized, normalized, normalized, normalized);
 
   if (!row) return null;
 
