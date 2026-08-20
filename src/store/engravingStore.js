@@ -90,6 +90,12 @@ export const useEngravingStore = defineStore('engraving', {
       countryCode: '+62',
       phone: '',
       email: ''
+    },
+    // Store Context for Independent Customer PWA Form
+    storeContext: {
+      storeCode: '',
+      storeId: '',
+      storeName: ''
     }
   }),
 
@@ -225,6 +231,49 @@ export const useEngravingStore = defineStore('engraving', {
       if (email !== undefined) this.customer.email = email;
     },
 
+    initStoreContextFromParams(queryParams = {}) {
+      const codeParam = queryParams.store || queryParams.store_code || queryParams.storeId || '';
+      if (!codeParam) {
+        try {
+          const cachedCode = localStorage.getItem('stanley_pwa_store_code') || '';
+          const cachedName = localStorage.getItem('stanley_pwa_store_name') || '';
+          if (cachedCode) {
+            this.storeContext.storeCode = cachedCode;
+            this.storeContext.storeId = cachedCode;
+            this.storeContext.storeName = cachedName || cachedCode;
+          }
+        } catch (e) {}
+        return;
+      }
+
+      const cleanCode = String(codeParam).trim();
+      this.storeContext.storeCode = cleanCode;
+      this.storeContext.storeId = cleanCode;
+
+      let matchedName = cleanCode;
+      try {
+        const savedNetwork = localStorage.getItem('stanley_stores_network');
+        if (savedNetwork) {
+          const network = JSON.parse(savedNetwork);
+          if (Array.isArray(network)) {
+            const found = network.find(s => 
+              (s.code && s.code.toLowerCase() === cleanCode.toLowerCase()) ||
+              (s.name && s.name.toLowerCase().includes(cleanCode.toLowerCase()))
+            );
+            if (found) {
+              matchedName = found.name;
+            }
+          }
+        }
+      } catch (e) {}
+
+      this.storeContext.storeName = matchedName;
+      try {
+        localStorage.setItem('stanley_pwa_store_code', cleanCode);
+        localStorage.setItem('stanley_pwa_store_name', matchedName);
+      } catch (e) {}
+    },
+
     /**
      * Generates and submits the final order payload
      */
@@ -242,6 +291,9 @@ export const useEngravingStore = defineStore('engraving', {
       const bookingTime = formatBookingTime(now);
       const fullPhone = formatPhoneNumber(this.customer.countryCode, this.customer.phone);
 
+      const storeCode = this.storeContext.storeCode || localStorage.getItem('stanley_pwa_store_code') || '';
+      const storeName = this.storeContext.storeName || localStorage.getItem('stanley_pwa_store_name') || '';
+
       const orderPayload = {
         order_id: orderId,
         intake_code: intakeCode,
@@ -253,6 +305,9 @@ export const useEngravingStore = defineStore('engraving', {
         booking_time: bookingTime,
         created_at: now.toISOString(),
         status: 'pending_dropoff',
+        store_code: storeCode,
+        store_id: storeCode,
+        store_name: storeName,
         queue_position: queueStore.getActiveQueueCount() + 1,
         items: this.items.map(item => ({
           id: item.id,

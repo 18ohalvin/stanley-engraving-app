@@ -486,7 +486,42 @@ function handleStorageUpdate() {
   queueStore.refreshFromStorage();
 }
 
-const upcomingListOrders = computed(() => queueStore.upcomingListOrders);
+const userEngraverStore = computed(() => {
+  return (localStorage.getItem('stanley_user_store') || '').trim();
+});
+
+const isDeveloperOrSuperAdmin = computed(() => {
+  const isDev = localStorage.getItem('stanley_is_developer') === 'true';
+  const role = localStorage.getItem('stanley_user_role');
+  return isDev || role === 'super_admin';
+});
+
+function isOrderForCurrentEngraverStore(order) {
+  if (isDeveloperOrSuperAdmin.value) return true;
+  const target = userEngraverStore.value.toLowerCase();
+  if (!target || target === 'hq central' || target === 'all stores') return true;
+
+  if (!order) return false;
+
+  const orderStoreCode = (order.store_code || '').trim().toLowerCase();
+  const orderStoreId = (order.store_id || '').trim().toLowerCase();
+  const orderStoreName = (order.store_name || '').trim().toLowerCase();
+
+  if (!orderStoreCode && !orderStoreId && !orderStoreName) {
+    return true;
+  }
+
+  return (
+    (orderStoreCode && (orderStoreCode === target || target.includes(orderStoreCode) || orderStoreCode.includes(target))) ||
+    (orderStoreId && (orderStoreId === target || target.includes(orderStoreId) || orderStoreId.includes(target))) ||
+    (orderStoreName && (orderStoreName === target || target.includes(orderStoreName) || orderStoreName.includes(target)))
+  );
+}
+
+const upcomingListOrders = computed(() => {
+  const allUpcoming = queueStore.upcomingListOrders;
+  return allUpcoming.filter(o => isOrderForCurrentEngraverStore(o));
+});
 const analyticsSummary = computed(() => getAnalyticsSummary());
 const whatsappLogs = computed(() => getWhatsAppLogs());
 
@@ -571,6 +606,13 @@ function handleIntakeLookup() {
   const res = queueStore.lookupIntakeOrder(clean);
   
   if (res.success) {
+    if (!isOrderForCurrentEngraverStore(res.order)) {
+      const orderStore = res.order.store_name || res.order.store_code || 'another store';
+      intakeFeedback.value = `Order #${clean} belongs to ${orderStore}. Engravers at ${userEngraverStore.value || 'this station'} cannot process this order.`;
+      intakeError.value = true;
+      return;
+    }
+
     pendingIntakeOrder.value = res.order;
     nextAssignedQueueNumber.value = res.nextQueueNumber;
     showIntakeModal.value = true;

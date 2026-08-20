@@ -29,13 +29,23 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useEngravingStore } from './store/engravingStore';
 
 const route = useRoute();
 const router = useRouter();
 const engravingStore = useEngravingStore();
+
+watch(
+  () => route.query,
+  (query) => {
+    if (query && (query.store || query.store_code || query.storeId)) {
+      engravingStore.initStoreContextFromParams(query);
+    }
+  },
+  { immediate: true, deep: true }
+);
 
 const isFullWidth = computed(() => Boolean(route.meta?.fullWidth));
 const isLanding = computed(() => route.path === '/');

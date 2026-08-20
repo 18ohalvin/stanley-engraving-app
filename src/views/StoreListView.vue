@@ -167,15 +167,26 @@
                     </span>
                   </td>
 
-                  <!-- 8. Action: Store Info -->
+                  <!-- 8. Action: Store Info & Independent Customer PWA Form -->
                   <td class="td-cell td-action">
-                    <button 
-                      type="button" 
-                      class="see-detail-btn"
-                      @click="handleSeeDetail(store)"
-                    >
-                      Store Info
-                    </button>
+                    <div class="action-buttons-group">
+                      <button 
+                        type="button" 
+                        class="see-detail-btn"
+                        @click="handleSeeDetail(store)"
+                        title="View store details and staff operators"
+                      >
+                        Store Info
+                      </button>
+                      <button 
+                        type="button" 
+                        class="open-pwa-form-btn"
+                        @click="openStoreForm(store)"
+                        title="Open independent customer PWA form for this store"
+                      >
+                        Form ↗
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -1146,6 +1157,13 @@ function openWhatsApp(phone, staffName, storeName) {
   const message = encodeURIComponent(`Hi ${staffName}, contacting you regarding Stanley ${storeName} engraving operations.`);
   window.open(`https://wa.me/${intlPhone}?text=${message}`, '_blank');
 }
+
+function openStoreForm(store) {
+  if (!store || (!store.code && !store.id)) return;
+  const code = store.code || store.id;
+  const url = `${window.location.origin}/?store=${encodeURIComponent(code)}`;
+  window.open(url, '_blank');
+}
 </script>
 
 <style scoped>
@@ -1563,8 +1581,38 @@ function openWhatsApp(phone, staffName, storeName) {
   white-space: nowrap;
 }
 
+.action-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .see-detail-btn:hover {
   opacity: 0.85;
+}
+
+.open-pwa-form-btn {
+  height: 34px;
+  padding: 0 12px;
+  background: #F4F4F5;
+  color: #18181B;
+  border: 1px solid #E4E4E7;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.open-pwa-form-btn:hover {
+  background: #000000;
+  color: #FFFFFF;
+  border-color: #000000;
 }
 
 /* Modals */
