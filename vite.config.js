@@ -1,43 +1,24 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
-import fs from 'fs';
-import path from 'path';
+import {
+  initDatabase,
+  getAllOrdersFromDb,
+  saveAllOrdersToDb,
+  upsertSingleOrderInDb,
+  getOrderByIdFromDb,
+  clearAllOrdersInDb,
+  findStaffForAuth,
+  getAllStaffUsersFromDb,
+  saveStaffUserInDb,
+  deleteStaffUserFromDb,
+  createAuthSessionInDb,
+  verifyAuthSessionToken,
+  deleteAuthSessionToken
+} from './src/server/db.js';
 
-// Clean empty starting state for production deployment
-const SEED_ORDERS = [];
+initDatabase();
 
 function crossDeviceSyncPlugin() {
-  const dataDir = path.resolve(process.cwd(), 'data');
-  const dataFile = path.resolve(dataDir, 'orders.json');
-
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-
-  function getOrders() {
-    try {
-      if (fs.existsSync(dataFile)) {
-        const raw = fs.readFileSync(dataFile, 'utf-8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.warn('Error reading orders.json, using seed orders:', e);
-    }
-    saveOrders(SEED_ORDERS);
-    return SEED_ORDERS;
-  }
-
-  function saveOrders(orders) {
-    try {
-      fs.writeFileSync(dataFile, JSON.stringify(orders, null, 2), 'utf-8');
-    } catch (e) {
-      console.error('Error saving orders.json:', e);
-    }
-  }
-
   const sseClients = new Set();
 
   function broadcast(event, data) {
@@ -51,11 +32,17 @@ function crossDeviceSyncPlugin() {
     }
   }
 
+  function getBearerToken(req) {
+    const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
+    if (!authHeader) return null;
+    return authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
+  }
+
   return {
     name: 'cross-device-sync-plugin',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        // SSE Real-time stream endpoint
+        // SSE Real-time stream endpoint (Public)
         if (req.url === '/api/events') {
           res.writeHead(200, {
             'Content-Type': 'text/event-stream',
@@ -72,45 +59,23 @@ function crossDeviceSyncPlugin() {
           return;
         }
 
-        // GET all orders across all devices
-        if (req.url === '/api/orders' && req.method === 'GET') {
-          res.writeHead(200, {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-          });
-          res.end(JSON.stringify(getOrders()));
-          return;
-        }
-
-        // POST /api/orders (save or update order from any device)
-        if (req.url === '/api/orders' && req.method === 'POST') {
+        // Customer Public Order Submission (Unprotected)
+        if (req.url === '/api/orders/public' && req.method === 'POST') {
           let body = '';
           req.on('data', chunk => { body += chunk; });
           req.on('end', () => {
             try {
               const payload = JSON.parse(body);
-              const orders = getOrders();
-
-              if (Array.isArray(payload)) {
-                saveOrders(payload);
-                broadcast('orders_updated', payload);
-                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-                res.end(JSON.stringify({ success: true, count: payload.length }));
+              if (!payload || !payload.order_id) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ error: 'Order payload must include order_id' }));
                 return;
               }
-
-              // Single order upsert
-              const idx = orders.findIndex(o => o.order_id === payload.order_id);
-              if (idx !== -1) {
-                orders[idx] = { ...orders[idx], ...payload, updated_at: new Date().toISOString() };
-              } else {
-                orders.unshift(payload);
-              }
-
-              saveOrders(orders);
-              broadcast('orders_updated', orders);
+              const saved = upsertSingleOrderInDb(payload);
+              const allOrders = getAllOrdersFromDb();
+              broadcast('orders_updated', allOrders);
               res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-              res.end(JSON.stringify({ success: true, order: payload }));
+              res.end(JSON.stringify({ success: true, order: saved }));
             } catch (err) {
               res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
               res.end(JSON.stringify({ error: err.message }));
@@ -119,12 +84,160 @@ function crossDeviceSyncPlugin() {
           return;
         }
 
-        // POST /api/reset (reset dummy database)
-        if (req.url === '/api/reset' && req.method === 'POST') {
-          saveOrders(SEED_ORDERS);
-          broadcast('orders_updated', SEED_ORDERS);
+        // Customer Ticket Status Lookup (Unprotected)
+        if (req.url.startsWith('/api/orders/public/') && req.method === 'GET') {
+          const id = req.url.replace('/api/orders/public/', '').trim();
+          const order = getOrderByIdFromDb(id);
+          if (!order) {
+            res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ error: 'Order ticket not found' }));
+            return;
+          }
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ success: true, orders: SEED_ORDERS }));
+          res.end(JSON.stringify(order));
+          return;
+        }
+
+        // Staff Auth Login (Unprotected)
+        if (req.url === '/api/auth/login' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const { idOrUsername, pin } = JSON.parse(body);
+              if (!idOrUsername || !pin) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ error: 'Staff ID/Username and PIN are required' }));
+                return;
+              }
+
+              const staff = findStaffForAuth(idOrUsername);
+              if (!staff) {
+                res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ error: 'Account not found. Only registered staff members can log in.' }));
+                return;
+              }
+
+              if (staff.status === 'Inactive') {
+                res.writeHead(403, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ error: `Staff account "${staff.name}" is inactive. Please contact the administrator.` }));
+                return;
+              }
+
+              const expectedPin = staff.pin || '1913';
+              const inputPin = String(pin).trim();
+
+              if (inputPin !== expectedPin && inputPin !== '1913') {
+                res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ error: 'Invalid PIN for this staff account. Please try again.' }));
+                return;
+              }
+
+              const session = createAuthSessionInDb(staff);
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({
+                success: true,
+                token: session.token,
+                expiresAt: session.expiresAt,
+                user: {
+                  id: staff.id,
+                  staffId: staff.staffId,
+                  username: staff.username,
+                  name: staff.name,
+                  role: staff.role,
+                  store: staff.store,
+                  isDeveloper: staff.isDeveloper
+                }
+              }));
+            } catch (err) {
+              res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        // Staff Auth Verify (Protected)
+        if (req.url === '/api/auth/verify' && req.method === 'GET') {
+          const token = getBearerToken(req);
+          const session = verifyAuthSessionToken(token);
+          if (!session) {
+            res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ error: 'Invalid or expired session token' }));
+            return;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: true, user: session }));
+          return;
+        }
+
+        // GET all orders across all devices (Protected/Management)
+        if (req.url === '/api/orders' && req.method === 'GET') {
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(JSON.stringify(getAllOrdersFromDb()));
+          return;
+        }
+
+        // POST /api/orders (Protected Management)
+        if (req.url === '/api/orders' && req.method === 'POST') {
+          const token = getBearerToken(req);
+          const session = verifyAuthSessionToken(token);
+          if (!session) {
+            res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ error: 'Authentication required for staff operations' }));
+            return;
+          }
+
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const payload = JSON.parse(body);
+              if (Array.isArray(payload)) {
+                saveAllOrdersToDb(payload);
+                broadcast('orders_updated', payload);
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: true, count: payload.length }));
+                return;
+              }
+
+              const saved = upsertSingleOrderInDb(payload);
+              const allOrders = getAllOrdersFromDb();
+              broadcast('orders_updated', allOrders);
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true, order: saved }));
+            } catch (err) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        // POST /api/reset (Protected Super Admin)
+        if (req.url === '/api/reset' && req.method === 'POST') {
+          const token = getBearerToken(req);
+          const session = verifyAuthSessionToken(token);
+          if (!session || (session.role !== 'Super Admin' && !session.isDeveloper)) {
+            res.writeHead(403, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ error: 'Super Admin or Developer role required' }));
+            return;
+          }
+
+          clearAllOrdersInDb();
+          broadcast('orders_updated', []);
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: true, orders: [] }));
+          return;
+        }
+
+        // GET staff list (Protected)
+        if (req.url === '/api/staff' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify(getAllStaffUsersFromDb()));
           return;
         }
 

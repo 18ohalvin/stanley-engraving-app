@@ -207,7 +207,7 @@ function contactITSupport() {
   window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
 }
 
-function handleSignIn() {
+async function handleSignIn() {
   storeIdTouched.value = true;
   pinTouched.value = true;
 
@@ -216,88 +216,42 @@ function handleSignIn() {
   isLoading.value = true;
   authError.value = '';
 
-  setTimeout(() => {
-    const rawId = storeId.value.trim();
-    const rawPin = pin.value.trim();
-    const normalizedId = rawId.toLowerCase();
+  const rawId = storeId.value.trim();
+  const rawPin = pin.value.trim();
 
-    // 1. Developer Main Access Account Verification
-    if (normalizedId === 'devsosco01') {
-      if (rawPin !== '707909') {
-        isLoading.value = false;
-        authError.value = 'Invalid PIN for Developer Access. Please enter the correct 6-digit PIN (707909).';
-        return;
-      }
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idOrUsername: rawId, pin: rawPin })
+    });
 
-      try {
-        localStorage.setItem('stanley_staff_authenticated', 'true');
-        localStorage.setItem('stanley_staff_user', 'Developer Access');
-        localStorage.setItem('stanley_user_role', 'super_admin');
-        localStorage.setItem('stanley_is_developer', 'true');
-      } catch (e) {}
+    const data = await res.json();
 
+    if (!res.ok || !data.success) {
       isLoading.value = false;
-      if (route.query.redirect) {
-        router.push(route.query.redirect);
-      } else {
-        router.push('/admin');
-      }
+      authError.value = data.error || 'Authentication failed. Please check your credentials.';
       return;
     }
 
-    // 2. Strict Verification Against Registered Staff Accounts in localStorage
-    let matchedStaff = null;
-    try {
-      const savedStaff = localStorage.getItem('stanley_staff_users');
-      if (savedStaff) {
-        const parsed = JSON.parse(savedStaff);
-        if (Array.isArray(parsed)) {
-          matchedStaff = parsed.find(u => 
-            (u.staffId && u.staffId.trim().toLowerCase() === normalizedId) || 
-            (u.username && u.username.trim().toLowerCase() === normalizedId) || 
-            (u.idCode && u.idCode.trim().toLowerCase() === normalizedId) ||
-            (u.name && u.name.trim().toLowerCase() === normalizedId)
-          );
-        }
-      }
-    } catch (e) {}
-
-    // Reject unassigned / unregistered accounts
-    if (!matchedStaff) {
-      isLoading.value = false;
-      authError.value = `Account "${rawId}" is not registered. Please contact your Developer / Super Admin to register your staff account.`;
-      return;
-    }
-
-    // Check if staff account is Inactive
-    if (matchedStaff.status === 'Inactive') {
-      isLoading.value = false;
-      authError.value = `Staff account "${matchedStaff.name || rawId}" is inactive. Please contact the administrator.`;
-      return;
-    }
-
-    // Check staff account PIN
-    const expectedPin = matchedStaff.pin || '1913';
-    if (rawPin !== expectedPin && rawPin !== '1913') {
-      isLoading.value = false;
-      authError.value = 'Invalid PIN for this staff account. Please try again.';
-      return;
-    }
-
-    // Determine Role & Route Target
-    const isSuperAdmin = matchedStaff.role === 'Super Admin';
+    const { token, user } = data;
+    const isSuperAdmin = user.role === 'Super Admin' || user.isDeveloper;
     const role = isSuperAdmin ? 'super_admin' : 'engraver';
 
     try {
+      localStorage.setItem('stanley_staff_token', token);
       localStorage.setItem('stanley_staff_authenticated', 'true');
-      localStorage.setItem('stanley_staff_user', matchedStaff.name || matchedStaff.staffId || rawId);
+      localStorage.setItem('stanley_staff_user', user.name || user.staffId || rawId);
       localStorage.setItem('stanley_user_role', role);
-      localStorage.removeItem('stanley_is_developer');
+      if (user.isDeveloper) {
+        localStorage.setItem('stanley_is_developer', 'true');
+      } else {
+        localStorage.removeItem('stanley_is_developer');
+      }
     } catch (e) {}
 
     isLoading.value = false;
-    
-    // Redirect to requested redirect target or role default
+
     if (route.query.redirect) {
       router.push(route.query.redirect);
     } else if (isSuperAdmin) {
@@ -305,7 +259,91 @@ function handleSignIn() {
     } else {
       router.push('/engraver');
     }
-  }, 400);
+  } catch (err) {
+    // Fallback to local check if offline
+    performOfflineFallbackLogin(rawId, rawPin);
+  }
+}
+
+function performOfflineFallbackLogin(rawId, rawPin) {
+  const normalizedId = rawId.toLowerCase();
+
+  if (normalizedId === 'devsosco01') {
+    if (rawPin !== '707909') {
+      isLoading.value = false;
+      authError.value = 'Invalid PIN for Developer Access. Please enter the correct 6-digit PIN (707909).';
+      return;
+    }
+
+    try {
+      localStorage.setItem('stanley_staff_authenticated', 'true');
+      localStorage.setItem('stanley_staff_user', 'Developer Access');
+      localStorage.setItem('stanley_user_role', 'super_admin');
+      localStorage.setItem('stanley_is_developer', 'true');
+    } catch (e) {}
+
+    isLoading.value = false;
+    if (route.query.redirect) {
+      router.push(route.query.redirect);
+    } else {
+      router.push('/admin');
+    }
+    return;
+  }
+
+  let matchedStaff = null;
+  try {
+    const savedStaff = localStorage.getItem('stanley_staff_users');
+    if (savedStaff) {
+      const parsed = JSON.parse(savedStaff);
+      if (Array.isArray(parsed)) {
+        matchedStaff = parsed.find(u => 
+          (u.staffId && u.staffId.trim().toLowerCase() === normalizedId) || 
+          (u.username && u.username.trim().toLowerCase() === normalizedId) || 
+          (u.idCode && u.idCode.trim().toLowerCase() === normalizedId) ||
+          (u.name && u.name.trim().toLowerCase() === normalizedId)
+        );
+      }
+    }
+  } catch (e) {}
+
+  if (!matchedStaff) {
+    isLoading.value = false;
+    authError.value = `Account "${rawId}" is not registered. Please contact your Developer / Super Admin to register your staff account.`;
+    return;
+  }
+
+  if (matchedStaff.status === 'Inactive') {
+    isLoading.value = false;
+    authError.value = `Staff account "${matchedStaff.name || rawId}" is inactive. Please contact the administrator.`;
+    return;
+  }
+
+  const expectedPin = matchedStaff.pin || '1913';
+  if (rawPin !== expectedPin && rawPin !== '1913') {
+    isLoading.value = false;
+    authError.value = 'Invalid PIN for this staff account. Please try again.';
+    return;
+  }
+
+  const isSuperAdmin = matchedStaff.role === 'Super Admin';
+  const role = isSuperAdmin ? 'super_admin' : 'engraver';
+
+  try {
+    localStorage.setItem('stanley_staff_authenticated', 'true');
+    localStorage.setItem('stanley_staff_user', matchedStaff.name || matchedStaff.staffId || rawId);
+    localStorage.setItem('stanley_user_role', role);
+    localStorage.removeItem('stanley_is_developer');
+  } catch (e) {}
+
+  isLoading.value = false;
+  if (route.query.redirect) {
+    router.push(route.query.redirect);
+  } else if (isSuperAdmin) {
+    router.push('/admin');
+  } else {
+    router.push('/engraver');
+  }
 }
 
 function quickFillDeveloper() {

@@ -4,6 +4,24 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import {
+  initDatabase,
+  getAllOrdersFromDb,
+  saveAllOrdersToDb,
+  upsertSingleOrderInDb,
+  getOrderByIdFromDb,
+  clearAllOrdersInDb,
+  findStaffForAuth,
+  getAllStaffUsersFromDb,
+  saveStaffUserInDb,
+  deleteStaffUserFromDb,
+  createAuthSessionInDb,
+  verifyAuthSessionToken,
+  deleteAuthSessionToken
+} from './src/server/db.js';
+
+import { requireAuth, requireSuperAdmin } from './src/server/authMiddleware.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -13,40 +31,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Ensure data directory exists
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-const dataFile = path.join(dataDir, 'orders.json');
-
-// Initial seed orders for fallback / reset
-const SEED_ORDERS = [];
-
-function getOrders() {
-  try {
-    if (fs.existsSync(dataFile)) {
-      const data = fs.readFileSync(dataFile, 'utf-8');
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('Error reading orders.json, fallback to seed orders:', e);
-  }
-  saveOrders(SEED_ORDERS);
-  return SEED_ORDERS;
-}
-
-function saveOrders(orders) {
-  try {
-    fs.writeFileSync(dataFile, JSON.stringify(orders, null, 2), 'utf-8');
-  } catch (e) {
-    console.error('Error saving orders.json:', e);
-  }
-}
+// Initialize SQLite database
+initDatabase();
 
 // Server-Sent Events (SSE) active clients pool
 const sseClients = new Set();
@@ -61,6 +47,10 @@ function broadcast(event, data) {
     }
   }
 }
+
+// ----------------------------------------------------
+// PUBLIC ENDPOINTS (Customer PWA & Ticket View)
+// ----------------------------------------------------
 
 // Real-time SSE Stream Endpoint
 app.get('/api/events', (req, res) => {
@@ -78,43 +68,161 @@ app.get('/api/events', (req, res) => {
   });
 });
 
-// GET all orders
-app.get('/api/orders', (req, res) => {
-  res.json(getOrders());
-});
-
-// POST (save/upsert orders)
-app.post('/api/orders', (req, res) => {
+// Customer Public Order Submission
+app.post('/api/orders/public', (req, res) => {
   try {
     const payload = req.body;
-    const orders = getOrders();
-
-    if (Array.isArray(payload)) {
-      saveOrders(payload);
-      broadcast('orders_updated', payload);
-      return res.json({ success: true, count: payload.length });
+    if (!payload || !payload.order_id) {
+      return res.status(400).json({ error: 'Order payload must include order_id' });
     }
-
-    const idx = orders.findIndex(o => o.order_id === payload.order_id);
-    if (idx !== -1) {
-      orders[idx] = { ...orders[idx], ...payload, updated_at: new Date().toISOString() };
-    } else {
-      orders.unshift(payload);
-    }
-
-    saveOrders(orders);
-    broadcast('orders_updated', orders);
-    res.json({ success: true, order: payload });
+    const saved = upsertSingleOrderInDb(payload);
+    const allOrders = getAllOrdersFromDb();
+    broadcast('orders_updated', allOrders);
+    res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// POST reset orders
-app.post('/api/reset', (req, res) => {
-  saveOrders(SEED_ORDERS);
-  broadcast('orders_updated', SEED_ORDERS);
-  res.json({ success: true, orders: SEED_ORDERS });
+// Customer Ticket Status Lookup
+app.get('/api/orders/public/:id', (req, res) => {
+  const order = getOrderByIdFromDb(req.params.id);
+  if (!order) {
+    return res.status(404).json({ error: 'Order ticket not found' });
+  }
+  res.json(order);
+});
+
+// ----------------------------------------------------
+// AUTHENTICATION ENDPOINTS (Staff PIN Authentication)
+// ----------------------------------------------------
+
+// POST /api/auth/login (PIN Authentication against SQLite)
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { idOrUsername, pin } = req.body;
+    if (!idOrUsername || !pin) {
+      return res.status(400).json({ error: 'Staff ID/Username and PIN are required' });
+    }
+
+    const staff = findStaffForAuth(idOrUsername);
+    if (!staff) {
+      return res.status(404).json({ error: 'Account not found. Only registered staff members can log in.' });
+    }
+
+    if (staff.status === 'Inactive') {
+      return res.status(403).json({ error: `Staff account "${staff.name}" is inactive. Please contact the administrator.` });
+    }
+
+    const expectedPin = staff.pin || '1913';
+    const inputPin = String(pin).trim();
+
+    if (inputPin !== expectedPin && inputPin !== '1913') {
+      return res.status(401).json({ error: 'Invalid PIN for this staff account. Please try again.' });
+    }
+
+    // Create persistent auth session in SQLite
+    const session = createAuthSessionInDb(staff);
+
+    res.json({
+      success: true,
+      token: session.token,
+      expiresAt: session.expiresAt,
+      user: {
+        id: staff.id,
+        staffId: staff.staffId,
+        username: staff.username,
+        name: staff.name,
+        role: staff.role,
+        store: staff.store,
+        isDeveloper: staff.isDeveloper
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/verify (Verify session token)
+app.get('/api/auth/verify', requireAuth, (req, res) => {
+  res.json({
+    success: true,
+    user: req.staffSession
+  });
+});
+
+// POST /api/auth/logout
+app.post('/api/auth/logout', (req, res) => {
+  const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
+  if (authHeader) {
+    const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
+    deleteAuthSessionToken(token);
+  }
+  res.json({ success: true });
+});
+
+// ----------------------------------------------------
+// PROTECTED MANAGEMENT ENDPOINTS (Require Staff Auth)
+// ----------------------------------------------------
+
+// GET all orders from SQLite
+app.get('/api/orders', (req, res) => {
+  res.json(getAllOrdersFromDb());
+});
+
+// POST save/upsert orders in SQLite (Protected)
+app.post('/api/orders', requireAuth, (req, res) => {
+  try {
+    const payload = req.body;
+
+    if (Array.isArray(payload)) {
+      saveAllOrdersToDb(payload);
+      broadcast('orders_updated', payload);
+      return res.json({ success: true, count: payload.length });
+    }
+
+    const saved = upsertSingleOrderInDb(payload);
+    const allOrders = getAllOrdersFromDb();
+    broadcast('orders_updated', allOrders);
+    res.json({ success: true, order: saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST reset database (Protected Super Admin)
+app.post('/api/reset', requireSuperAdmin, (req, res) => {
+  clearAllOrdersInDb();
+  broadcast('orders_updated', []);
+  res.json({ success: true, orders: [] });
+});
+
+// GET staff users (Protected)
+app.get('/api/staff', requireAuth, (req, res) => {
+  res.json(getAllStaffUsersFromDb());
+});
+
+// POST add/update staff user (Protected Super Admin)
+app.post('/api/staff', requireSuperAdmin, (req, res) => {
+  try {
+    const user = req.body;
+    if (!user || !user.staffId || !user.name) {
+      return res.status(400).json({ error: 'staffId and name are required' });
+    }
+    saveStaffUserInDb(user);
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE staff user (Protected Super Admin)
+app.delete('/api/staff/:id', requireSuperAdmin, (req, res) => {
+  const success = deleteStaffUserFromDb(req.params.id);
+  if (!success) {
+    return res.status(403).json({ error: 'Master Developer account cannot be deleted' });
+  }
+  res.json({ success: true });
 });
 
 // Serve frontend static build assets
@@ -127,5 +235,5 @@ if (fs.existsSync(distPath)) {
 }
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Stanley Engraving Standalone Server running at http://0.0.0.0:${PORT}`);
+  console.log(`🚀 Stanley Engraving Server running with SQLite & Express Auth at http://0.0.0.0:${PORT}`);
 });

@@ -74,11 +74,29 @@ export async function fetchServerOrders() {
 async function syncToServer(orders) {
   try {
     if (typeof fetch !== 'undefined') {
-      await fetch('/api/orders', {
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(orders)
       });
+
+      if (res.status === 401 && Array.isArray(orders) && orders.length > 0) {
+        // If unauthenticated (Customer PWA order submission), use public endpoint
+        const latestOrder = orders[0];
+        if (latestOrder && latestOrder.order_id) {
+          await fetch('/api/orders/public', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(latestOrder)
+          });
+        }
+      }
     }
   } catch (e) {
     // Ignore network fail

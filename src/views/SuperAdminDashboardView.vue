@@ -1644,9 +1644,18 @@ function saveSettings() {
 
 function handleLogout() {
   try {
+    const token = localStorage.getItem('stanley_staff_token');
+    if (token) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).catch(() => {});
+    }
+    localStorage.removeItem('stanley_staff_token');
     localStorage.removeItem('stanley_staff_authenticated');
     localStorage.removeItem('stanley_staff_user');
     localStorage.removeItem('stanley_user_role');
+    localStorage.removeItem('stanley_is_developer');
   } catch (e) {}
   router.push('/login');
 }

@@ -3,6 +3,17 @@ import { useEngravingStore, FONT_OPTIONS, CUP_MODELS } from './src/store/engravi
 import { useQueueStore } from './src/store/queueStore.js';
 import { containsProfanity, sanitizeEngravingText } from './src/utils/profanityFilter.js';
 import { formatBookingTime, formatPhoneNumber, generateOrderId, generateShortCode } from './src/utils/formatters.js';
+import {
+  initDatabase,
+  findStaffForAuth,
+  createAuthSessionInDb,
+  verifyAuthSessionToken,
+  deleteAuthSessionToken,
+  getAllOrdersFromDb,
+  upsertSingleOrderInDb,
+  clearAllOrdersInDb
+} from './src/server/db.js';
+import { requireAuth, requireSuperAdmin } from './src/server/authMiddleware.js';
 
 // Mock localStorage for Node environment
 global.localStorage = {
@@ -497,6 +508,59 @@ function formatTimeTick(minutes) {
 assert(formatTimeTick(4.0) === '04:00', '4.0 minutes formats to 04:00');
 assert(formatTimeTick(3.5) === '03:30', '3.5 minutes formats to 03:30');
 assert(formatTimeTick(15.0) === '15:00', '15.0 minutes formats to 15:00');
+
+console.log('\n--- 9. Testing SQLite Database Persistence & Express Auth Middleware ---');
+initDatabase();
+
+// 1. Check Developer Account in SQLite DB
+const devDbStaff = findStaffForAuth('devsosco01');
+assert(devDbStaff !== null, 'Developer Master account devsosco01 exists in SQLite staff_users');
+assert(devDbStaff.pin === '707909', 'Developer account PIN is 707909');
+assert(devDbStaff.isDeveloper === true, 'Developer account has isDeveloper flag');
+
+// 2. Auth session token generation & verification
+const devSession = createAuthSessionInDb(devDbStaff);
+assert(devSession.token.startsWith('stk_'), 'Generates secure session bearer token');
+
+const verifiedSession = verifyAuthSessionToken(devSession.token);
+assert(verifiedSession !== null, 'Verifies valid session token');
+assert(verifiedSession.staffId === 'devsosco01', 'Verified session matches staffId devsosco01');
+
+deleteAuthSessionToken(devSession.token);
+assert(verifyAuthSessionToken(devSession.token) === null, 'Session token invalidated after logout');
+
+// 3. SQLite order storage & retrieval
+const testOrder = {
+  order_id: 'sql-test-101',
+  short_code: '0999',
+  system_queue_number: '999',
+  intake_code: 'Z99',
+  status: 'ready_for_pickup',
+  customer_name: 'SQL Tester',
+  phone: '+6281299990000',
+  email: 'sqltester@stanley.com',
+  items: [{ model: 'IceFlow', size: '40 Oz', text: 'SQLTEST' }],
+  durationSeconds: 210
+};
+
+upsertSingleOrderInDb(testOrder);
+const fetchedOrder = getAllOrdersFromDb().find(o => o.order_id === 'sql-test-101');
+assert(fetchedOrder !== null, 'Order saved and fetched from SQLite database data/stanley.db');
+assert(fetchedOrder.customer_name === 'SQL Tester', 'Fetched SQLite order matches customer name');
+assert(fetchedOrder.items[0].text === 'SQLTEST', 'Fetched SQLite order preserves customized items JSON');
+
+// 4. Express authorization middleware mock test
+let reqMock = { headers: { authorization: `Bearer invalid_token` } };
+let resMock = {
+  statusCode: 200,
+  status(code) { this.statusCode = code; return this; },
+  json(data) { this.responseData = data; return this; }
+};
+let nextCalled = false;
+
+requireAuth(reqMock, resMock, () => { nextCalled = true; });
+assert(resMock.statusCode === 401, 'requireAuth rejects invalid bearer token with HTTP 401');
+assert(nextCalled === false, 'Next route handler not called when unauthenticated');
 
 console.log('\n========================================');
 console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);

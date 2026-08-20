@@ -66,7 +66,7 @@ const routes = [
     path: '/engraver',
     name: 'engraver-dashboard',
     component: EngraverDashboardView,
-    meta: { fullWidth: true }
+    meta: { fullWidth: true, requiresAuth: true }
   },
   {
     path: '/dashboard',
@@ -80,21 +80,21 @@ const routes = [
     alias: ['/main-dashboard', '/super-admin', '/analytics'],
     name: 'super-admin-dashboard',
     component: SuperAdminDashboardView,
-    meta: { fullWidth: true }
+    meta: { fullWidth: true, requiresAuth: true, requiresSuperAdmin: true }
   },
   {
     path: '/stores',
     alias: ['/store-list', '/admin/stores', '/admin/store-list'],
     name: 'store-list',
     component: StoreListView,
-    meta: { fullWidth: true }
+    meta: { fullWidth: true, requiresAuth: true, requiresSuperAdmin: true }
   },
   {
     path: '/settings',
     alias: ['/admin/settings', '/setting'],
     name: 'settings',
     component: SettingsView,
-    meta: { fullWidth: true }
+    meta: { fullWidth: true, requiresAuth: true, requiresSuperAdmin: true }
   },
   {
     path: '/:pathMatch(.*)*',
@@ -108,6 +108,56 @@ const router = createRouter({
   scrollBehavior() {
     return { top: 0 };
   }
+});
+
+// Navigation Guard: Enforce PIN Authentication & Role Access
+router.beforeEach(async (to, from, next) => {
+  const isAuthenticated = typeof localStorage !== 'undefined' && localStorage.getItem('stanley_staff_authenticated') === 'true';
+  const role = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_role') : null;
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+
+  // Protect staff and admin pages
+  if (to.meta.requiresAuth) {
+    if (!isAuthenticated) {
+      return next({ path: '/login', query: { redirect: to.fullPath } });
+    }
+
+    // Verify session token with Express backend if token exists
+    if (token) {
+      try {
+        const res = await fetch('/api/auth/verify', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          // Token invalid or expired
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('stanley_staff_authenticated');
+            localStorage.removeItem('stanley_staff_token');
+            localStorage.removeItem('stanley_user_role');
+            localStorage.removeItem('stanley_is_developer');
+          }
+          return next({ path: '/login', query: { redirect: to.fullPath } });
+        }
+      } catch (e) {
+        // Network offline fallback permits local stored session
+      }
+    }
+
+    // Enforce Super Admin role on admin management pages
+    if (to.meta.requiresSuperAdmin && role !== 'super_admin') {
+      return next({ path: '/engraver' });
+    }
+  }
+
+  // Redirect logged in staff away from /login page to their default dashboard
+  if (to.path === '/login' && isAuthenticated) {
+    if (role === 'super_admin') {
+      return next('/admin');
+    }
+    return next('/engraver');
+  }
+
+  next();
 });
 
 export default router;
