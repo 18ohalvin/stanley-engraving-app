@@ -75,11 +75,8 @@ onMounted(() => {
   if (!engravingStore.currentItem) {
     engravingStore.resetDraft();
   }
-  if (!engravingStore.currentItem?.model || !engravingStore.currentItem?.size) {
-    router.replace('/step-1');
-    return;
-  }
-  if (!engravingStore.currentItem.position || !availablePositions.value.includes(engravingStore.currentItem.position)) {
+  engravingStore.restoreDraftFromCart();
+  if (!engravingStore.currentItem?.position || !availablePositions.value.includes(engravingStore.currentItem.position)) {
     engravingStore.setPosition(availablePositions.value[0] || 'Horizontal');
   }
 });

@@ -585,6 +585,11 @@ const matchesSameStore = (order, targetStore) => {
 assert(matchesSameStore(storeOrder, 'EG-021') === true, 'Engraver at EG-021 matches store order');
 assert(matchesSameStore(storeOrder, 'EG-022') === false, 'Engraver at EG-022 excludes order from store EG-021');
 
+engravingStoreInstance.resetDraft();
+assert(engravingStoreInstance.currentItem.text === '', 'Reset draft clears current item text');
+engravingStoreInstance.restoreDraftFromCart();
+assert(engravingStoreInstance.currentItem.text === 'STOREA', 'restoreDraftFromCart restores previous customization when navigating back');
+
 console.log('\n========================================');
 console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
 console.log('========================================\n');

@@ -210,6 +210,16 @@ export const useEngravingStore = defineStore('engraving', {
       this.editingIndex = null;
     },
 
+    restoreDraftFromCart() {
+      if ((!this.currentItem.size || !this.currentItem.text) && this.items.length > 0) {
+        const lastIdx = this.items.length - 1;
+        if (this.items[lastIdx]) {
+          this.currentItem = { ...this.items[lastIdx] };
+          this.editingIndex = lastIdx;
+        }
+      }
+    },
+
     editItem(index) {
       if (index >= 0 && index < this.items.length) {
         const item = this.items[index];

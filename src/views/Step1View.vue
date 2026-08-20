@@ -81,11 +81,12 @@ const selectedSize = computed(() => engravingStore.currentItem.size);
 const isStepValid = computed(() => Boolean(engravingStore.currentItem.model && engravingStore.currentItem.size));
 
 onMounted(() => {
+  engravingStore.restoreDraftFromCart();
   cupModels.value = getCatalogCupModels();
-  const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem.model);
+  const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem?.model);
   if (idx !== -1) {
     currentModelIndex.value = idx;
-  } else {
+  } else if (currentModel.value) {
     engravingStore.setModel(currentModel.value.name, currentModel.value.shortName);
   }
 });

@@ -131,10 +131,7 @@
     if (!engravingStore.currentItem) {
       engravingStore.resetDraft();
     }
-    if (!engravingStore.currentItem?.size) {
-      router.replace('/step-1');
-      return;
-    }
+    engravingStore.restoreDraftFromCart();
     if (engravingStore.currentItem?.text) {
       enteredText.value = engravingStore.currentItem.text;
     }
