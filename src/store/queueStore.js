@@ -123,14 +123,15 @@ export const useQueueStore = defineStore('queue', {
 
   actions: {
     async refreshFromStorage() {
-      const fresh = getStoredOrders();
-      if (fresh && Array.isArray(fresh)) {
-        this.orders = fresh;
-      }
-      // Async sync from central network server
+      // Fetch central network server orders first
       const remote = await fetchServerOrders();
       if (remote && Array.isArray(remote)) {
         this.orders = remote;
+      } else {
+        const fresh = getStoredOrders();
+        if (fresh && Array.isArray(fresh)) {
+          this.orders = fresh;
+        }
       }
       this.refreshMachinesFromStorage();
       this.autoAssignMachines();

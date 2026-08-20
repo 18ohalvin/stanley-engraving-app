@@ -71,6 +71,25 @@ export async function fetchServerOrders() {
   return null;
 }
 
+/**
+ * Wipe client localStorage cache except staff credentials
+ */
+export function clearAllClientStorage() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY_ORDERS);
+      localStorage.removeItem(STORAGE_KEY_CURRENT_ORDER);
+      localStorage.removeItem('stanley_engraving_analytics_logs');
+      localStorage.removeItem('stanley_whatsapp_webhook_logs');
+      localStorage.removeItem('stanley_custom_stores');
+      localStorage.removeItem('stanley_machines_state');
+      localStorage.removeItem('stanley_product_catalog_order');
+      window.dispatchEvent(new Event('stanley_orders_updated'));
+      broadcastSyncMessage('orders_updated', []);
+    }
+  } catch (e) {}
+}
+
 async function syncToServer(orders) {
   try {
     if (typeof fetch !== 'undefined') {

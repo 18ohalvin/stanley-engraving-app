@@ -28,6 +28,16 @@
           <button 
             type="button" 
             class="outline-action-btn" 
+            style="color: #DC2626; border-color: #FCA5A5;"
+            @click="handleResetDatabase"
+            title="Reset system database (preserve staff accounts)"
+          >
+            Reset DB
+          </button>
+
+          <button 
+            type="button" 
+            class="outline-action-btn" 
             @click="handleLogout"
             title="Sign out of Admin Console"
           >
@@ -827,7 +837,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';
-import { getAnalyticsLogs } from '../utils/analyticsService.js';
+import { getAnalyticsLogs, clearAnalyticsLogs } from '../utils/analyticsService.js';
+import { clearAllClientStorage } from '../utils/storage.js';
 
 const router = useRouter();
 const queueStore = useQueueStore();
@@ -1658,6 +1669,30 @@ function handleLogout() {
     localStorage.removeItem('stanley_is_developer');
   } catch (e) {}
   router.push('/login');
+}
+
+async function handleResetDatabase() {
+  if (!confirm('Are you sure you want to reset all database records (orders, analytics, stores)? Staff login accounts and Super Admin permissions will be preserved.')) {
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem('stanley_staff_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    await fetch('/api/reset', {
+      method: 'POST',
+      headers
+    });
+  } catch (e) {}
+
+  clearAllClientStorage();
+  clearAnalyticsLogs();
+  await queueStore.refreshFromStorage();
+  alert('✓ All system database data has been completely reset to 0.');
 }
 
 let pollInterval = null;
