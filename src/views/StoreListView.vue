@@ -232,6 +232,9 @@
             </div>
 
             <div class="admins-list-container">
+              <div v-if="getStoreAdmins(selectedDetailStore).length === 0" class="empty-admins-placeholder" style="padding: 24px 16px; text-align: center; color: #71717A; font-size: 13px; background: #F4F4F5; border-radius: 8px; font-weight: 500;">
+                No staff or store operators assigned to {{ selectedDetailStore.name }} yet.
+              </div>
               <div 
                 v-for="admin in getStoreAdmins(selectedDetailStore)" 
                 :key="admin.id || admin.name"
@@ -1254,30 +1257,7 @@ function getStoreAdmins(store) {
     return false;
   });
 
-  if (matched.length > 0) return matched;
-
-  // Fallback defaults for this store location
-  const storeFirstName = store.name.split(' ')[0] || 'Store';
-  return [
-    {
-      id: `adm-${store.code}-1`,
-      staffId: store.code,
-      name: `${storeFirstName} Supervisor`,
-      role: 'Supervisor',
-      whatsapp: '082909012901',
-      store: store.name,
-      status: 'Active'
-    },
-    {
-      id: `adm-${store.code}-2`,
-      staffId: store.code,
-      name: `${storeFirstName} Lead Operator`,
-      role: 'Staff Store',
-      whatsapp: '081298765432',
-      store: store.name,
-      status: 'Active'
-    }
-  ];
+  return matched;
 }
 
 function openWhatsApp(phone, staffName, storeName) {
