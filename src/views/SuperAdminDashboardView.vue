@@ -9,9 +9,22 @@
             alt="Stanley 1913" 
             class="stanley-logo" 
           />
-          <h1 class="station-heading">MAIN DASHBOARD</h1>
-          <div class="header-divider"></div>
-          <p class="store-location">ALL STORES</p>
+          <div class="store-select-wrap">
+            <select 
+              v-model="selectedStoreFilter" 
+              class="store-location-select"
+              title="Filter dashboard overview by store location"
+            >
+              <option value="ALL STORES">ALL STORES</option>
+              <option 
+                v-for="st in availableNetworkStores" 
+                :key="st.code || st.id" 
+                :value="st.code || st.name"
+              >
+                {{ st.code }} - {{ st.name }}
+              </option>
+            </select>
+          </div>
         </div>
 
         <!-- Right Action Buttons: Store List, Logout (both outline box style), and Setting Icon -->
@@ -824,14 +837,39 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';
 import { getAnalyticsLogs, clearAnalyticsLogs } from '../utils/analyticsService.js';
 import { clearAllClientStorage } from '../utils/storage.js';
 
+const route = useRoute();
 const router = useRouter();
 const queueStore = useQueueStore();
+
+// Selected Store Filter for Main Dashboard Overview ('ALL STORES' or specific store code/name)
+const selectedStoreFilter = ref('ALL STORES');
+
+const availableNetworkStores = computed(() => {
+  try {
+    const raw = localStorage.getItem('stanley_stores_network');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [];
+});
+
+watch(
+  () => route.query,
+  (query) => {
+    if (query && (query.storeCode || query.storeName)) {
+      selectedStoreFilter.value = String(query.storeCode || query.storeName).trim();
+    }
+  },
+  { immediate: true, deep: true }
+);
 
 // Selected Active Metric among the 4 overview boxes: 'total_engravings' (default), 'avg_time', 'total_cups', 'wait_time'
 const activeMetric = ref('total_engravings');
@@ -976,10 +1014,26 @@ function getOrderOperatingHour(order) {
 // 100% REAL DATABASE METRIC COMPUTATIONS FROM QUEUE STORE
 // ----------------------------------------------------
 
+// Filtered orders list based on selected store filter
+const allStoreOrders = computed(() => {
+  const orders = queueStore.orders || [];
+  const target = (selectedStoreFilter.value || '').trim().toLowerCase();
+  if (!target || target === 'all stores' || target === 'all') {
+    return orders;
+  }
+  return orders.filter(o => {
+    const code = (o.store_code || '').toLowerCase();
+    const id = (o.store_id || '').toLowerCase();
+    const name = (o.store_name || '').toLowerCase();
+    return (code && (code === target || target.includes(code) || code.includes(target))) ||
+           (id && (id === target || target.includes(id) || id.includes(target))) ||
+           (name && (name === target || target.includes(name) || name.includes(target)));
+  });
+});
+
 // 1. Total Engravings: Real count of cups engraved/completed in the database
 const realCompletedOrders = computed(() => {
-  const orders = queueStore.orders || [];
-  return orders.filter(o => o.status === 'ready_for_pickup' || o.status === 'completed');
+  return allStoreOrders.value.filter(o => o.status === 'ready_for_pickup' || o.status === 'completed');
 });
 
 const realTotalEngravings = computed(() => {
@@ -988,8 +1042,7 @@ const realTotalEngravings = computed(() => {
 
 // 2. Total Orders (Cups): Real count of all valid cups ordered in the system
 const realValidOrders = computed(() => {
-  const orders = queueStore.orders || [];
-  return orders.filter(o => o.status !== 'cancelled');
+  return allStoreOrders.value.filter(o => o.status !== 'cancelled');
 });
 
 const realTotalOrdersCups = computed(() => {
@@ -1801,6 +1854,34 @@ function handleStorageUpdate() {
   padding-bottom: 2px;
   display: flex;
   align-items: flex-end;
+}
+
+.store-select-wrap {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.store-location-select {
+  height: 28px;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.store-location-select:hover {
+  background: #F4F4F5;
+  border-color: #000000;
 }
 
 .header-actions {

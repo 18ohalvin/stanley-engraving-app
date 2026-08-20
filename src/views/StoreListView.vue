@@ -272,13 +272,24 @@
               type="button" 
               class="btn-edit-store-info"
               @click="handleOpenEditStore(selectedDetailStore)"
+              title="Edit store details"
             >
               Edit Store Info
             </button>
             <button 
               type="button" 
+              class="btn-edit-store-info"
+              style="background: #F4F4F5; color: #18181B; border: 1px solid #E4E4E7;"
+              @click="openEngraverStation(selectedDetailStore)"
+              title="Open Engraver Station for this store"
+            >
+              Engraver Station ↗
+            </button>
+            <button 
+              type="button" 
               class="btn-store-dashboard-black"
               @click="openStoreDashboard(selectedDetailStore)"
+              title="View analytics overview for this store"
             >
               Store Dashboard
             </button>
@@ -1106,15 +1117,24 @@ function saveNewStore() {
 }
 
 function openStoreDashboard(store) {
+  if (!store) return;
   selectedDetailStore.value = null;
   router.push({
     path: '/dashboard',
     query: {
       from: 'stores',
-      storeName: store.name,
-      storeCode: store.code
+      storeName: store.name || '',
+      storeCode: store.code || store.id || ''
     }
   });
+}
+
+function openEngraverStation(store) {
+  if (!store) return;
+  selectedDetailStore.value = null;
+  const storeName = store.name || store.code || '';
+  localStorage.setItem('stanley_user_store', storeName);
+  router.push('/engraver');
 }
 
 function getInitials(name) {
