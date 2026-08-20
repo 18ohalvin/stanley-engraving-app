@@ -167,22 +167,21 @@
                     </span>
                   </td>
 
-                  <!-- 8. Action: Store Info & Independent Customer PWA Form -->
+                  <!-- 8. Action: Store Info & Customer PWA Form -->
                   <td class="td-cell td-action">
-                    <div class="action-buttons-group">
+                    <div class="store-action-btns-wrap">
                       <button 
                         type="button" 
                         class="see-detail-btn"
                         @click="handleSeeDetail(store)"
-                        title="View store details and staff operators"
                       >
                         Store Info
                       </button>
                       <button 
                         type="button" 
-                        class="open-pwa-form-btn"
-                        @click="openStoreForm(store)"
-                        title="Open independent customer PWA form for this store"
+                        class="see-detail-btn form-btn-outline"
+                        @click="openCustomerForm(store)"
+                        title="Open independent Customer PWA Form for this store"
                       >
                         Form
                       </button>
@@ -272,24 +271,13 @@
               type="button" 
               class="btn-edit-store-info"
               @click="handleOpenEditStore(selectedDetailStore)"
-              title="Edit store details"
             >
               Edit Store Info
             </button>
             <button 
               type="button" 
-              class="btn-edit-store-info"
-              style="background: #F4F4F5; color: #18181B; border: 1px solid #E4E4E7;"
-              @click="openEngraverStation(selectedDetailStore)"
-              title="Open Engraver Station for this store"
-            >
-              Engraver Station ↗
-            </button>
-            <button 
-              type="button" 
               class="btn-store-dashboard-black"
               @click="openStoreDashboard(selectedDetailStore)"
-              title="View analytics overview for this store"
             >
               Store Dashboard
             </button>
@@ -1117,24 +1105,24 @@ function saveNewStore() {
 }
 
 function openStoreDashboard(store) {
-  if (!store) return;
   selectedDetailStore.value = null;
   router.push({
     path: '/dashboard',
     query: {
       from: 'stores',
-      storeName: store.name || '',
-      storeCode: store.code || store.id || ''
+      storeName: store.name,
+      storeCode: store.code
     }
   });
 }
 
-function openEngraverStation(store) {
+function openCustomerForm(store) {
   if (!store) return;
-  selectedDetailStore.value = null;
-  const storeName = store.name || store.code || '';
-  localStorage.setItem('stanley_user_store', storeName);
-  router.push('/engraver');
+  const storeIdOrCode = store.code || store.id || '';
+  const routeData = router.resolve({
+    path: `/queue/store:${encodeURIComponent(storeIdOrCode)}`
+  });
+  window.open(routeData.href, '_blank');
 }
 
 function getInitials(name) {
@@ -1176,13 +1164,6 @@ function openWhatsApp(phone, staffName, storeName) {
   const intlPhone = cleanPhone.startsWith('0') ? '62' + cleanPhone.slice(1) : cleanPhone;
   const message = encodeURIComponent(`Hi ${staffName}, contacting you regarding Stanley ${storeName} engraving operations.`);
   window.open(`https://wa.me/${intlPhone}?text=${message}`, '_blank');
-}
-
-function openStoreForm(store) {
-  if (!store || (!store.code && !store.id)) return;
-  const code = store.code || store.id;
-  const url = `${window.location.origin}/?store=${encodeURIComponent(code)}`;
-  window.open(url, '_blank');
 }
 </script>
 
@@ -1586,52 +1567,45 @@ function openStoreForm(store) {
   color: #9CA3AF;
 }
 
-/* Action: See Detail Button (Figma 97:642) */
+.store-action-btns-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Action: See Detail Button & Form Outline Button (Figma 97:642) */
 .see-detail-btn {
   height: 38px;
-  padding: 0 20px;
+  padding: 0 16px;
   background: #000000;
   color: #FFFFFF;
-  border: none;
+  border: 1px solid #000000;
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: all 0.15s ease;
   white-space: nowrap;
-}
-
-.action-buttons-group {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
 }
 
 .see-detail-btn:hover {
   opacity: 0.85;
 }
 
-.open-pwa-form-btn {
-  height: 38px;
-  padding: 0 20px;
-  background: #FFFFFF;
+.see-detail-btn.form-btn-outline {
+  background: transparent;
   color: #000000;
   border: 1px solid #000000;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  white-space: nowrap;
 }
 
-.open-pwa-form-btn:hover {
+.see-detail-btn.form-btn-outline:hover {
   background: #F4F4F5;
   color: #000000;
-  border-color: #000000;
+  opacity: 1;
 }
 
 /* Modals */

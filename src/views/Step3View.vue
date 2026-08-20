@@ -128,14 +128,10 @@
   });
 
   onMounted(() => {
-    if (!engravingStore.currentItem) {
-      engravingStore.resetDraft();
-    }
-    engravingStore.restoreDraftFromCart();
-    if (engravingStore.currentItem?.text) {
+    if (engravingStore.currentItem.text) {
       enteredText.value = engravingStore.currentItem.text;
     }
-    if (engravingStore.currentItem?.fontId) {
+    if (engravingStore.currentItem.fontId) {
       selectedFontId.value = engravingStore.currentItem.fontId;
     } else {
       selectedFontId.value = 'lato';

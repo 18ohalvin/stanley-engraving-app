@@ -76,16 +76,6 @@ const engravingStore = useEngravingStore();
 
 const items = computed(() => engravingStore.items);
 
-onMounted(() => {
-  if (engravingStore.items.length === 0) {
-    if (engravingStore.currentItem?.text) {
-      engravingStore.saveCurrentItem();
-    } else {
-      router.replace('/step-1');
-    }
-  }
-});
-
 function editItem(index) {
   engravingStore.editItem(index);
   router.push('/step-3');

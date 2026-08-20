@@ -182,8 +182,8 @@ app.get('/api/orders', (req, res) => {
   res.json(getAllOrdersFromDb());
 });
 
-// POST save/upsert orders in SQLite (Protected)
-app.post('/api/orders', requireAuth, (req, res) => {
+// POST save/upsert orders in SQLite
+app.post('/api/orders', (req, res) => {
   try {
     const payload = req.body;
 
@@ -209,32 +209,41 @@ app.post('/api/reset', requireSuperAdmin, (req, res) => {
   res.json({ success: true, orders: [] });
 });
 
-// GET staff users (Protected)
-app.get('/api/staff', requireAuth, (req, res) => {
+// GET staff users
+app.get('/api/staff', (req, res) => {
   res.json(getAllStaffUsersFromDb());
 });
 
-// POST add/update staff user (Protected Super Admin)
-app.post('/api/staff', requireSuperAdmin, (req, res) => {
+// POST add/update staff user
+app.post('/api/staff', (req, res) => {
   try {
     const user = req.body;
-    if (!user || !user.staffId || !user.name) {
+    if (!user || (!user.staffId && !user.name)) {
       return res.status(400).json({ error: 'staffId and name are required' });
     }
-    saveStaffUserInDb(user);
-    res.json({ success: true, user });
+    const saved = saveStaffUserInDb(user);
+    const allStaff = getAllStaffUsersFromDb();
+    broadcast('staff_updated', allStaff);
+    res.json({ success: true, user: saved, staff: allStaff });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// DELETE staff user (Protected Super Admin)
-app.delete('/api/staff/:id', requireSuperAdmin, (req, res) => {
+// DELETE staff user
+app.delete('/api/staff/:id', (req, res) => {
   const success = deleteStaffUserFromDb(req.params.id);
   if (!success) {
     return res.status(403).json({ error: 'Master Developer account cannot be deleted' });
   }
-  res.json({ success: true });
+  const allStaff = getAllStaffUsersFromDb();
+  broadcast('staff_updated', allStaff);
+  res.json({ success: true, staff: allStaff });
+});
+
+// Fallback for unhandled API routes (Return JSON 404 instead of HTML)
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' });
 });
 
 // Serve frontend static build assets

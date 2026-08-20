@@ -15,6 +15,24 @@
         </div>
 
         <div class="header-actions">
+          <!-- Store Filter Selector for SuperAdmin & Developer -->
+          <div class="store-select-wrap">
+            <select 
+              v-model="selectedStoreFilter" 
+              class="header-store-select"
+              title="Select store location or view global data"
+            >
+              <option value="">ALL STORES (GLOBAL)</option>
+              <option 
+                v-for="s in availableStores" 
+                :key="s.id || s.code" 
+                :value="s.code || s.name"
+              >
+                {{ s.code }} - {{ s.name }}
+              </option>
+            </select>
+          </div>
+
           <!-- Date Picker Button (Figma 111:905) -->
           <button 
             type="button" 
@@ -448,21 +466,35 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useQueueStore } from '../store/queueStore.js';
+import { useQueueStore, isOrderForStore } from '../store/queueStore.js';
 import { FONT_OPTIONS } from '../store/engravingStore.js';
 
 const route = useRoute();
 const router = useRouter();
+
+const selectedStoreFilter = ref(route.query.storeCode || route.query.storeName || '');
+const availableStores = ref([]);
+
+function loadAvailableStores() {
+  try {
+    const saved = localStorage.getItem('stanley_custom_stores');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) availableStores.value = parsed;
+    }
+  } catch (e) {}
+}
 
 const isFromStoreList = computed(() => {
   return route.query.from === 'stores' || route.query.from === 'store-list';
 });
 
 const currentStoreTitle = computed(() => {
-  if (route.query.storeName) {
-    return String(route.query.storeName).toUpperCase();
+  if (selectedStoreFilter.value) {
+    const s = String(selectedStoreFilter.value).trim().toUpperCase();
+    return s.startsWith('STANLEY') ? s : `STANLEY ${s}`;
   }
-  return 'STANLEY PONDOK INDAH MALL 5';
+  return 'ALL STORES (GLOBAL DASHBOARD)';
 });
 
 function handleBackNavigation() {
@@ -736,6 +768,8 @@ const allRows = computed(() => {
   const rows = [];
   for (const order of queueStore.orders) {
     if (order.status === 'cancelled') continue;
+    if (selectedStoreFilter.value && !isOrderForStore(order, selectedStoreFilter.value)) continue;
+
     const items = order.items || [{}];
     items.forEach((item, itemIdx) => {
       rows.push({
@@ -749,6 +783,9 @@ const allRows = computed(() => {
         phone: order.phone,
         email: order.email,
         status: order.status,
+        store_code: order.store_code,
+        store_name: order.store_name,
+        store_id: order.store_id,
         item,
         itemIndex: itemIdx,
         rawOrder: order
@@ -883,6 +920,10 @@ function confirmDelete() {
   showDeleteModal.value = false;
   deletingOrder.value = null;
 }
+
+onMounted(() => {
+  loadAvailableStores();
+});
 </script>
 
 <style scoped>
@@ -918,11 +959,35 @@ function confirmDelete() {
   justify-content: space-between;
 }
 
-.header-titles {
+.header-actions {
   display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  height: 28px;
+  align-items: center;
+  gap: 12px;
+}
+
+.store-select-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.header-store-select {
+  height: 36px;
+  padding: 0 12px;
+  background: #F4F4F5;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  font-family: var(--font-brand);
+  font-size: 12px;
+  font-weight: 600;
+  color: #000000;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.header-store-select:focus,
+.header-store-select:hover {
+  border-color: #000000;
 }
 
 .stanley-logo {

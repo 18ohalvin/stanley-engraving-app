@@ -6,6 +6,29 @@ import { formatSystemQueueNumber } from '../utils/formatters.js';
 // Clean empty starting state for production deployment
 const INITIAL_SEED_ORDERS = [];
 
+export function isOrderForStore(order, storeFilter) {
+  if (!order) return false;
+  if (!storeFilter) return true;
+
+  const rawFilter = String(storeFilter).trim();
+  if (!rawFilter || rawFilter.toUpperCase() === 'ALL STORES' || rawFilter.toUpperCase() === 'HQ CENTRAL') {
+    return true;
+  }
+
+  const cleanFilter = rawFilter.toLowerCase().replace(/^stanley\s+/, '');
+  const oCode = (order.store_code || '').trim().toLowerCase();
+  const oId = (order.store_id || '').trim().toLowerCase();
+  const oName = (order.store_name || '').trim().toLowerCase().replace(/^stanley\s+/, '');
+
+  if (oCode && (oCode === cleanFilter || rawFilter.toLowerCase().includes(oCode))) return true;
+  if (oId && oId === cleanFilter) return true;
+  if (oName && (oName === cleanFilter || cleanFilter.includes(oName) || oName.includes(cleanFilter))) return true;
+
+  if (!order.store_code && !order.store_name && !order.store_id) return true;
+
+  return false;
+}
+
 function getStoredMachines() {
   try {
     const data = localStorage.getItem('stanley_machines_state');
@@ -218,27 +241,38 @@ export const useQueueStore = defineStore('queue', {
       this.autoAssignMachines();
     },
 
-    getNextSystemQueueNumber(storeIdentifier) {
-      const target = (storeIdentifier || '').toLowerCase().trim();
-      const highest = this.orders
-        .filter(o => {
-          if (!target) return true;
-          const code = (o.store_code || '').toLowerCase().trim();
-          const id = (o.store_id || '').toLowerCase().trim();
-          const name = (o.store_name || '').toLowerCase().trim();
-          return (code && (code === target || target.includes(code))) ||
-                 (id && (id === target || target.includes(id))) ||
-                 (name && (name === target || target.includes(name)));
-        })
-        .reduce((max, o) => {
-          const num = parseInt(o.system_queue_number || o.short_code, 10);
-          return isNaN(num) ? max : Math.max(max, num);
-        }, 0);
+    getNextSystemQueueNumber() {
+      const highest = this.orders.reduce((max, o) => {
+        const num = parseInt(o.system_queue_number || o.short_code, 10);
+        return isNaN(num) ? max : Math.max(max, num);
+      }, 0);
       return formatSystemQueueNumber(highest + 1);
     },
 
-    getActiveQueueCount() {
-      return this.orders.filter(o => o.status === 'in_queue' || o.status === 'engraving_in_progress').length;
+    getActiveQueueCount(storeFilter) {
+      return this.orders.filter(o => 
+        (o.status === 'in_queue' || o.status === 'engraving_in_progress') && 
+        isOrderForStore(o, storeFilter)
+      ).length;
+    },
+
+    getUpcomingListOrders(storeFilter) {
+      const activeAssignedIds = this.machines
+        .filter(m => m.isActive !== false)
+        .map(m => m.currentOrderId)
+        .filter(Boolean);
+
+      return this.orders
+        .filter(o => o.status === 'in_queue' && !activeAssignedIds.includes(o.order_id) && isOrderForStore(o, storeFilter))
+        .slice()
+        .sort((a, b) => {
+          const timeA = new Date(a.intake_at || a.created_at || 0).getTime();
+          const timeB = new Date(b.intake_at || b.created_at || 0).getTime();
+          if (timeA !== timeB) return timeA - timeB;
+          const numA = parseInt(a.system_queue_number || a.short_code, 10) || 0;
+          const numB = parseInt(b.system_queue_number || b.short_code, 10) || 0;
+          return numA - numB;
+        });
     },
 
     addOrder(order) {
@@ -311,7 +345,7 @@ export const useQueueStore = defineStore('queue', {
      * Zone A: Lookup Order by 3-digit Alphanumeric Code (e.g. C4X)
      * Returns order details to show in confirmation modal
      */
-    lookupIntakeOrder(codeInput) {
+    lookupIntakeOrder(codeInput, storeFilter) {
       if (!codeInput) {
         return { success: false, message: 'Please enter a 3-digit Engraving ID (e.g. C4X).' };
       }
@@ -325,6 +359,13 @@ export const useQueueStore = defineStore('queue', {
 
       if (!order) {
         return { success: false, message: `Unique Code #${cleanCode} not found.` };
+      }
+
+      if (storeFilter && !isOrderForStore(order, storeFilter)) {
+        return { 
+          success: false, 
+          message: `Unique Code #${cleanCode} belongs to a different store location (${order.store_name || order.store_code || 'Other Store'}).` 
+        };
       }
 
       if (order.status === 'in_queue') {
@@ -348,8 +389,7 @@ export const useQueueStore = defineStore('queue', {
         };
       }
 
-      const storeIdentifier = order.store_code || order.store_id || order.store_name || '';
-      const nextQueueNumber = this.getNextSystemQueueNumber(storeIdentifier);
+      const nextQueueNumber = this.getNextSystemQueueNumber();
 
       return {
         success: true,
@@ -368,8 +408,7 @@ export const useQueueStore = defineStore('queue', {
         return { success: false, message: 'Order not found.' };
       }
 
-      const storeIdentifier = order.store_code || order.store_id || order.store_name || '';
-      const newQueueNumber = this.getNextSystemQueueNumber(storeIdentifier);
+      const newQueueNumber = this.getNextSystemQueueNumber();
       
       // Update order to in_queue with official 4-digit system queue number
       order.status = 'in_queue';

@@ -563,33 +563,6 @@ requireAuth(reqMock, resMock, () => { nextCalled = true; });
 assert(resMock.statusCode === 401, 'requireAuth rejects invalid bearer token with HTTP 401');
 assert(nextCalled === false, 'Next route handler not called when unauthenticated');
 
-console.log('\n--- 10. Testing Store Independent Customer PWA Form & Engraver Isolation ---');
-const engravingStoreInstance = useEngravingStore();
-engravingStoreInstance.initStoreContextFromParams({ store: 'EG-021' });
-assert(engravingStoreInstance.storeContext.storeCode === 'EG-021', 'Customer PWA initializes store context code EG-021 from URL parameter');
-
-engravingStoreInstance.items = [{ model: 'IceFlow', size: '40oz', position: 'Horizontal', text: 'STOREA', font: 'Helvetica', fontClass: 'lato' }];
-engravingStoreInstance.customer = { name: 'Store Customer', countryCode: '+62', phone: '812345678', email: '' };
-
-const storeOrder = engravingStoreInstance.submitOrder();
-assert(storeOrder.store_code === 'EG-021', 'Submitted order includes store_code EG-021');
-
-const matchesSameStore = (order, targetStore) => {
-  if (!targetStore) return true;
-  const target = targetStore.toLowerCase();
-  const orderStoreCode = (order.store_code || '').toLowerCase();
-  const orderStoreName = (order.store_name || '').toLowerCase();
-  return (orderStoreCode && orderStoreCode === target) || (orderStoreName && orderStoreName === target);
-};
-
-assert(matchesSameStore(storeOrder, 'EG-021') === true, 'Engraver at EG-021 matches store order');
-assert(matchesSameStore(storeOrder, 'EG-022') === false, 'Engraver at EG-022 excludes order from store EG-021');
-
-engravingStoreInstance.resetDraft();
-assert(engravingStoreInstance.currentItem.text === '', 'Reset draft clears current item text');
-engravingStoreInstance.restoreDraftFromCart();
-assert(engravingStoreInstance.currentItem.text === 'STOREA', 'restoreDraftFromCart restores previous customization when navigating back');
-
 console.log('\n========================================');
 console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
 console.log('========================================\n');

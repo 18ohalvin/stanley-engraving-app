@@ -13,39 +13,29 @@
       tabindex="0"
     >
       <img 
-        :src="isLanding ? '/src/assets/images/logo-white.png' : '/src/assets/images/logo-black.png'" 
+        src="/src/assets/images/logo-white.png" 
         alt="Stanley 1913" 
         class="stationary-logo"
       />
     </div>
 
     <!-- Main View Router Container -->
-    <router-view v-slot="{ Component, route }">
+    <router-view v-slot="{ Component }">
       <transition name="page-slide" mode="out-in">
-        <component :is="Component" :key="route.fullPath" />
+        <component :is="Component" />
       </transition>
     </router-view>
   </div>
 </template>
 
 <script setup>
-import { computed, watch } from 'vue';
+import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useEngravingStore } from './store/engravingStore';
 
 const route = useRoute();
 const router = useRouter();
 const engravingStore = useEngravingStore();
-
-watch(
-  () => route.query,
-  (query) => {
-    if (query && (query.store || query.store_code || query.storeId)) {
-      engravingStore.initStoreContextFromParams(query);
-    }
-  },
-  { immediate: true, deep: true }
-);
 
 const isFullWidth = computed(() => Boolean(route.meta?.fullWidth));
 const isLanding = computed(() => route.path === '/');

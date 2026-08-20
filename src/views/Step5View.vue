@@ -169,21 +169,11 @@ import { useEngravingStore } from '../store/engravingStore';
 const router = useRouter();
 const engravingStore = useEngravingStore();
 
-const customerName = ref(engravingStore.customer?.name || '');
-const countryCode = ref(engravingStore.customer?.countryCode || '+62');
-const phoneNumber = ref(engravingStore.customer?.phone || '');
-const email = ref(engravingStore.customer?.email || '');
+const customerName = ref(engravingStore.customer.name || '');
+const countryCode = ref(engravingStore.customer.countryCode || '+62');
+const phoneNumber = ref(engravingStore.customer.phone || '');
+const email = ref(engravingStore.customer.email || '');
 const isSubmitting = ref(false);
-
-onMounted(() => {
-  if (engravingStore.items.length === 0) {
-    if (engravingStore.currentItem?.text) {
-      engravingStore.saveCurrentItem();
-    } else {
-      router.replace('/step-1');
-    }
-  }
-});
 
 // State tracking for Figma 4:688 TextHolder variants
 const isNameFocused = ref(false);

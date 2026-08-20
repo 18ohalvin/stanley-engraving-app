@@ -863,8 +863,14 @@ onMounted(async () => {
     if (res.ok) {
       const serverStaff = await res.json();
       if (Array.isArray(serverStaff)) {
-        const withoutDev = serverStaff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
-        staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+        const currentLocal = staffUsers.value.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+        const withoutDevServer = serverStaff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+        
+        const mergedMap = new Map();
+        currentLocal.forEach(u => mergedMap.set(u.id || u.staffId, u));
+        withoutDevServer.forEach(u => mergedMap.set(u.id || u.staffId, u));
+        
+        staffUsers.value = [DEVELOPER_ACCOUNT, ...Array.from(mergedMap.values())];
         localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
       }
     }
@@ -1260,11 +1266,19 @@ async function saveStaffForm() {
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      await fetch('/api/staff', {
+      const res = await fetch('/api/staff', {
         method: 'POST',
         headers,
         body: JSON.stringify(targetUser)
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.staff && Array.isArray(data.staff)) {
+          const withoutDev = data.staff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+          staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+          persistStaffUsers();
+        }
+      }
     } catch (e) {
       console.warn('Failed to sync staff user to SQLite backend:', e);
     }

@@ -72,16 +72,12 @@ const availablePositions = computed(() => {
 });
 
 onMounted(() => {
-  if (!engravingStore.currentItem) {
-    engravingStore.resetDraft();
-  }
-  engravingStore.restoreDraftFromCart();
-  if (!engravingStore.currentItem?.position || !availablePositions.value.includes(engravingStore.currentItem.position)) {
+  if (!engravingStore.currentItem.position || !availablePositions.value.includes(engravingStore.currentItem.position)) {
     engravingStore.setPosition(availablePositions.value[0] || 'Horizontal');
   }
 });
 
-const selectedPosition = computed(() => engravingStore.currentItem?.position || 'Horizontal');
+const selectedPosition = computed(() => engravingStore.currentItem.position || 'Horizontal');
 const isStepValid = computed(() => Boolean(selectedPosition.value));
 
 function selectPosition(pos) {

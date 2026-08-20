@@ -64,12 +64,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import StepHeader from '../components/StepHeader.vue';
 import CTAButton from '../components/CTAButton.vue';
 import { useEngravingStore, CUP_MODELS, getCatalogCupModels } from '../store/engravingStore';
 
 const router = useRouter();
+const route = useRoute();
 const engravingStore = useEngravingStore();
 
 const cupModels = ref(getCatalogCupModels());
@@ -81,12 +82,23 @@ const selectedSize = computed(() => engravingStore.currentItem.size);
 const isStepValid = computed(() => Boolean(engravingStore.currentItem.model && engravingStore.currentItem.size));
 
 onMounted(() => {
-  engravingStore.restoreDraftFromCart();
+  const storeCode = route.params.storeCode || route.query.storeCode;
+  const storeName = route.query.storeName;
+  const storeId = route.query.storeId;
+
+  if (storeCode || storeName || storeId) {
+    engravingStore.setStoreContext({
+      code: storeCode,
+      name: storeName,
+      id: storeId
+    });
+  }
+
   cupModels.value = getCatalogCupModels();
-  const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem?.model);
+  const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem.model);
   if (idx !== -1) {
     currentModelIndex.value = idx;
-  } else if (currentModel.value) {
+  } else {
     engravingStore.setModel(currentModel.value.name, currentModel.value.shortName);
   }
 });

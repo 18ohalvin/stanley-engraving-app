@@ -57,6 +57,18 @@ const routes = [
     meta: { isMobileFlow: true }
   },
   {
+    path: '/queue/store::storeCode',
+    name: 'pwa-store-colon',
+    component: LandingView,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/queue/store/:storeCode',
+    name: 'pwa-store-slash',
+    component: LandingView,
+    meta: { isMobileFlow: true }
+  },
+  {
     path: '/queue/:orderId',
     name: 'queue-ticket',
     component: QueueTicketView,
@@ -95,6 +107,22 @@ const routes = [
     name: 'settings',
     component: SettingsView,
     meta: { fullWidth: true, requiresAuth: true, requiresSuperAdmin: true }
+  },
+  {
+    path: '/pwa/:storeCode',
+    redirect: to => ({ path: '/step-1', query: { storeCode: to.params.storeCode } })
+  },
+  {
+    path: '/form/:storeCode',
+    redirect: to => ({ path: '/step-1', query: { storeCode: to.params.storeCode } })
+  },
+  {
+    path: '/pwa',
+    redirect: '/step-1'
+  },
+  {
+    path: '/form',
+    redirect: '/step-1'
   },
   {
     path: '/:pathMatch(.*)*',

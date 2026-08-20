@@ -391,22 +391,37 @@ export function getAllStaffUsersFromDb() {
 }
 
 export function saveStaffUserInDb(user) {
-  const existing = db.prepare(`SELECT * FROM staff_users WHERE id = ? OR staff_id = ?`).get(user.id, user.staffId);
+  if (!user) return null;
+
+  const targetId = String(user.id || '').trim();
+  const targetStaffId = String(user.staffId || user.idCode || '').trim();
+
+  let existing = null;
+  if (targetId) {
+    existing = db.prepare(`SELECT * FROM staff_users WHERE id = ?`).get(targetId);
+  }
+  if (!existing && targetStaffId) {
+    existing = db.prepare(`SELECT * FROM staff_users WHERE staff_id = ?`).get(targetStaffId);
+  }
+
   const now = new Date().toISOString();
+  const finalId = targetId || existing?.id || `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const finalStaffId = targetStaffId || existing?.staff_id || finalId;
 
   if (existing) {
     db.prepare(`
       UPDATE staff_users SET
-        name = ?, username = ?, whatsapp = ?, pin = ?, role = ?, store = ?, status = ?
+        staff_id = ?, name = ?, username = ?, whatsapp = ?, pin = ?, role = ?, store = ?, status = ?
       WHERE id = ?
     `).run(
-      user.name,
-      user.username || user.name,
-      user.whatsapp || '',
-      user.pin || '',
-      user.role || 'Staff Store',
-      user.store || '',
-      user.status || 'Active',
+      finalStaffId,
+      user.name || existing.name,
+      user.username || user.name || existing.username,
+      user.whatsapp !== undefined ? user.whatsapp : (existing.whatsapp || ''),
+      user.pin !== undefined ? user.pin : (existing.pin || '1913'),
+      user.role || existing.role || 'Staff Store',
+      user.store !== undefined ? user.store : (existing.store || ''),
+      user.status || existing.status || 'Active',
       existing.id
     );
   } else {
@@ -414,12 +429,12 @@ export function saveStaffUserInDb(user) {
       INSERT INTO staff_users (id, staff_id, name, username, whatsapp, pin, role, store, status, is_developer, is_protected, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      user.id || `usr-${Date.now()}`,
-      user.staffId,
-      user.name,
-      user.username || user.name,
+      finalId,
+      finalStaffId,
+      user.name || 'Staff User',
+      user.username || user.name || finalStaffId,
       user.whatsapp || '',
-      user.pin || '',
+      user.pin || '1913',
       user.role || 'Staff Store',
       user.store || '',
       user.status || 'Active',
@@ -428,6 +443,8 @@ export function saveStaffUserInDb(user) {
       now
     );
   }
+
+  return db.prepare(`SELECT * FROM staff_users WHERE id = ?`).get(finalId);
 }
 
 export function deleteStaffUserFromDb(id) {
