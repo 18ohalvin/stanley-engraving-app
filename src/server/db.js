@@ -144,9 +144,10 @@ function seedDefaultMasterData() {
     );
   }
 
-  // Seed default network stores if empty
+  // Seed default network stores if database has never been initialized
+  const storeInitCheck = getSettingsFromDb('stores_initialized');
   const storeCheck = db.prepare(`SELECT count(*) as count FROM stores`).get();
-  if (!storeCheck || storeCheck.count === 0) {
+  if (!storeInitCheck && (!storeCheck || storeCheck.count === 0)) {
     const defaultStores = [
       { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', city: 'Jakarta Selatan', address: 'Pondok Indah Mall 5, Lt 2, Jakarta', phone: '+62 817-5566-7788', total_machines: 2, active_machines: 2, status: 'Online' },
       { id: '002', code: '002', name: 'Stanley Grand Indonesia', city: 'Jakarta Pusat', address: 'Grand Indonesia East Mall, Lt 1, Jakarta', phone: '+62 812-9988-7766', total_machines: 2, active_machines: 2, status: 'Online' },
@@ -163,6 +164,7 @@ function seedDefaultMasterData() {
     for (const s of defaultStores) {
       insertStmt.run(s.id, s.code, s.name, s.city, s.address, s.phone, s.total_machines, s.active_machines, s.status, now);
     }
+    saveSettingsInDb('stores_initialized', true);
   }
 
   // Migrate legacy data from data/orders.json if orders table is empty

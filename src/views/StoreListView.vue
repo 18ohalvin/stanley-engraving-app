@@ -1063,7 +1063,7 @@ async function fetchNetworkStores() {
     const res = await fetch('/api/network/stores', { headers });
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         customStores.value = data;
         localStorage.setItem('stanley_custom_stores', JSON.stringify(data));
       }
