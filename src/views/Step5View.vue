@@ -160,14 +160,21 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import StepHeader from '../components/StepHeader.vue';
 import CTAButton from '../components/CTAButton.vue';
 import { useEngravingStore } from '../store/engravingStore';
 
 const router = useRouter();
+const route = useRoute();
 const engravingStore = useEngravingStore();
+
+onMounted(() => {
+  if (route.params.storeId) {
+    engravingStore.setStoreId(route.params.storeId);
+  }
+});
 
 const customerName = ref(engravingStore.customer.name || '');
 const countryCode = ref(engravingStore.customer.countryCode || '+62');
@@ -223,7 +230,6 @@ async function submitOrder() {
 
   try {
     const order = engravingStore.submitOrder();
-    await new Promise(r => setTimeout(r, 400));
     router.push(`/queue/${order.order_id}`);
   } catch (err) {
     console.error('Error submitting order:', err);

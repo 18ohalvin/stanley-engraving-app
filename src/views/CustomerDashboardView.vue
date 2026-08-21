@@ -15,24 +15,6 @@
         </div>
 
         <div class="header-actions">
-          <!-- Store Filter Selector for SuperAdmin & Developer -->
-          <div class="store-select-wrap">
-            <select 
-              v-model="selectedStoreFilter" 
-              class="header-store-select"
-              title="Select store location or view global data"
-            >
-              <option value="">ALL STORES (GLOBAL)</option>
-              <option 
-                v-for="s in availableStores" 
-                :key="s.id || s.code" 
-                :value="s.code || s.name"
-              >
-                {{ s.code }} - {{ s.name }}
-              </option>
-            </select>
-          </div>
-
           <!-- Date Picker Button (Figma 111:905) -->
           <button 
             type="button" 
@@ -150,7 +132,7 @@
                 placeholder="Search by name, ID, phone..." 
                 class="search-input"
               />
-              <span class="total-badge">Total: {{ displayedRows.length }}</span>
+              <span class="total-badge">Total: {{ displayedOrders.length }}</span>
             </div>
           </div>
 
@@ -164,7 +146,7 @@
                   <th class="col-name">Nama</th>
                   <th class="col-id">ID</th>
                   <th class="col-email">Email</th>
-                  <th class="col-wa">WhatsApp</th>
+                  <th class="col-wa">Whatsapp</th>
                   <th class="col-stanley">Stanley</th>
                   <th class="col-position">Position</th>
                   <th class="col-custom">Custom</th>
@@ -172,76 +154,130 @@
                 </tr>
               </thead>
               <tbody>
-                <tr 
-                  v-for="(row, index) in displayedRows" 
-                  :key="row.rowKey"
-                  class="table-data-row fade-in"
-                >
-                  <!-- No -->
-                  <td class="cell-no">{{ index + 1 }}</td>
-
-                  <!-- Nama -->
-                  <td class="cell-name font-medium">{{ row.customer_name }}</td>
-
-                  <!-- Ticket ID (EG-XXXX) -->
-                  <td class="cell-id">
-                    <span class="id-tag">{{ formatTicketId(row) }}</span>
-                  </td>
-
-                  <!-- Email -->
-                  <td class="cell-email">{{ row.email || '—' }}</td>
-
-                  <!-- WhatsApp -->
-                  <td class="cell-wa">{{ row.phone }}</td>
-
-                  <!-- Stanley Model & Size -->
-                  <td class="cell-stanley">
-                    {{ formatStanleyModel(row.item) }}
-                  </td>
-
-                  <!-- Position (Horizontal / Vertical) -->
-                  <td class="cell-position">
-                    <span class="position-badge" :class="{ 'is-vertical': row.item?.position === 'Vertical' }">
-                      {{ row.item?.position || 'Horizontal' }}
-                    </span>
-                  </td>
-
-                  <!-- Custom Text with Live Typography Font Rendering (Figma 77:605) -->
-                  <td class="cell-custom">
-                    <span 
-                      class="custom-rendered-text"
-                      :class="row.item?.fontClass || 'font-engraving-lato'"
+                <template v-for="(order, orderIdx) in displayedOrders" :key="order.order_id">
+                  <!-- Primary Row for Order (Contains Rowspan for NO, NAMA, ID, EMAIL, WA, ACTION) -->
+                  <tr class="table-data-row fade-in">
+                    <!-- No -->
+                    <td 
+                      :rowspan="(order.items && order.items.length > 1) ? order.items.length : 1" 
+                      class="cell-no"
                     >
-                      {{ row.item?.text || 'STANLEY' }}
-                    </span>
-                  </td>
+                      {{ orderIdx + 1 }}
+                    </td>
 
-                  <!-- Action Buttons (Figma 77:1125) -->
-                  <td class="cell-action">
-                    <div class="action-buttons-wrap">
-                      <!-- Edit Button -->
-                      <button 
-                        class="action-btn edit-btn" 
-                        title="Edit Customer Details"
-                        @click="openEditModal(row)"
-                      >
-                        <img src="/src/assets/icons/edit.svg" alt="Edit" class="btn-icon" />
-                      </button>
+                    <!-- Nama -->
+                    <td 
+                      :rowspan="(order.items && order.items.length > 1) ? order.items.length : 1" 
+                      class="cell-name font-medium"
+                    >
+                      {{ order.customer_name }}
+                    </td>
 
-                      <!-- Delete Button -->
-                      <button 
-                        class="action-btn delete-btn" 
-                        title="Delete Order"
-                        @click="openDeleteModal(row)"
+                    <!-- Ticket ID (EG-XXXX) -->
+                    <td 
+                      :rowspan="(order.items && order.items.length > 1) ? order.items.length : 1" 
+                      class="cell-id"
+                    >
+                      <span class="id-tag">{{ formatTicketId(order) }}</span>
+                    </td>
+
+                    <!-- Email -->
+                    <td 
+                      :rowspan="(order.items && order.items.length > 1) ? order.items.length : 1" 
+                      class="cell-email"
+                    >
+                      {{ order.email || '—' }}
+                    </td>
+
+                    <!-- WhatsApp -->
+                    <td 
+                      :rowspan="(order.items && order.items.length > 1) ? order.items.length : 1" 
+                      class="cell-wa"
+                    >
+                      {{ order.phone }}
+                    </td>
+
+                    <!-- Stanley Model & Size (Item 0) -->
+                    <td class="cell-stanley">
+                      {{ formatStanleyModel(order.items?.[0]) }}
+                    </td>
+
+                    <!-- Position (Item 0) -->
+                    <td class="cell-position">
+                      <span class="position-badge" :class="{ 'is-vertical': order.items?.[0]?.position === 'Vertical' }">
+                        {{ order.items?.[0]?.position || 'Horizontal' }}
+                      </span>
+                    </td>
+
+                    <!-- Custom Text (Item 0) -->
+                    <td class="cell-custom">
+                      <span 
+                        class="custom-rendered-text"
+                        :class="order.items?.[0]?.fontClass || 'font-engraving-lato'"
                       >
-                        <img src="/src/assets/icons/trash.svg" alt="Delete" class="btn-icon delete-icon" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                        {{ order.items?.[0]?.text || 'STANLEY' }}
+                      </span>
+                    </td>
+
+                    <!-- Action Buttons (Single Merged Edit & Delete for Order) -->
+                    <td 
+                      :rowspan="(order.items && order.items.length > 1) ? order.items.length : 1" 
+                      class="cell-action"
+                    >
+                      <div class="action-buttons-wrap">
+                        <!-- Edit Button -->
+                        <button 
+                          class="action-btn edit-btn" 
+                          title="Edit Customer Order"
+                          @click="openEditModalForOrder(order, 0)"
+                        >
+                          <img src="/src/assets/icons/edit.svg" alt="Edit" class="btn-icon" />
+                        </button>
+
+                        <!-- Delete Button -->
+                        <button 
+                          class="action-btn delete-btn" 
+                          title="Delete Order"
+                          @click="openDeleteModalForOrder(order)"
+                        >
+                          <img src="/src/assets/icons/trash.svg" alt="Delete" class="btn-icon delete-icon" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Secondary Sub-rows for Multi-Cup items (> 0) -->
+                  <tr 
+                    v-for="(subItem, subIdx) in (order.items || []).slice(1)" 
+                    :key="`${order.order_id}-sub-${subIdx}`"
+                    class="table-data-row sub-item-row fade-in"
+                  >
+                    <!-- Stanley Model & Size -->
+                    <td class="cell-stanley">
+                      {{ formatStanleyModel(subItem) }}
+                    </td>
+
+                    <!-- Position -->
+                    <td class="cell-position">
+                      <span class="position-badge" :class="{ 'is-vertical': subItem?.position === 'Vertical' }">
+                        {{ subItem?.position || 'Horizontal' }}
+                      </span>
+                    </td>
+
+                    <!-- Custom Text -->
+                    <td class="cell-custom">
+                      <span 
+                        class="custom-rendered-text"
+                        :class="subItem?.fontClass || 'font-engraving-lato'"
+                      >
+                        {{ subItem?.text || 'STANLEY' }}
+                      </span>
+                    </td>
+                  </tr>
+                </template>
 
                 <!-- Empty State -->
-                <tr v-if="displayedRows.length === 0">
+                <tr v-if="displayedOrders.length === 0">
                   <td colspan="9" class="empty-table-cell">
                     <div class="empty-table-content">
                       <p class="empty-title">No customer orders found</p>
@@ -278,6 +314,23 @@
           </div>
 
           <form @submit.prevent="saveEditOrder" class="edit-form">
+            <!-- Cup Selector Tabs for Multi-Cup Orders -->
+            <div v-if="editingOrder.items && editingOrder.items.length > 1" class="item-tab-selector">
+              <label class="tab-selector-label">Select Cup to Edit:</label>
+              <div class="item-tabs">
+                <button 
+                  v-for="(item, idx) in editingOrder.items" 
+                  :key="idx" 
+                  type="button" 
+                  class="item-tab-btn"
+                  :class="{ 'is-active': editingItemIndex === idx }"
+                  @click="switchEditingItem(idx)"
+                >
+                  Cup {{ idx + 1 }}: {{ formatStanleyModel(item) }}
+                </button>
+              </div>
+            </div>
+
             <div class="form-group">
               <label>Customer Name</label>
               <input type="text" v-model="editForm.customer_name" required class="modal-input" />
@@ -466,42 +519,41 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useQueueStore, isOrderForStore } from '../store/queueStore.js';
+import { useQueueStore } from '../store/queueStore.js';
 import { FONT_OPTIONS } from '../store/engravingStore.js';
+import { getCanonicalStore } from '../utils/storeResolver.js';
 
 const route = useRoute();
 const router = useRouter();
-
-const selectedStoreFilter = ref(route.query.storeCode || route.query.storeName || '');
-const availableStores = ref([]);
-
-function loadAvailableStores() {
-  try {
-    const saved = localStorage.getItem('stanley_custom_stores');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) availableStores.value = parsed;
-    }
-  } catch (e) {}
-}
 
 const isFromStoreList = computed(() => {
   return route.query.from === 'stores' || route.query.from === 'store-list';
 });
 
 const currentStoreTitle = computed(() => {
-  if (selectedStoreFilter.value) {
-    const s = String(selectedStoreFilter.value).trim().toUpperCase();
+  const paramStore = route.params.storeId;
+  const queryStore = route.query.storeName || route.query.storeId;
+  const userStore = paramStore || queryStore || localStorage.getItem('stanley_user_store');
+  const canonical = getCanonicalStore(userStore);
+  if (canonical && canonical.name) {
+    const s = canonical.name.toUpperCase();
     return s.startsWith('STANLEY') ? s : `STANLEY ${s}`;
   }
-  return 'ALL STORES (GLOBAL DASHBOARD)';
+  if (userStore && userStore.trim()) {
+    const s = userStore.trim().toUpperCase();
+    return s.startsWith('STANLEY') ? s : `STANLEY ${s}`;
+  }
+  return 'STANLEY PONDOK INDAH MALL';
 });
 
 function handleBackNavigation() {
+  const userStore = route.params.storeId || route.query.storeId || route.query.storeCode || localStorage.getItem('stanley_user_store');
+  const canonical = getCanonicalStore(userStore);
+  const code = canonical ? canonical.code : userStore;
   if (isFromStoreList.value) {
     router.push('/stores');
   } else {
-    router.push('/engraver');
+    router.push(code ? `/engraver/${encodeURIComponent(code)}` : '/engraver');
   }
 }
 
@@ -745,15 +797,14 @@ onMounted(() => {
 });
 
 function formatTicketId(rowOrOrder) {
-  if (!rowOrOrder) return '0001';
+  if (!rowOrOrder) return '-';
   if (rowOrOrder.system_queue_number) {
     return rowOrOrder.system_queue_number;
   }
   if (rowOrOrder.short_code && /^\d{4}$/.test(rowOrOrder.short_code)) {
     return rowOrOrder.short_code;
   }
-  const pos = rowOrOrder.queue_position ? String(rowOrOrder.queue_position).padStart(4, '0') : (rowOrOrder.short_code || '0001');
-  return pos;
+  return '-';
 }
 
 function getCurrentJobCode(machine) {
@@ -763,86 +814,69 @@ function getCurrentJobCode(machine) {
   return formatTicketId(order);
 }
 
-// Transform orders into flat rows per engraved cup for exact Figma 31:1430 layout
-const allRows = computed(() => {
-  const rows = [];
-  for (const order of queueStore.orders) {
-    if (order.status === 'cancelled') continue;
-    if (selectedStoreFilter.value && !isOrderForStore(order, selectedStoreFilter.value)) continue;
-
-    const items = order.items || [{}];
-    items.forEach((item, itemIdx) => {
-      rows.push({
-        rowKey: `${order.order_id}-${itemIdx}`,
-        order_id: order.order_id,
-        system_queue_number: order.system_queue_number,
-        short_code: order.short_code,
-        intake_code: order.intake_code,
-        queue_position: order.queue_position,
-        customer_name: order.customer_name,
-        phone: order.phone,
-        email: order.email,
-        status: order.status,
-        store_code: order.store_code,
-        store_name: order.store_name,
-        store_id: order.store_id,
-        item,
-        itemIndex: itemIdx,
-        rawOrder: order
-      });
-    });
-  }
-  return rows;
+const allOrders = computed(() => {
+  return queueStore.orders.filter(order => {
+    if (order.status === 'cancelled' || order.status === 'pending_dropoff') return false;
+    return true;
+  });
 });
 
-const displayedRows = computed(() => {
-  let rows = allRows.value;
+const displayedOrders = computed(() => {
+  let orders = allOrders.value;
 
-  // 1. Date Filter (Defaults to Today, or selected preset / custom date)
+  // 1. Store Isolation Filter
+  const userStore = route.params.storeId || route.query.storeId || route.query.storeCode || localStorage.getItem('stanley_user_store');
+  if (userStore && userStore !== '*' && userStore !== 'HQ Central') {
+    const isSameStore = (s1, s2) => {
+      if (!s1 || !s2) return false;
+      if (s1 === '*' || s2 === '*' || s1 === 'HQ Central' || s2 === 'HQ Central') return true;
+      const a = String(s1).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const b = String(s2).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!a || !b) return false;
+      return a === b;
+    };
+    orders = orders.filter(o => isSameStore(o.store_id, userStore) || isSameStore(o.store_code, userStore) || isSameStore(o.store_name, userStore));
+  }
+
+  // 2. Date Filter
   if (filterMode.value === 'today' && selectedDate.value) {
-    rows = rows.filter(r => {
-      const orderDate = new Date(r.rawOrder?.created_at || r.rawOrder?.intake_at || 0);
-      return isSameDay(orderDate, selectedDate.value);
-    });
+    orders = orders.filter(o => isSameDay(new Date(o.created_at || o.intake_at || 0), selectedDate.value));
   } else if (filterMode.value === 'yesterday' && selectedDate.value) {
-    rows = rows.filter(r => {
-      const orderDate = new Date(r.rawOrder?.created_at || r.rawOrder?.intake_at || 0);
-      return isSameDay(orderDate, selectedDate.value);
-    });
+    orders = orders.filter(o => isSameDay(new Date(o.created_at || o.intake_at || 0), selectedDate.value));
   } else if (filterMode.value === 'last7') {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 7);
     cutoff.setHours(0, 0, 0, 0);
-    rows = rows.filter(r => {
-      const orderDate = new Date(r.rawOrder?.created_at || r.rawOrder?.intake_at || 0);
-      return orderDate >= cutoff;
-    });
+    orders = orders.filter(o => new Date(o.created_at || o.intake_at || 0) >= cutoff);
   } else if (filterMode.value === 'thisMonth') {
     const now = new Date();
-    rows = rows.filter(r => {
-      const orderDate = new Date(r.rawOrder?.created_at || r.rawOrder?.intake_at || 0);
-      return orderDate.getFullYear() === now.getFullYear() && orderDate.getMonth() === now.getMonth();
+    orders = orders.filter(o => {
+      const d = new Date(o.created_at || o.intake_at || 0);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     });
   } else if (filterMode.value === 'custom' && selectedDate.value) {
-    rows = rows.filter(r => {
-      const orderDate = new Date(r.rawOrder?.created_at || r.rawOrder?.intake_at || 0);
-      return isSameDay(orderDate, selectedDate.value);
+    orders = orders.filter(o => isSameDay(new Date(o.created_at || o.intake_at || 0), selectedDate.value));
+  }
+
+  // 3. Search Query Filter
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.trim().toLowerCase();
+    orders = orders.filter(o => {
+      const nameMatch = o.customer_name && o.customer_name.toLowerCase().includes(q);
+      const ticketMatch = formatTicketId(o).toLowerCase().includes(q);
+      const phoneMatch = o.phone && o.phone.includes(q);
+      const emailMatch = o.email && o.email.toLowerCase().includes(q);
+      const itemMatch = (o.items || []).some(item => 
+        (item.text && item.text.toLowerCase().includes(q)) ||
+        (item.position && item.position.toLowerCase().includes(q)) ||
+        (item.model && item.model.toLowerCase().includes(q)) ||
+        (item.size && item.size.toLowerCase().includes(q))
+      );
+      return nameMatch || ticketMatch || phoneMatch || emailMatch || itemMatch;
     });
   }
 
-  // 2. Search Query Filter
-  if (searchQuery.value.trim()) {
-    const q = searchQuery.value.trim().toLowerCase();
-    rows = rows.filter(r => 
-      (r.customer_name && r.customer_name.toLowerCase().includes(q)) ||
-      formatTicketId(r).toLowerCase().includes(q) ||
-      (r.phone && r.phone.includes(q)) ||
-      (r.item?.text && r.item.text.toLowerCase().includes(q)) ||
-      (r.item?.position && r.item.position.toLowerCase().includes(q))
-    );
-  }
-
-  return rows;
+  return orders;
 });
 
 function formatStanleyModel(item) {
@@ -855,15 +889,15 @@ function formatStanleyModel(item) {
   return `Quencher ${size}`;
 }
 
-function openEditModal(row) {
-  editingOrder.value = row.rawOrder;
-  editingItemIndex.value = row.itemIndex;
-  const item = row.item || {};
+function openEditModalForOrder(order, itemIdx = 0) {
+  editingOrder.value = order;
+  editingItemIndex.value = itemIdx;
+  const item = (order.items && order.items[itemIdx]) ? order.items[itemIdx] : {};
 
   editForm.value = {
-    customer_name: row.customer_name,
-    phone: row.phone,
-    email: row.email || '',
+    customer_name: order.customer_name,
+    phone: order.phone,
+    email: order.email || '',
     text: item.text || '',
     font: item.font || 'Helvetica Bold',
     fontId: item.fontId || 'lato',
@@ -872,6 +906,23 @@ function openEditModal(row) {
   };
 
   showEditModal.value = true;
+}
+
+function switchEditingItem(idx) {
+  if (!editingOrder.value || !editingOrder.value.items || !editingOrder.value.items[idx]) return;
+  editingItemIndex.value = idx;
+  const item = editingOrder.value.items[idx];
+
+  editForm.value.text = item.text || '';
+  editForm.value.font = item.font || 'Helvetica Bold';
+  editForm.value.fontId = item.fontId || 'lato';
+  editForm.value.fontClass = item.fontClass || 'font-engraving-lato';
+  editForm.value.position = item.position || 'Horizontal';
+}
+
+function openDeleteModalForOrder(order) {
+  deletingOrder.value = order;
+  showDeleteModal.value = true;
 }
 
 function handleFontChange() {
@@ -908,10 +959,6 @@ function saveEditOrder() {
   editingOrder.value = null;
 }
 
-function openDeleteModal(row) {
-  deletingOrder.value = row.rawOrder;
-  showDeleteModal.value = true;
-}
 
 function confirmDelete() {
   if (deletingOrder.value) {
@@ -920,10 +967,6 @@ function confirmDelete() {
   showDeleteModal.value = false;
   deletingOrder.value = null;
 }
-
-onMounted(() => {
-  loadAvailableStores();
-});
 </script>
 
 <style scoped>
@@ -959,35 +1002,11 @@ onMounted(() => {
   justify-content: space-between;
 }
 
-.header-actions {
+.header-titles {
   display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.store-select-wrap {
-  display: flex;
-  align-items: center;
-}
-
-.header-store-select {
-  height: 36px;
-  padding: 0 12px;
-  background: #F4F4F5;
-  border: 1px solid #E4E4E7;
-  border-radius: 8px;
-  font-family: var(--font-brand);
-  font-size: 12px;
-  font-weight: 600;
-  color: #000000;
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.header-store-select:focus,
-.header-store-select:hover {
-  border-color: #000000;
+  align-items: flex-end;
+  gap: 16px;
+  height: 28px;
 }
 
 .stanley-logo {
@@ -1410,6 +1429,12 @@ onMounted(() => {
   vertical-align: middle;
 }
 
+.cell-action-delete {
+  padding: 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid #F3F4F6;
+}
+
 .table-data-row:hover {
   background-color: #FAFAFA;
 }
@@ -1550,6 +1575,52 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.item-tab-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: #F9FAFB;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+}
+
+.tab-selector-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.item-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.item-tab-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid #D1D5DB;
+  background-color: #FFFFFF;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.item-tab-btn:hover {
+  background-color: #F3F4F6;
+}
+
+.item-tab-btn.is-active {
+  background-color: #000000;
+  color: #FFFFFF;
+  border-color: #000000;
 }
 
 .form-group {

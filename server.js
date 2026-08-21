@@ -22,7 +22,7 @@ import {
   deleteAuthSessionToken
 } from './src/server/db.js';
 
-import { requireAuth, requireSuperAdmin } from './src/server/authMiddleware.js';
+import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -140,6 +140,7 @@ app.post('/api/auth/login', (req, res) => {
       success: true,
       token: session.token,
       expiresAt: session.expiresAt,
+      storeId: staff.store || '',
       user: {
         id: staff.id,
         staffId: staff.staffId,
@@ -147,6 +148,7 @@ app.post('/api/auth/login', (req, res) => {
         name: staff.name,
         role: staff.role,
         store: staff.store,
+        storeId: staff.store,
         isDeveloper: staff.isDeveloper
       }
     });
@@ -174,28 +176,70 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 // ----------------------------------------------------
-// PROTECTED MANAGEMENT ENDPOINTS (Require Staff Auth)
+// MULTI-TENANCY PROTECTED MANAGEMENT ENDPOINTS
 // ----------------------------------------------------
 
-// GET all orders from SQLite
-app.get('/api/orders', (req, res) => {
-  res.json(getAllOrdersFromDb());
+// GET orders isolated by storeID
+app.get('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, (req, res) => {
+  const storeId = req.params.storeId;
+  res.json(getAllOrdersFromDb(storeId));
 });
 
-// POST save/upsert orders in SQLite
-app.post('/api/orders', (req, res) => {
+// POST save/upsert orders for specific storeID
+app.post('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, (req, res) => {
   try {
+    const storeId = req.params.storeId;
     const payload = req.body;
 
     if (Array.isArray(payload)) {
-      saveAllOrdersToDb(payload);
-      broadcast('orders_updated', payload);
+      saveAllOrdersToDb(payload, storeId);
+      broadcast('orders_updated', getAllOrdersFromDb());
       return res.json({ success: true, count: payload.length });
     }
 
-    const saved = upsertSingleOrderInDb(payload);
-    const allOrders = getAllOrdersFromDb();
-    broadcast('orders_updated', allOrders);
+    const saved = upsertSingleOrderInDb(payload, storeId);
+    broadcast('orders_updated', getAllOrdersFromDb());
+    res.json({ success: true, order: saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET single order by ID isolated by storeID
+app.get('/api/stores/:storeId/orders/:id', requireAuth, requireStoreAccess, (req, res) => {
+  const order = getOrderByIdFromDb(req.params.id, req.params.storeId);
+  if (!order) {
+    return res.status(404).json({ error: 'Order ticket not found for this store' });
+  }
+  res.json(order);
+});
+
+// GET all orders from SQLite (Filtered by staff session storeId if provided)
+app.get('/api/orders', (req, res) => {
+  const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
+  let storeId = null;
+  if (authHeader) {
+    const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
+    const session = verifyAuthSessionToken(token);
+    if (session) storeId = session.storeId;
+  }
+  res.json(getAllOrdersFromDb(storeId));
+});
+
+// POST save/upsert orders in SQLite (Protected)
+app.post('/api/orders', requireAuth, (req, res) => {
+  try {
+    const payload = req.body;
+    const storeId = req.staffSession ? req.staffSession.storeId : null;
+
+    if (Array.isArray(payload)) {
+      saveAllOrdersToDb(payload, storeId);
+      broadcast('orders_updated', getAllOrdersFromDb());
+      return res.json({ success: true, count: payload.length });
+    }
+
+    const saved = upsertSingleOrderInDb(payload, storeId);
+    broadcast('orders_updated', getAllOrdersFromDb());
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -209,41 +253,32 @@ app.post('/api/reset', requireSuperAdmin, (req, res) => {
   res.json({ success: true, orders: [] });
 });
 
-// GET staff users
-app.get('/api/staff', (req, res) => {
+// GET staff users (Protected)
+app.get('/api/staff', requireAuth, (req, res) => {
   res.json(getAllStaffUsersFromDb());
 });
 
-// POST add/update staff user
-app.post('/api/staff', (req, res) => {
+// POST add/update staff user (Protected Super Admin)
+app.post('/api/staff', requireSuperAdmin, (req, res) => {
   try {
     const user = req.body;
-    if (!user || (!user.staffId && !user.name)) {
+    if (!user || !user.staffId || !user.name) {
       return res.status(400).json({ error: 'staffId and name are required' });
     }
-    const saved = saveStaffUserInDb(user);
-    const allStaff = getAllStaffUsersFromDb();
-    broadcast('staff_updated', allStaff);
-    res.json({ success: true, user: saved, staff: allStaff });
+    saveStaffUserInDb(user);
+    res.json({ success: true, user });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// DELETE staff user
-app.delete('/api/staff/:id', (req, res) => {
+// DELETE staff user (Protected Super Admin)
+app.delete('/api/staff/:id', requireSuperAdmin, (req, res) => {
   const success = deleteStaffUserFromDb(req.params.id);
   if (!success) {
     return res.status(403).json({ error: 'Master Developer account cannot be deleted' });
   }
-  const allStaff = getAllStaffUsersFromDb();
-  broadcast('staff_updated', allStaff);
-  res.json({ success: true, staff: allStaff });
-});
-
-// Fallback for unhandled API routes (Return JSON 404 instead of HTML)
-app.use('/api', (req, res) => {
-  res.status(404).json({ error: 'API endpoint not found' });
+  res.json({ success: true });
 });
 
 // Serve frontend static build assets

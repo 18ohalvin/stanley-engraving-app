@@ -1,8 +1,6 @@
 <template>
   <div class="step-header">
-    <div class="step-meta-row">
-      <span class="step-num">{{ stepNumber }}</span>
-    </div>
+    <span class="step-num">{{ stepNumber }}</span>
     <h2 class="step-title">{{ title }}</h2>
   </div>
 </template>
@@ -26,13 +24,6 @@ defineProps({
   flex-direction: column;
   gap: 4px;
   align-items: flex-start;
-  width: 100%;
-}
-
-.step-meta-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   width: 100%;
 }
 

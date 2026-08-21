@@ -91,12 +91,8 @@ export const useEngravingStore = defineStore('engraving', {
       phone: '',
       email: ''
     },
-    // Target Store Context for Customer PWA Form
-    selectedStore: {
-      code: '',
-      name: '',
-      id: ''
-    }
+    // Dynamically selected storeId from route URL /engrave/:storeId
+    selectedStoreId: ''
   }),
 
   getters: {
@@ -116,76 +112,10 @@ export const useEngravingStore = defineStore('engraving', {
   },
 
   actions: {
-    setStoreContext({ code = '', name = '', id = '' } = {}) {
-      let resolvedCode = (code || '').trim();
-      let resolvedName = (name || '').trim();
-      let resolvedId = (id || '').trim();
-
-      // Auto-resolve full store metadata from localStorage database if partial identifier provided
-      try {
-        if (typeof localStorage !== 'undefined') {
-          const customStoresRaw = localStorage.getItem('stanley_custom_stores');
-          const customStores = customStoresRaw ? JSON.parse(customStoresRaw) : [];
-          const overridesRaw = localStorage.getItem('stanley_store_overrides');
-          const overrides = overridesRaw ? JSON.parse(overridesRaw) : {};
-
-          const searchVal = (resolvedCode || resolvedId || resolvedName).toLowerCase().trim();
-          if (searchVal) {
-            const match = customStores.find(s => {
-              const ov = overrides[s.id] || overrides[s.code] || {};
-              const scode = (ov.code || s.code || '').toLowerCase().trim();
-              const sname = (ov.name || s.name || '').toLowerCase().trim();
-              const sid = String(s.id || '').toLowerCase().trim();
-
-              return (
-                scode === searchVal ||
-                sid === searchVal ||
-                sname === searchVal ||
-                sname.includes(searchVal) ||
-                (resolvedCode && scode === resolvedCode.toLowerCase()) ||
-                (resolvedId && sid === resolvedId.toLowerCase())
-              );
-            });
-
-            if (match) {
-              const ov = overrides[match.id] || overrides[match.code] || {};
-              resolvedCode = ov.code || match.code || resolvedCode;
-              resolvedName = ov.name || match.name || resolvedName;
-              resolvedId = match.id || resolvedId;
-            }
-          }
-        }
-      } catch (e) {}
-
-      this.selectedStore = {
-        code: resolvedCode,
-        name: resolvedName,
-        id: resolvedId
-      };
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem('stanley_customer_pwa_store', JSON.stringify(this.selectedStore));
-        }
-      } catch (e) {}
-    },
-
-    getStoreContext() {
-      if (this.selectedStore && (this.selectedStore.code || this.selectedStore.name || this.selectedStore.id)) {
-        return this.selectedStore;
+    setStoreId(storeId) {
+      if (storeId) {
+        this.selectedStoreId = String(storeId).trim();
       }
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          const saved = sessionStorage.getItem('stanley_customer_pwa_store');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed && typeof parsed === 'object') {
-              this.selectedStore = parsed;
-              return parsed;
-            }
-          }
-        }
-      } catch (e) {}
-      return { code: '', name: '', id: '' };
     },
 
     setModel(modelName, shortName) {
@@ -320,15 +250,11 @@ export const useEngravingStore = defineStore('engraving', {
       const bookingTime = formatBookingTime(now);
       const fullPhone = formatPhoneNumber(this.customer.countryCode, this.customer.phone);
 
-      const storeInfo = this.getStoreContext();
-      const storeCode = storeInfo.code || '';
-      const storeName = storeInfo.name || '';
-      const storeId = storeInfo.id || '';
-
+      const targetStoreId = this.selectedStoreId || 'EG-021';
       const orderPayload = {
         order_id: orderId,
         intake_code: intakeCode,
-        short_code: intakeCode,
+        short_code: null,
         system_queue_number: null,
         customer_name: this.customer.name.trim(),
         phone: fullPhone,
@@ -336,10 +262,10 @@ export const useEngravingStore = defineStore('engraving', {
         booking_time: bookingTime,
         created_at: now.toISOString(),
         status: 'pending_dropoff',
-        store_code: storeCode,
-        store_id: storeId,
-        store_name: storeName,
-        queue_position: queueStore.getActiveQueueCount(storeCode || storeName) + 1,
+        store_id: targetStoreId,
+        store_code: targetStoreId,
+        store_name: targetStoreId,
+        queue_position: queueStore.getActiveQueueCount() + 1,
         items: this.items.map(item => ({
           id: item.id,
           model: item.model,

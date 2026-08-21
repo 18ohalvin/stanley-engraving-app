@@ -82,18 +82,9 @@ const selectedSize = computed(() => engravingStore.currentItem.size);
 const isStepValid = computed(() => Boolean(engravingStore.currentItem.model && engravingStore.currentItem.size));
 
 onMounted(() => {
-  const storeCode = route.params.storeCode || route.query.storeCode;
-  const storeName = route.query.storeName;
-  const storeId = route.query.storeId;
-
-  if (storeCode || storeName || storeId) {
-    engravingStore.setStoreContext({
-      code: storeCode,
-      name: storeName,
-      id: storeId
-    });
+  if (route.params.storeId) {
+    engravingStore.setStoreId(route.params.storeId);
   }
-
   cupModels.value = getCatalogCupModels();
   const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem.model);
   if (idx !== -1) {
@@ -131,7 +122,12 @@ function prevModel() {
 
 function goNext() {
   if (isStepValid.value) {
-    router.push('/step-2');
+    const storeId = route.params.storeId || engravingStore.selectedStoreId;
+    if (storeId) {
+      router.push(`/engrave/${storeId}/step-2`);
+    } else {
+      router.push('/step-2');
+    }
   }
 }
 </script>

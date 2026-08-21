@@ -101,11 +101,18 @@ export function initDatabase() {
       user_id TEXT,
       staff_id TEXT,
       role TEXT,
+      store_id TEXT,
       is_developer INTEGER DEFAULT 0,
       expires_at INTEGER,
       created_at TEXT
     );
   `);
+  try {
+    db.exec(`ALTER TABLE auth_sessions ADD COLUMN store_id TEXT;`);
+  } catch (e) {}
+  try {
+    db.exec(`ALTER TABLE stores ADD COLUMN phone TEXT;`);
+  } catch (e) {}
 
   seedDefaultMasterData();
 }
@@ -176,10 +183,121 @@ function seedDefaultMasterData() {
 }
 
 // ----------------------------------------------------
-// ORDERS QUERIES
+// ORDERS QUERIES (Multi-Tenancy Data Isolated)
 // ----------------------------------------------------
-export function getAllOrdersFromDb() {
-  const rows = db.prepare(`SELECT * FROM orders ORDER BY created_at DESC`).all();
+const KNOWN_STORES = [
+  { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', aliases: ['001', 'eg-021', 'eg021', 'stanley pondok indah mall', 'stanley pondok indah mall 5', 'pondok indah mall', 'pim'] },
+  { id: '002', code: '002', name: 'Stanley Grand Indonesia', aliases: ['002', 'eg-022', 'eg022', 'stanley grand indonesia', 'grand indonesia', 'gi'] },
+  { id: '003', code: '003', name: 'Stanley Senayan City', aliases: ['003', 'eg-023', 'eg023', 'stanley senayan city', 'senayan city'] },
+  { id: 'SG001', code: 'SG001', name: 'Stanley Singapore Store', aliases: ['sg001', 'sg-001', 'singapore', 'singapore store'] }
+];
+
+function getCanonicalStore(inputStr) {
+  if (!inputStr) return null;
+  const raw = String(inputStr).trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  const clean = lower.replace(/[^a-z0-9]/g, '');
+
+  for (const store of KNOWN_STORES) {
+    if (
+      store.id.toLowerCase() === lower ||
+      store.code.toLowerCase() === lower ||
+      store.name.toLowerCase() === lower ||
+      store.id.toLowerCase().replace(/[^a-z0-9]/g, '') === clean ||
+      store.code.toLowerCase().replace(/[^a-z0-9]/g, '') === clean ||
+      store.name.toLowerCase().replace(/[^a-z0-9]/g, '') === clean ||
+      store.aliases.includes(lower) ||
+      store.aliases.includes(clean)
+    ) {
+      return store;
+    }
+  }
+
+  return { id: raw, code: raw, name: raw, aliases: [lower, clean] };
+}
+
+function isSameStore(storeA, storeB) {
+  if (!storeA || !storeB) return false;
+  if (storeA === '*' || storeB === '*' || storeA === 'HQ Central' || storeB === 'HQ Central') return true;
+
+  const sA = getCanonicalStore(storeA);
+  const sB = getCanonicalStore(storeB);
+
+  if (sA && sB) {
+    if (sA.code === sB.code || sA.id === sB.id) return true;
+  }
+
+  const a = String(storeA).trim().toLowerCase();
+  const b = String(storeB).trim().toLowerCase();
+  if (a === b) return true;
+
+  const cleanA = a.replace(/[^a-z0-9]/g, '');
+  const cleanB = b.replace(/[^a-z0-9]/g, '');
+  if (!cleanA || !cleanB) return false;
+  return cleanA === cleanB;
+}
+
+export function getNextQueueNumberFromDb(storeId, dateStr = null) {
+  const getYYYYMMDD = (dateInput) => {
+    if (!dateInput) return new Date().toISOString().split('T')[0];
+    if (typeof dateInput === 'string') {
+      const match = dateInput.match(/^\d{4}-\d{2}-\d{2}/);
+      if (match) return match[0];
+    }
+    try {
+      const d = new Date(dateInput);
+      if (!isNaN(d.getTime())) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    } catch (e) {}
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const dateVal = getYYYYMMDD(dateStr);
+
+  const rows = db.prepare(`
+    SELECT system_queue_number, short_code, store_id, store_code, store_name
+    FROM orders
+    WHERE (DATE(created_at) = CURRENT_DATE OR DATE(created_at) = DATE(?) OR created_at LIKE ? || '%')
+      AND status IN ('in_queue', 'engraving_in_progress', 'ready_for_pickup')
+  `).all(dateVal, dateVal);
+
+  let highest = 0;
+  for (const r of rows) {
+    if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
+      const matchId = isSameStore(r.store_id, storeId);
+      const matchCode = isSameStore(r.store_code, storeId);
+      const matchName = isSameStore(r.store_name, storeId);
+      if (!matchId && !matchCode && !matchName) continue;
+    }
+
+    const qNum = parseInt(r.system_queue_number, 10);
+    const sNum = parseInt(r.short_code, 10);
+
+    if (!isNaN(qNum) && qNum > highest) highest = qNum;
+    if (!isNaN(sNum) && sNum > highest) highest = sNum;
+  }
+
+  const nextNum = highest + 1;
+  return String(nextNum).padStart(4, '0');
+}
+
+export function getAllOrdersFromDb(storeId) {
+  let rows = [];
+  if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
+    const s = String(storeId).trim().toLowerCase();
+    rows = db.prepare(`
+      SELECT * FROM orders 
+      WHERE LOWER(store_id) = ? OR LOWER(store_code) = ? OR LOWER(store_name) = ?
+      ORDER BY created_at DESC
+    `).all(s, s, s);
+  } else {
+    rows = db.prepare(`SELECT * FROM orders ORDER BY created_at DESC`).all();
+  }
   return rows.map(r => ({
     ...r,
     items: r.items_json ? JSON.parse(r.items_json) : [],
@@ -187,7 +305,7 @@ export function getAllOrdersFromDb() {
   }));
 }
 
-export function saveAllOrdersToDb(orders) {
+export function saveAllOrdersToDb(orders, storeId) {
   const insertStmt = db.prepare(`
     INSERT OR REPLACE INTO orders (
       order_id, short_code, system_queue_number, intake_code, status,
@@ -196,11 +314,9 @@ export function saveAllOrdersToDb(orders) {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const clearStmt = db.prepare(`DELETE FROM orders`);
-
   const transaction = db.transaction((orderList) => {
-    clearStmt.run();
     for (const o of orderList) {
+      const finalStore = storeId || o.store_id || o.store_code || '';
       insertStmt.run(
         o.order_id,
         o.short_code || '',
@@ -212,8 +328,8 @@ export function saveAllOrdersToDb(orders) {
         o.email || '',
         JSON.stringify(o.items || []),
         o.durationSeconds || o.duration_seconds || 0,
-        o.store_code || '',
-        o.store_id || '',
+        o.store_code || finalStore,
+        o.store_id || finalStore,
         o.store_name || '',
         o.created_at || new Date().toISOString(),
         o.updated_at || new Date().toISOString()
@@ -224,11 +340,32 @@ export function saveAllOrdersToDb(orders) {
   transaction(orders);
 }
 
-export function upsertSingleOrderInDb(order) {
+export function upsertSingleOrderInDb(order, storeId) {
+  const targetStoreId = storeId || order.store_id || order.store_code || order.store_name || '';
   const existing = db.prepare(`SELECT * FROM orders WHERE order_id = ?`).get(order.order_id);
   const now = new Date().toISOString();
   
+  if (existing && storeId && storeId !== '*' && storeId !== 'HQ Central') {
+    const existingStore = (existing.store_id || existing.store_code || existing.store_name || '').trim().toLowerCase();
+    const reqStore = String(storeId).trim().toLowerCase();
+    if (existingStore && existingStore !== reqStore) {
+      throw new Error(`Access denied: Cannot modify order belonging to store "${existing.store_id}"`);
+    }
+  }
+
+  const finalStoreId = targetStoreId || (existing ? existing.store_id : '');
+
   if (existing) {
+    let queueNum = order.system_queue_number || existing.system_queue_number || null;
+    let shortCode = order.short_code || existing.short_code || null;
+    const newStatus = order.status || existing.status;
+
+    // If order transitions to in_queue (or beyond) and lacks queueNum/shortCode, generate it now!
+    if ((newStatus === 'in_queue' || newStatus === 'engraving_in_progress' || newStatus === 'ready_for_pickup') && !queueNum) {
+      queueNum = getNextQueueNumberFromDb(finalStoreId, existing.created_at || now);
+      shortCode = queueNum;
+    }
+
     db.prepare(`
       UPDATE orders SET
         short_code = ?, system_queue_number = ?, intake_code = ?, status = ?,
@@ -236,22 +373,32 @@ export function upsertSingleOrderInDb(order) {
         store_code = ?, store_id = ?, store_name = ?, updated_at = ?
       WHERE order_id = ?
     `).run(
-      order.short_code || existing.short_code,
-      order.system_queue_number || existing.system_queue_number,
+      shortCode,
+      queueNum,
       order.intake_code || existing.intake_code,
-      order.status || existing.status,
+      newStatus,
       order.customer_name || existing.customer_name,
       order.phone || existing.phone,
       order.email || existing.email,
       JSON.stringify(order.items || (existing.items_json ? JSON.parse(existing.items_json) : [])),
       order.durationSeconds !== undefined ? order.durationSeconds : existing.duration_seconds,
-      order.store_code || existing.store_code,
-      order.store_id || existing.store_id,
+      order.store_code || finalStoreId,
+      order.store_id || finalStoreId,
       order.store_name || existing.store_name,
       now,
       order.order_id
     );
   } else {
+    // New Order Creation: short_code and system_queue_number MUST be null if pending_dropoff
+    const newStatus = order.status || 'pending_dropoff';
+    let queueNum = order.system_queue_number || null;
+    let shortCode = order.short_code || null;
+
+    if (newStatus !== 'pending_dropoff' && !queueNum) {
+      queueNum = getNextQueueNumberFromDb(finalStoreId, order.created_at || now);
+      shortCode = queueNum;
+    }
+
     db.prepare(`
       INSERT INTO orders (
         order_id, short_code, system_queue_number, intake_code, status,
@@ -260,31 +407,41 @@ export function upsertSingleOrderInDb(order) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       order.order_id,
-      order.short_code || '',
-      order.system_queue_number || '',
+      shortCode,
+      queueNum,
       order.intake_code || '',
-      order.status || 'pending_dropoff',
+      newStatus,
       order.customer_name || '',
       order.phone || '',
       order.email || '',
       JSON.stringify(order.items || []),
       order.durationSeconds || 0,
-      order.store_code || '',
-      order.store_id || '',
+      order.store_code || finalStoreId,
+      order.store_id || finalStoreId,
       order.store_name || '',
       order.created_at || now,
       now
     );
   }
 
-  return getOrderByIdFromDb(order.order_id);
+  return getOrderByIdFromDb(order.order_id, storeId);
 }
 
-export function getOrderByIdFromDb(idOrCode) {
-  const row = db.prepare(`
-    SELECT * FROM orders 
-    WHERE order_id = ? OR short_code = ? OR intake_code = ?
-  `).get(idOrCode, idOrCode, idOrCode);
+export function getOrderByIdFromDb(idOrCode, storeId) {
+  let row = null;
+  if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
+    const s = String(storeId).trim().toLowerCase();
+    row = db.prepare(`
+      SELECT * FROM orders 
+      WHERE (order_id = ? OR short_code = ? OR intake_code = ?)
+        AND (LOWER(store_id) = ? OR LOWER(store_code) = ? OR LOWER(store_name) = ?)
+    `).get(idOrCode, idOrCode, idOrCode, s, s, s);
+  } else {
+    row = db.prepare(`
+      SELECT * FROM orders 
+      WHERE order_id = ? OR short_code = ? OR intake_code = ?
+    `).get(idOrCode, idOrCode, idOrCode);
+  }
 
   if (!row) return null;
   return {
@@ -391,37 +548,22 @@ export function getAllStaffUsersFromDb() {
 }
 
 export function saveStaffUserInDb(user) {
-  if (!user) return null;
-
-  const targetId = String(user.id || '').trim();
-  const targetStaffId = String(user.staffId || user.idCode || '').trim();
-
-  let existing = null;
-  if (targetId) {
-    existing = db.prepare(`SELECT * FROM staff_users WHERE id = ?`).get(targetId);
-  }
-  if (!existing && targetStaffId) {
-    existing = db.prepare(`SELECT * FROM staff_users WHERE staff_id = ?`).get(targetStaffId);
-  }
-
+  const existing = db.prepare(`SELECT * FROM staff_users WHERE id = ? OR staff_id = ?`).get(user.id, user.staffId);
   const now = new Date().toISOString();
-  const finalId = targetId || existing?.id || `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-  const finalStaffId = targetStaffId || existing?.staff_id || finalId;
 
   if (existing) {
     db.prepare(`
       UPDATE staff_users SET
-        staff_id = ?, name = ?, username = ?, whatsapp = ?, pin = ?, role = ?, store = ?, status = ?
+        name = ?, username = ?, whatsapp = ?, pin = ?, role = ?, store = ?, status = ?
       WHERE id = ?
     `).run(
-      finalStaffId,
-      user.name || existing.name,
-      user.username || user.name || existing.username,
-      user.whatsapp !== undefined ? user.whatsapp : (existing.whatsapp || ''),
-      user.pin !== undefined ? user.pin : (existing.pin || '1913'),
-      user.role || existing.role || 'Staff Store',
-      user.store !== undefined ? user.store : (existing.store || ''),
-      user.status || existing.status || 'Active',
+      user.name,
+      user.username || user.name,
+      user.whatsapp || '',
+      user.pin || '',
+      user.role || 'Staff Store',
+      user.store || '',
+      user.status || 'Active',
       existing.id
     );
   } else {
@@ -429,12 +571,12 @@ export function saveStaffUserInDb(user) {
       INSERT INTO staff_users (id, staff_id, name, username, whatsapp, pin, role, store, status, is_developer, is_protected, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      finalId,
-      finalStaffId,
-      user.name || 'Staff User',
-      user.username || user.name || finalStaffId,
+      user.id || `usr-${Date.now()}`,
+      user.staffId,
+      user.name,
+      user.username || user.name,
       user.whatsapp || '',
-      user.pin || '1913',
+      user.pin || '',
       user.role || 'Staff Store',
       user.store || '',
       user.status || 'Active',
@@ -443,8 +585,6 @@ export function saveStaffUserInDb(user) {
       now
     );
   }
-
-  return db.prepare(`SELECT * FROM staff_users WHERE id = ?`).get(finalId);
 }
 
 export function deleteStaffUserFromDb(id) {
@@ -463,21 +603,23 @@ export function createAuthSessionInDb(user) {
   const token = `stk_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
   const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours expiry
   const now = new Date().toISOString();
+  const storeId = user.store || user.storeId || user.store_id || '';
 
   db.prepare(`
-    INSERT INTO auth_sessions (token, user_id, staff_id, role, is_developer, expires_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO auth_sessions (token, user_id, staff_id, role, store_id, is_developer, expires_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     token,
     user.id,
     user.staffId,
     user.role,
+    storeId,
     user.isDeveloper ? 1 : 0,
     expiresAt,
     now
   );
 
-  return { token, expiresAt };
+  return { token, expiresAt, storeId };
 }
 
 export function verifyAuthSessionToken(token) {
@@ -494,6 +636,7 @@ export function verifyAuthSessionToken(token) {
     userId: session.user_id,
     staffId: session.staff_id,
     role: session.role,
+    storeId: session.store_id || '',
     isDeveloper: Boolean(session.is_developer)
   };
 }

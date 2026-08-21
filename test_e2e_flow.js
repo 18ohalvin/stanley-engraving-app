@@ -11,9 +11,10 @@ import {
   deleteAuthSessionToken,
   getAllOrdersFromDb,
   upsertSingleOrderInDb,
+  getNextQueueNumberFromDb,
   clearAllOrdersInDb
 } from './src/server/db.js';
-import { requireAuth, requireSuperAdmin } from './src/server/authMiddleware.js';
+import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
 
 // Mock localStorage for Node environment
 global.localStorage = {
@@ -129,7 +130,8 @@ const submittedOrder = engravingStore.submitOrder();
 assert(Boolean(submittedOrder.order_id), 'Order generated with unique order_id');
 assert(submittedOrder.status === 'pending_dropoff', 'Order starts in pending_dropoff status');
 assert(submittedOrder.items.length === 2, 'Order contains both customized items');
-assert(submittedOrder.short_code.length > 0, 'Order has sequential short code');
+assert(submittedOrder.short_code === null, 'Order short_code is null upon PWA submission');
+assert(submittedOrder.system_queue_number === null, 'Order system_queue_number is null upon PWA submission');
 
 console.log('\n--- 3. Testing Queue Store Status Progression ---');
 const foundOrder = queueStore.getOrderById(submittedOrder.order_id);
@@ -163,7 +165,7 @@ queueStore.resetDatabase();
 const freshOrderC4X = {
   order_id: '130826-C4X',
   intake_code: 'C4X',
-  short_code: '0001',
+  short_code: null,
   system_queue_number: null,
   customer_name: 'Jane Abigail',
   email: 'jane.abigail@gmail.com',
@@ -562,6 +564,211 @@ let nextCalled = false;
 requireAuth(reqMock, resMock, () => { nextCalled = true; });
 assert(resMock.statusCode === 401, 'requireAuth rejects invalid bearer token with HTTP 401');
 assert(nextCalled === false, 'Next route handler not called when unauthenticated');
+
+console.log('\n--- 10. Testing Backend Multi-Tenancy Architecture & requireStoreAccess ---');
+
+// 1. Session token embeds assigned storeID
+const egStaff = { id: 'usr-1', staffId: 'EG-021', name: 'Ayu Dewi', role: 'Staff Store', store: 'EG-021' };
+const egSession = createAuthSessionInDb(egStaff);
+assert(Boolean(egSession.token), 'Staff session created with token');
+assert(egSession.storeId === 'EG-021', 'Session embeds staff assigned storeID EG-021');
+
+const verifiedEgSession = verifyAuthSessionToken(egSession.token);
+assert(verifiedEgSession.storeId === 'EG-021', 'verifyAuthSessionToken returns embedded storeID');
+
+// 2. requireStoreAccess Middleware Verification
+let storeReqAllowed = {
+  headers: { authorization: `Bearer ${egSession.token}` },
+  params: { storeId: 'EG-021' }
+};
+let storeResAllowed = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(d) { this.data = d; return this; } };
+let allowedNext = false;
+
+requireStoreAccess(storeReqAllowed, storeResAllowed, () => { allowedNext = true; });
+assert(allowedNext === true, 'requireStoreAccess permits staff to access their assigned store (EG-021)');
+
+let storeReqDenied = {
+  headers: { authorization: `Bearer ${egSession.token}` },
+  params: { storeId: 'EG-022' }
+};
+let storeResDenied = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(d) { this.data = d; return this; } };
+let deniedNext = false;
+
+requireStoreAccess(storeReqDenied, storeResDenied, () => { deniedNext = true; });
+assert(storeResDenied.statusCode === 403, 'requireStoreAccess blocks staff from accessing another store with HTTP 403');
+assert(deniedNext === false, 'Next handler not called when cross-store access is blocked');
+
+// Super Admin / Master Developer bypass test
+let superAdminSession = createAuthSessionInDb(devDbStaff);
+let superReq = {
+  headers: { authorization: `Bearer ${superAdminSession.token}` },
+  params: { storeId: 'EG-022' }
+};
+let superRes = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(d) { this.data = d; return this; } };
+let superNext = false;
+
+requireStoreAccess(superReq, superRes, () => { superNext = true; });
+assert(superNext === true, 'Master Developer/Super Admin permits cross-store access for monitoring');
+
+// 3. SQLite Multi-Tenant Data Isolation Tests
+clearAllOrdersInDb();
+const orderStore21 = { order_id: 'order-eg21-001', intake_code: 'A21', status: 'in_queue', store_id: 'EG-021', customer_name: 'Store 21 Customer' };
+const orderStore22 = { order_id: 'order-eg22-001', intake_code: 'B22', status: 'in_queue', store_id: 'EG-022', customer_name: 'Store 22 Customer' };
+
+upsertSingleOrderInDb(orderStore21, 'EG-021');
+upsertSingleOrderInDb(orderStore22, 'EG-022');
+
+const store21Orders = getAllOrdersFromDb('EG-021');
+assert(store21Orders.length === 1, 'Store EG-021 query returns exactly 1 order');
+assert(store21Orders[0].order_id === 'order-eg21-001', 'Store EG-021 query isolates matching store order');
+
+const store22Orders = getAllOrdersFromDb('EG-022');
+assert(store22Orders.length === 1, 'Store EG-022 query returns exactly 1 order');
+assert(store22Orders[0].order_id === 'order-eg22-001', 'Store EG-022 query isolates matching store order');
+
+const allMultiOrders = getAllOrdersFromDb('*');
+assert(allMultiOrders.length === 2, 'Super Admin query (*) returns all multi-tenant orders across network');
+
+// 4. Dynamic Store Form & Order Payload Injection Tests
+const storeTestEngravingStore = useEngravingStore();
+storeTestEngravingStore.setStoreId('EG-099');
+assert(storeTestEngravingStore.selectedStoreId === 'EG-099', 'setStoreId updates Pinia selectedStoreId state');
+
+storeTestEngravingStore.setCustomerDetails({ name: 'Dynamic Store Customer', countryCode: '+62', phone: '81987654321', email: 'dynamic@stanley.com' });
+storeTestEngravingStore.currentItem = { model: 'IceFlow', size: '40oz', position: 'Horizontal', text: 'STORE99', font: 'Helvetica Bold', fontId: 'lato', fontClass: 'font-engraving-lato' };
+storeTestEngravingStore.saveCurrentItem();
+const dynamicOrderPayload = storeTestEngravingStore.submitOrder();
+
+assert(dynamicOrderPayload.store_id === 'EG-099', 'Order payload automatically injects store_id EG-099');
+assert(dynamicOrderPayload.store_code === 'EG-099', 'Order payload automatically injects store_code EG-099');
+assert(dynamicOrderPayload.store_name === 'EG-099', 'Order payload automatically injects store_name EG-099');
+
+// 5. Super Admin / Developer Any Store PWA Access URL Generation
+function getCleanStoreAlias(store) {
+  if (!store) return 'EG-021';
+  if (store.code && typeof store.code === 'string' && store.code.trim()) {
+    return store.code.trim().toUpperCase();
+  }
+  if (store.id) return String(store.id).trim();
+  return 'EG-021';
+}
+
+const sampleStoreGI = { id: 'st-001', code: 'EG-021', name: 'Grand Indonesia' };
+const sampleStorePIM = { id: 'st-002', code: 'EG-022', name: 'Pondok Indah Mall 5' };
+const sampleStoreCustom = { id: 'st-003', code: 'EG-099', name: 'Custom Kiosk' };
+
+assert(getCleanStoreAlias(sampleStoreGI) === 'EG-021', 'Generates clean URL alias EG-021 for Grand Indonesia');
+assert(getCleanStoreAlias(sampleStorePIM) === 'EG-022', 'Generates clean URL alias EG-022 for Pondok Indah Mall');
+assert(getCleanStoreAlias(sampleStoreCustom) === 'EG-099', 'Generates clean URL alias EG-099 for Custom Kiosk');
+assert(`/engrave/${getCleanStoreAlias(sampleStoreGI)}` === '/engrave/EG-021', 'Super Admin & Developer can visit GI PWA Landing Page via /engrave/EG-021');
+assert(`/engrave/${getCleanStoreAlias(sampleStorePIM)}` === '/engrave/EG-022', 'Super Admin & Developer can visit PIM PWA Landing Page via /engrave/EG-022');
+
+// 6. Multi-Tenancy Daily Reset Queue ID Generation Tests
+clearAllOrdersInDb();
+const emptyStore21Next = getNextQueueNumberFromDb('EG-021');
+assert(emptyStore21Next === '0001', 'First order for store EG-021 on empty day starts at 0001');
+
+const todayStr = new Date().toISOString();
+upsertSingleOrderInDb({ order_id: 'ord-today-1', system_queue_number: '0001', status: 'in_queue', store_id: 'EG-021', created_at: todayStr }, 'EG-021');
+const nextStore21Order = getNextQueueNumberFromDb('EG-021');
+assert(nextStore21Order === '0002', 'Next order for store EG-021 on same day increments to 0002');
+
+// Cross-store isolation test: Store EG-022 should still start at 0001
+const nextStore22Order = getNextQueueNumberFromDb('EG-022');
+assert(nextStore22Order === '0001', 'Store EG-022 starts at 0001 independently of Store EG-021');
+
+// Yesterday date reset test: Previous day order does not affect today's reset
+const yesterdayStr = new Date(Date.now() - 86400000).toISOString();
+upsertSingleOrderInDb({ order_id: 'ord-yesterday-1', system_queue_number: '0099', status: 'in_queue', store_id: 'EG-023', created_at: yesterdayStr }, 'EG-023');
+const todayStore23Next = getNextQueueNumberFromDb('EG-023');
+assert(todayStore23Next === '0001', 'Yesterday order on EG-023 does not affect today starting at 0001');
+
+// 7. Customer A and Customer B Simultaneous Submission & Out-of-Order Confirmation Test
+clearAllOrdersInDb();
+queueStore.resetDatabase();
+
+const orderA = {
+  order_id: 'ord-cust-A',
+  intake_code: 'A11',
+  short_code: null,
+  system_queue_number: null,
+  customer_name: 'Customer A',
+  status: 'pending_dropoff',
+  store_id: 'EG-021',
+  items: []
+};
+
+const orderB = {
+  order_id: 'ord-cust-B',
+  intake_code: 'B22',
+  short_code: null,
+  system_queue_number: null,
+  customer_name: 'Customer B',
+  status: 'pending_dropoff',
+  store_id: 'EG-021',
+  items: []
+};
+
+queueStore.addOrder(orderA);
+queueStore.addOrder(orderB);
+
+assert(queueStore.getOrderById('ord-cust-A').system_queue_number === null, 'Customer A has null queue number upon PWA submission');
+assert(queueStore.getOrderById('ord-cust-B').system_queue_number === null, 'Customer B has null queue number upon PWA submission');
+
+// Customer B gets confirmed FIRST by engraver
+const confirmB = queueStore.confirmOrderIntake('ord-cust-B');
+assert(confirmB.success === true, 'Customer B confirmed intake first');
+assert(queueStore.getOrderById('ord-cust-B').system_queue_number === '0001', 'Customer B receives queue #0001 because B was confirmed first');
+
+// Customer A gets confirmed SECOND by engraver
+const confirmA = queueStore.confirmOrderIntake('ord-cust-A');
+assert(confirmA.success === true, 'Customer A confirmed intake second');
+assert(queueStore.getOrderById('ord-cust-A').system_queue_number === '0002', 'Customer A receives queue #0002 because A was confirmed second');
+
+// Store Name vs Store ID Alias Matching Test:
+// Ensure getNextQueueNumberFromDb with Store Name 'Grand Indonesia' recognizes 'EG-021' orders
+upsertSingleOrderInDb({ order_id: 'ord-alias-1', system_queue_number: '0001', status: 'in_queue', store_id: 'EG-021', store_name: 'Grand Indonesia', created_at: todayStr }, 'EG-021');
+const nextViaAlias = getNextQueueNumberFromDb('Grand Indonesia');
+assert(nextViaAlias === '0002', 'getNextQueueNumberFromDb correctly matches store name Grand Indonesia to EG-021 order and increments to 0002');
+
+// Cross-Store Intake Lookup Blocking Test:
+// Order submitted for Store SG001 should NOT be lookable or confirmable on Store EG-021 Engraver Dashboard
+const orderSG = {
+  order_id: 'ord-sg-001',
+  intake_code: 'BSP',
+  short_code: null,
+  system_queue_number: null,
+  customer_name: 'Vianii',
+  status: 'pending_dropoff',
+  store_id: 'SG001',
+  store_code: 'SG001',
+  store_name: 'Singapore Store'
+};
+queueStore.addOrder(orderSG);
+
+const crossLookup = queueStore.lookupIntakeOrder('BSP', 'EG-021');
+assert(crossLookup.success === false, 'Cross-store lookup BSP on EG-021 is rejected');
+assert(crossLookup.message.includes('submitted for Store "SG001"'), 'Cross-store lookup error message explicitly mentions target store SG001');
+
+console.log('\n--- 11. Testing Store Phone Resolution & Queue Ticket WhatsApp Support Link ---');
+const { getStorePhone } = await import('./src/utils/storeResolver.js');
+
+const phonePim = getStorePhone('001');
+assert(phonePim === '+62 817-5566-7788', 'Pondok Indah Mall 001 resolves phone +62 817-5566-7788');
+
+const phoneGi = getStorePhone('002');
+assert(phoneGi === '+62 812-9988-7766', 'Grand Indonesia 002 resolves phone +62 812-9988-7766');
+
+const phoneSg = getStorePhone('SG001');
+assert(phoneSg === '+65 8123 4567', 'Singapore Store SG001 resolves phone +65 8123 4567');
+
+let cleanDigits = phonePim.replace(/\D/g, '');
+if (cleanDigits.startsWith('0')) cleanDigits = '62' + cleanDigits.slice(1);
+assert(cleanDigits === '6281755667788', 'Phone digits cleaned for WhatsApp wa.me link');
+
+clearAllOrdersInDb();
+deleteAuthSessionToken(egSession.token);
+deleteAuthSessionToken(superAdminSession.token);
 
 console.log('\n========================================');
 console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);

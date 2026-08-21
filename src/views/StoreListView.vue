@@ -167,23 +167,45 @@
                     </span>
                   </td>
 
-                  <!-- 8. Action: Store Info & Customer PWA Form -->
+                  <!-- 8. Action: Customer PWA Visit, Copy URL, Store Info -->
                   <td class="td-cell td-action">
-                    <div class="store-action-btns-wrap">
+                    <div class="store-actions-group">
+                      <!-- Visit Customer PWA Form Button -->
+                      <button 
+                        type="button" 
+                        class="action-icon-btn btn-visit-form"
+                        @click.stop="visitCustomerForm(store)"
+                        :title="`Open Customer PWA Landing Page for ${store.name}`"
+                        aria-label="Visit Customer Form"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                          <polyline points="15 3 21 3 21 9"></polyline>
+                          <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                      </button>
+
+                      <!-- Copy Form URL Button -->
+                      <button 
+                        type="button" 
+                        class="action-icon-btn btn-copy-url"
+                        @click.stop="copyFormUrl(store)"
+                        :title="`Copy Customer PWA Landing Page URL for ${store.name}`"
+                        aria-label="Copy Form URL"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                      </button>
+
+                      <!-- Store Info Modal Detail Button -->
                       <button 
                         type="button" 
                         class="see-detail-btn"
-                        @click="handleSeeDetail(store)"
+                        @click.stop="handleSeeDetail(store)"
                       >
                         Store Info
-                      </button>
-                      <button 
-                        type="button" 
-                        class="see-detail-btn form-btn-outline"
-                        @click="openCustomerForm(store)"
-                        title="Open independent Customer PWA Form for this store"
-                      >
-                        Form
                       </button>
                     </div>
                   </td>
@@ -357,6 +379,16 @@
                 type="text" 
                 class="product-name-underline-input" 
                 placeholder="e.g. Grand Indonesia West Mall, Level 2, Jakarta Pusat" 
+              />
+            </div>
+
+            <div class="product-name-input-block">
+              <label class="param-col-title" style="display:block; margin-bottom: 4px;">Store Phone / WhatsApp Number</label>
+              <input 
+                v-model="newStoreForm.phone" 
+                type="tel" 
+                class="product-name-underline-input" 
+                placeholder="e.g. +62 817-5566-7788" 
               />
             </div>
 
@@ -545,6 +577,16 @@
               />
             </div>
 
+            <div class="product-name-input-block">
+              <label class="param-col-title" style="display:block; margin-bottom: 4px;">Store Phone / WhatsApp Number</label>
+              <input 
+                v-model="editStoreForm.phone" 
+                type="tel" 
+                class="product-name-underline-input" 
+                placeholder="e.g. +62 817-5566-7788" 
+              />
+            </div>
+
             <!-- Store Admins & Operators Management Section (Figma 411:603) -->
             <div class="edit-store-admins-block">
               <div class="edit-admins-header">
@@ -657,6 +699,16 @@
       </div>
     </Teleport>
 
+    <!-- SUCCESS TOAST NOTIFICATION -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="toastVisible" class="toast-notification">
+          <div class="toast-icon">✓</div>
+          <span class="toast-text">{{ toastMessage }}</span>
+        </div>
+      </Transition>
+    </Teleport>
+
   </div>
 </template>
 
@@ -668,6 +720,63 @@ import { getAnalyticsLogs } from '../utils/analyticsService.js';
 
 const router = useRouter();
 const queueStore = useQueueStore();
+
+// Toast Feedback State
+const toastMessage = ref('');
+const toastVisible = ref(false);
+
+function triggerToast(msg) {
+  toastMessage.value = msg;
+  toastVisible.value = true;
+  setTimeout(() => {
+    toastVisible.value = false;
+  }, 2500);
+}
+
+function getCleanStoreAlias(store) {
+  if (!store) return 'EG-021';
+  if (store.code && typeof store.code === 'string' && store.code.trim()) {
+    return store.code.trim().toUpperCase();
+  }
+  if (store.id && !store.id.startsWith('st-custom-')) {
+    return String(store.id).trim();
+  }
+  if (store.name) {
+    return String(store.name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
+  return 'EG-021';
+}
+
+function visitCustomerForm(store) {
+  const storeId = getCleanStoreAlias(store);
+  const routeData = router.resolve({
+    name: 'engrave-store',
+    params: { storeId }
+  });
+  window.open(routeData.href, '_blank');
+}
+
+async function copyFormUrl(store) {
+  const storeId = getCleanStoreAlias(store);
+  const url = `${window.location.origin}/engrave/${storeId}`;
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    triggerToast(`Customer form link for ${store.name} (${storeId}) copied to clipboard!`);
+  } catch (err) {
+    console.error('Clipboard copy error:', err);
+  }
+}
 
 // Modals
 const showAddStoreModal = ref(false);
@@ -966,6 +1075,7 @@ function handleOpenAddStore() {
     city: 'Jakarta',
     totalMachines: 1,
     address: '',
+    phone: '',
     assignedStaffIds: []
   };
   addStaffSearchQuery.value = '';
@@ -1010,6 +1120,7 @@ function handleOpenEditStore(store) {
     city: store.city || cityGuess,
     totalMachines: store.totalMachines || 1,
     address: store.address || '',
+    phone: store.phone || '',
     assignedStaffIds: currentAdmins.map(a => a.id)
   };
 
@@ -1031,7 +1142,8 @@ function saveEditStore() {
     name: storeName,
     city: editStoreForm.value.city,
     totalMachines: editStoreForm.value.totalMachines,
-    address: editStoreForm.value.address
+    address: editStoreForm.value.address,
+    phone: editStoreForm.value.phone
   };
   saveStoreOverrides();
 
@@ -1070,6 +1182,7 @@ function saveNewStore() {
     code: storeCode,
     name: storeName,
     address: newStoreForm.value.address || `${newStoreForm.value.city}, Indonesia`,
+    phone: newStoreForm.value.phone || '',
     currentQueue: 0,
     estWaitTime: '0 Minutes',
     avgDuration: '—',
@@ -1106,23 +1219,15 @@ function saveNewStore() {
 
 function openStoreDashboard(store) {
   selectedDetailStore.value = null;
+  const storeId = store.code || store.id || store.name;
   router.push({
-    path: '/dashboard',
+    path: `/dashboard/${encodeURIComponent(storeId)}`,
     query: {
       from: 'stores',
       storeName: store.name,
       storeCode: store.code
     }
   });
-}
-
-function openCustomerForm(store) {
-  if (!store) return;
-  const storeIdOrCode = store.code || store.id || '';
-  const routeData = router.resolve({
-    path: `/queue/store:${encodeURIComponent(storeIdOrCode)}`
-  });
-  window.open(routeData.href, '_blank');
 }
 
 function getInitials(name) {
@@ -1567,45 +1672,88 @@ function openWhatsApp(phone, staffName, storeName) {
   color: #9CA3AF;
 }
 
-.store-action-btns-wrap {
+/* Action: Store Actions & Buttons Group */
+.store-actions-group {
   display: flex;
   align-items: center;
-  gap: 8px;
-  justify-content: flex-end;
+  gap: 6px;
 }
 
-/* Action: See Detail Button & Form Outline Button (Figma 97:642) */
+.action-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+  background: #FFFFFF;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.action-icon-btn:hover {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+  color: #111827;
+}
+
+.action-icon-btn.btn-delete-store:hover {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+}
+
 .see-detail-btn {
-  height: 38px;
-  padding: 0 16px;
+  height: 34px;
+  padding: 0 14px;
   background: #000000;
   color: #FFFFFF;
-  border: 1px solid #000000;
+  border: none;
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: opacity 0.15s ease;
   white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .see-detail-btn:hover {
   opacity: 0.85;
 }
 
-.see-detail-btn.form-btn-outline {
-  background: transparent;
-  color: #000000;
-  border: 1px solid #000000;
+/* Floating Toast Notification */
+.toast-notification {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #111827;
+  color: #FFFFFF;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-family: var(--font-brand);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
 }
 
-.see-detail-btn.form-btn-outline:hover {
-  background: #F4F4F5;
-  color: #000000;
-  opacity: 1;
+.toast-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #10B981;
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Modals */

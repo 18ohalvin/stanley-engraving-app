@@ -97,13 +97,14 @@
 
   <script setup>
   import { ref, computed, onMounted } from 'vue';
-  import { useRouter } from 'vue-router';
+  import { useRouter, useRoute } from 'vue-router';
   import StepHeader from '../components/StepHeader.vue';
   import CTAButton from '../components/CTAButton.vue';
   import { useEngravingStore, FONT_OPTIONS } from '../store/engravingStore.js';
   import { containsProfanity } from '../utils/profanityFilter.js';
 
   const router = useRouter();
+  const route = useRoute();
   const engravingStore = useEngravingStore();
 
   const enteredText = ref(engravingStore.currentItem.text || '');
@@ -128,6 +129,9 @@
   });
 
   onMounted(() => {
+    if (route.params.storeId) {
+      engravingStore.setStoreId(route.params.storeId);
+    }
     if (engravingStore.currentItem.text) {
       enteredText.value = engravingStore.currentItem.text;
     }
@@ -173,7 +177,12 @@
   function continueToNextCup() {
     showSavedModal.value = false;
     engravingStore.resetDraft();
-    router.push('/step-1');
+    const storeId = route.params.storeId || engravingStore.selectedStoreId;
+    if (storeId) {
+      router.push(`/engrave/${storeId}/step-1`);
+    } else {
+      router.push('/step-1');
+    }
   }
 
   function reviewOrder() {
@@ -183,7 +192,12 @@
     engravingStore.setFont(fontObj);
     engravingStore.setText(text);
     engravingStore.saveCurrentItem();
-    router.push('/step-4');
+    const storeId = route.params.storeId || engravingStore.selectedStoreId;
+    if (storeId) {
+      router.push(`/engrave/${storeId}/step-4`);
+    } else {
+      router.push('/step-4');
+    }
   }
   </script>
 

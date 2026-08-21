@@ -2,7 +2,7 @@
   <header class="stanley-header" :class="{ 'is-dark': isDark }">
     <div class="logo-wrapper">
       <img 
-        src="/src/assets/images/logo-white.png" 
+        :src="isDark ? '/src/assets/images/logo-white.png' : '/src/assets/images/logo-black.png'" 
         alt="Stanley 1913" 
         class="stanley-logo"
       />

@@ -180,6 +180,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { getCanonicalStore } from '../utils/storeResolver.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -258,7 +259,9 @@ async function handleSignIn() {
     } else if (isSuperAdmin) {
       router.push('/admin');
     } else {
-      router.push('/engraver');
+      const canonical = getCanonicalStore(user.store || user.staffId || rawId);
+      const storeCode = canonical ? canonical.code : (user.store || user.staffId || rawId);
+      router.push(`/engraver/${encodeURIComponent(storeCode)}`);
     }
   } catch (err) {
     // Fallback to local check if offline
@@ -344,7 +347,9 @@ function performOfflineFallbackLogin(rawId, rawPin) {
   } else if (isSuperAdmin) {
     router.push('/admin');
   } else {
-    router.push('/engraver');
+    const canonical = getCanonicalStore(matchedStaff.store || matchedStaff.staffId || rawId);
+    const storeCode = canonical ? canonical.code : (matchedStaff.store || matchedStaff.staffId || rawId);
+    router.push(`/engraver/${encodeURIComponent(storeCode)}`);
   }
 }
 

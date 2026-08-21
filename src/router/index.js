@@ -27,6 +27,42 @@ const routes = [
     meta: { isMobileFlow: true }
   },
   {
+    path: '/engrave/:storeId',
+    name: 'engrave-store',
+    component: LandingView,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-1',
+    name: 'engrave-store-step-1',
+    component: Step1View,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-2',
+    name: 'engrave-store-step-2',
+    component: Step2View,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-3',
+    name: 'engrave-store-step-3',
+    component: Step3View,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-4',
+    name: 'engrave-store-step-4',
+    component: Step4View,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-5',
+    name: 'engrave-store-step-5',
+    component: Step5View,
+    meta: { isMobileFlow: true }
+  },
+  {
     path: '/step-1',
     name: 'step-1',
     component: Step1View,
@@ -57,18 +93,6 @@ const routes = [
     meta: { isMobileFlow: true }
   },
   {
-    path: '/queue/store::storeCode',
-    name: 'pwa-store-colon',
-    component: LandingView,
-    meta: { isMobileFlow: true }
-  },
-  {
-    path: '/queue/store/:storeCode',
-    name: 'pwa-store-slash',
-    component: LandingView,
-    meta: { isMobileFlow: true }
-  },
-  {
     path: '/queue/:orderId',
     name: 'queue-ticket',
     component: QueueTicketView,
@@ -76,13 +100,14 @@ const routes = [
   },
   {
     path: '/engraver',
+    alias: ['/engraver/:storeId', '/engraver-dashboard'],
     name: 'engraver-dashboard',
     component: EngraverDashboardView,
     meta: { fullWidth: true, requiresAuth: true }
   },
   {
     path: '/dashboard',
-    alias: '/customers',
+    alias: ['/dashboard/:storeId', '/customers'],
     name: 'customer-dashboard',
     component: CustomerDashboardView,
     meta: { fullWidth: true }
@@ -107,22 +132,6 @@ const routes = [
     name: 'settings',
     component: SettingsView,
     meta: { fullWidth: true, requiresAuth: true, requiresSuperAdmin: true }
-  },
-  {
-    path: '/pwa/:storeCode',
-    redirect: to => ({ path: '/step-1', query: { storeCode: to.params.storeCode } })
-  },
-  {
-    path: '/form/:storeCode',
-    redirect: to => ({ path: '/step-1', query: { storeCode: to.params.storeCode } })
-  },
-  {
-    path: '/pwa',
-    redirect: '/step-1'
-  },
-  {
-    path: '/form',
-    redirect: '/step-1'
   },
   {
     path: '/:pathMatch(.*)*',

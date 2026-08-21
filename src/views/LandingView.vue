@@ -39,25 +39,19 @@ const route = useRoute();
 const engravingStore = useEngravingStore();
 
 onMounted(() => {
-  const storeCode = route.params.storeCode || route.query.storeCode;
-  const storeName = route.query.storeName;
-  const storeId = route.query.storeId;
-
-  if (storeCode || storeName || storeId) {
-    engravingStore.setStoreContext({
-      code: storeCode,
-      name: storeName,
-      id: storeId
-    });
+  if (route.params.storeId) {
+    engravingStore.setStoreId(route.params.storeId);
   }
 });
 
 function startCustomization() {
   engravingStore.resetDraft();
-  router.push({
-    path: '/step-1',
-    query: route.query
-  });
+  const storeId = route.params.storeId || engravingStore.selectedStoreId;
+  if (storeId) {
+    router.push(`/engrave/${storeId}/step-1`);
+  } else {
+    router.push('/step-1');
+  }
 }
 </script>
 
