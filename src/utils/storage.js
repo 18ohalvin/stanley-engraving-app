@@ -96,19 +96,17 @@ async function syncToServer(orders) {
   try {
     if (typeof fetch !== 'undefined') {
       const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
-      const headers = { 'Content-Type': 'application/json' };
       if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(orders)
-      });
-
-      if (res.status === 401 && Array.isArray(orders) && orders.length > 0) {
-        // If unauthenticated (Customer PWA order submission), use public endpoint
+        await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(orders)
+        });
+      } else if (Array.isArray(orders) && orders.length > 0) {
+        // Direct sync for unauthenticated customer PWA submissions
         const latestOrder = orders[0];
         if (latestOrder && latestOrder.order_id) {
           await fetch('/api/orders/public', {

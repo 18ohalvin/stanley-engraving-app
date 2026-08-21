@@ -27,6 +27,42 @@ const routes = [
     meta: { isMobileFlow: true }
   },
   {
+    path: '/engrave/:storeId',
+    name: 'engrave-store',
+    component: LandingView,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-1',
+    name: 'engrave-store-step-1',
+    component: Step1View,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-2',
+    name: 'engrave-store-step-2',
+    component: Step2View,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-3',
+    name: 'engrave-store-step-3',
+    component: Step3View,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-4',
+    name: 'engrave-store-step-4',
+    component: Step4View,
+    meta: { isMobileFlow: true }
+  },
+  {
+    path: '/engrave/:storeId/step-5',
+    name: 'engrave-store-step-5',
+    component: Step5View,
+    meta: { isMobileFlow: true }
+  },
+  {
     path: '/step-1',
     name: 'step-1',
     component: Step1View,
@@ -64,13 +100,14 @@ const routes = [
   },
   {
     path: '/engraver',
+    alias: ['/engraver/:storeId', '/engraver-dashboard'],
     name: 'engraver-dashboard',
     component: EngraverDashboardView,
     meta: { fullWidth: true, requiresAuth: true }
   },
   {
     path: '/dashboard',
-    alias: '/customers',
+    alias: ['/dashboard/:storeId', '/customers'],
     name: 'customer-dashboard',
     component: CustomerDashboardView,
     meta: { fullWidth: true, requiresAuth: true }

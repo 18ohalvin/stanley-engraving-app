@@ -23,7 +23,7 @@ import {
   deleteAuthSessionToken
 } from './src/server/db.js';
 
-import { requireAuth, requireSuperAdmin } from './src/server/authMiddleware.js';
+import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -149,6 +149,7 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
       success: true,
       token: session.token,
       expiresAt: session.expiresAt,
+      storeId: staff.store || '',
       user: {
         id: staff.id,
         staffId: staff.staffId,
@@ -156,6 +157,7 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
         name: staff.name,
         role: staff.role,
         store: staff.store,
+        storeId: staff.store,
         isDeveloper: staff.isDeveloper
       }
     });
@@ -183,7 +185,7 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 // ----------------------------------------------------
-// PROTECTED MANAGEMENT ENDPOINTS (Require Staff Auth)
+// MULTI-TENANCY PROTECTED MANAGEMENT ENDPOINTS
 // ----------------------------------------------------
 
 // Best-effort auth check: identifies a logged-in staff session without rejecting the request
@@ -194,10 +196,47 @@ function getOptionalStaffSession(req) {
   return verifyAuthSessionToken(token);
 }
 
-// GET all orders from SQLite (public: strips customer PII; staff-authenticated: full detail)
+// GET orders isolated by storeID
+app.get('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, (req, res) => {
+  const storeId = req.params.storeId;
+  res.json(getAllOrdersFromDb(storeId));
+});
+
+// POST save/upsert orders for specific storeID
+app.post('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, (req, res) => {
+  try {
+    const storeId = req.params.storeId;
+    const payload = req.body;
+
+    if (Array.isArray(payload)) {
+      saveAllOrdersToDb(payload, storeId);
+      broadcast('orders_updated', getAllOrdersFromDb());
+      return res.json({ success: true, count: payload.length });
+    }
+
+    const saved = upsertSingleOrderInDb(payload, storeId);
+    broadcast('orders_updated', getAllOrdersFromDb());
+    res.json({ success: true, order: saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET single order by ID isolated by storeID
+app.get('/api/stores/:storeId/orders/:id', requireAuth, requireStoreAccess, (req, res) => {
+  const order = getOrderByIdFromDb(req.params.id, req.params.storeId);
+  if (!order) {
+    return res.status(404).json({ error: 'Order ticket not found for this store' });
+  }
+  res.json(order);
+});
+
+// GET all orders from SQLite (filtered by staff session storeId if authenticated;
+// customer PII stripped for unauthenticated/public access)
 app.get('/api/orders', (req, res) => {
-  const orders = getAllOrdersFromDb();
-  if (getOptionalStaffSession(req)) {
+  const session = getOptionalStaffSession(req);
+  const orders = getAllOrdersFromDb(session ? session.storeId : null);
+  if (session) {
     return res.json(orders);
   }
   const sanitized = orders.map(({ phone, email, ...rest }) => rest);
@@ -208,16 +247,16 @@ app.get('/api/orders', (req, res) => {
 app.post('/api/orders', requireAuth, (req, res) => {
   try {
     const payload = req.body;
+    const storeId = req.staffSession ? req.staffSession.storeId : null;
 
     if (Array.isArray(payload)) {
-      saveAllOrdersToDb(payload);
-      broadcast('orders_updated', payload);
+      saveAllOrdersToDb(payload, storeId);
+      broadcast('orders_updated', getAllOrdersFromDb());
       return res.json({ success: true, count: payload.length });
     }
 
-    const saved = upsertSingleOrderInDb(payload);
-    const allOrders = getAllOrdersFromDb();
-    broadcast('orders_updated', allOrders);
+    const saved = upsertSingleOrderInDb(payload, storeId);
+    broadcast('orders_updated', getAllOrdersFromDb());
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });

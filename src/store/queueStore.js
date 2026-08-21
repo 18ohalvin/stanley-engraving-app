@@ -84,14 +84,38 @@ export const useQueueStore = defineStore('queue', {
     readyOrders: (state) => 
       state.orders.filter(o => o.status === 'ready_for_pickup'),
 
-    upcomingListOrders: (state) => {
+    upcomingListOrders: (state) => (activeStoreId = null) => {
       const activeAssignedIds = state.machines
         .filter(m => m.isActive !== false)
         .map(m => m.currentOrderId)
         .filter(Boolean);
 
+      const isSameStore = (storeA, storeB) => {
+        if (!storeA || !storeB) return false;
+        if (storeA === '*' || storeB === '*' || storeA === 'HQ Central' || storeB === 'HQ Central') return true;
+        const a = String(storeA).trim().toLowerCase();
+        const b = String(storeB).trim().toLowerCase();
+        if (!a || !b) return false;
+        if (a === b) return true;
+        const cleanA = a.replace(/[^a-z0-9]/g, '');
+        const cleanB = b.replace(/[^a-z0-9]/g, '');
+        if (!cleanA || !cleanB) return false;
+        return cleanA === cleanB;
+      };
+
+      const storeId = activeStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
+
       return state.orders
-        .filter(o => o.status === 'in_queue' && !activeAssignedIds.includes(o.order_id))
+        .filter(o => {
+          if (o.status !== 'in_queue' || activeAssignedIds.includes(o.order_id)) return false;
+          if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
+            const matchId = isSameStore(o.store_id, storeId);
+            const matchCode = isSameStore(o.store_code, storeId);
+            const matchName = isSameStore(o.store_name, storeId);
+            if (!matchId && !matchCode && !matchName) return false;
+          }
+          return true;
+        })
         .slice()
         .sort((a, b) => {
           const timeA = new Date(a.intake_at || a.created_at || 0).getTime();
@@ -218,12 +242,63 @@ export const useQueueStore = defineStore('queue', {
       this.autoAssignMachines();
     },
 
-    getNextSystemQueueNumber() {
-      const highest = this.orders.reduce((max, o) => {
-        const num = parseInt(o.system_queue_number || o.short_code, 10);
-        return isNaN(num) ? max : Math.max(max, num);
+    getNextSystemQueueNumber(targetStoreId = null) {
+      const storeId = targetStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
+      
+      const getYYYYMMDD = (dateInput) => {
+        if (!dateInput) return new Date().toISOString().split('T')[0];
+        if (typeof dateInput === 'string') {
+          const match = dateInput.match(/^\d{4}-\d{2}-\d{2}/);
+          if (match) return match[0];
+        }
+        try {
+          const d = new Date(dateInput);
+          if (!isNaN(d.getTime())) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          }
+        } catch (e) {}
+        return new Date().toISOString().split('T')[0];
+      };
+
+      const todayStr = getYYYYMMDD(new Date());
+
+      const isSameStore = (storeA, storeB) => {
+        if (!storeA || !storeB) return false;
+        if (storeA === '*' || storeB === '*' || storeA === 'HQ Central' || storeB === 'HQ Central') return true;
+        const a = String(storeA).trim().toLowerCase();
+        const b = String(storeB).trim().toLowerCase();
+        if (!a || !b) return false;
+        if (a === b) return true;
+        const cleanA = a.replace(/[^a-z0-9]/g, '');
+        const cleanB = b.replace(/[^a-z0-9]/g, '');
+        if (!cleanA || !cleanB) return false;
+        return cleanA === cleanB;
+      };
+
+      const filtered = this.orders.filter(o => {
+        if (o.status === 'pending_dropoff' || o.status === 'cancelled') return false;
+        if (storeId && storeId !== '*') {
+          const matchId = isSameStore(o.store_id, storeId);
+          const matchCode = isSameStore(o.store_code, storeId);
+          const matchName = isSameStore(o.store_name, storeId);
+          if (!matchId && !matchCode && !matchName) return false;
+        }
+        const oDate = getYYYYMMDD(o.created_at || o.intake_at);
+        return oDate === todayStr;
+      });
+
+      const highest = filtered.reduce((max, o) => {
+        const num1 = parseInt(o.system_queue_number, 10);
+        const num2 = parseInt(o.short_code, 10);
+        const val = !isNaN(num1) ? num1 : (!isNaN(num2) ? num2 : 0);
+        return Math.max(max, val);
       }, 0);
-      return formatSystemQueueNumber(highest + 1);
+
+      const nextNum = highest + 1;
+      return formatSystemQueueNumber(nextNum);
     },
 
     getActiveQueueCount() {
@@ -300,12 +375,12 @@ export const useQueueStore = defineStore('queue', {
      * Zone A: Lookup Order by 3-digit Alphanumeric Code (e.g. C4X)
      * Returns order details to show in confirmation modal
      */
-    lookupIntakeOrder(codeInput) {
-      if (!codeInput) {
-        return { success: false, message: 'Please enter a 3-digit Engraving ID (e.g. C4X).' };
+    lookupIntakeOrder(rawCode, activeStoreId = null) {
+      if (!rawCode || !rawCode.trim()) {
+        return { success: false, message: 'Please enter a 3-character intake code.' };
       }
 
-      const cleanCode = String(codeInput).replace('#', '').trim().toUpperCase();
+      const cleanCode = rawCode.trim().toUpperCase();
       const order = this.orders.find(o => 
         (o.intake_code && o.intake_code.toUpperCase() === cleanCode) ||
         (o.short_code && o.short_code.toUpperCase() === cleanCode) ||
@@ -313,31 +388,57 @@ export const useQueueStore = defineStore('queue', {
       );
 
       if (!order) {
-        return { success: false, message: `Unique Code #${cleanCode} not found.` };
-      }
-
-      if (order.status === 'in_queue') {
         return { 
           success: false, 
-          message: `Order #${order.short_code} is already in the active upcoming queue.` 
+          message: `Intake Code #${cleanCode} not found. Please verify customer phone screen.` 
         };
+      }
+
+      const isSameStore = (storeA, storeB) => {
+        if (!storeA || !storeB) return false;
+        if (storeA === '*' || storeB === '*' || storeA === 'HQ Central' || storeB === 'HQ Central') return true;
+        const a = String(storeA).trim().toLowerCase();
+        const b = String(storeB).trim().toLowerCase();
+        if (!a || !b) return false;
+        if (a === b) return true;
+        const cleanA = a.replace(/[^a-z0-9]/g, '');
+        const cleanB = b.replace(/[^a-z0-9]/g, '');
+        if (!cleanA || !cleanB) return false;
+        return cleanA === cleanB;
+      };
+
+      const targetStore = activeStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
+      if (targetStore && targetStore !== '*' && targetStore !== 'HQ Central') {
+        const orderStore = order.store_id || order.store_code || order.store_name;
+        if (orderStore) {
+          const matchId = isSameStore(order.store_id, targetStore);
+          const matchCode = isSameStore(order.store_code, targetStore);
+          const matchName = isSameStore(order.store_name, targetStore);
+          if (!matchId && !matchCode && !matchName) {
+            return {
+              success: false,
+              message: `Order #${cleanCode} was submitted for Store "${orderStore}". Cannot process at Store "${targetStore}".`
+            };
+          }
+        }
       }
 
       if (order.status === 'engraving_in_progress') {
         return { 
           success: false, 
-          message: `Order #${order.short_code} is currently engraving on a laser station.` 
+          message: `Order #${order.short_code || order.system_queue_number} is currently engraving on a laser station.` 
         };
       }
 
       if (order.status === 'ready_for_pickup') {
         return { 
           success: false, 
-          message: `Order #${order.short_code} is already completed.` 
+          message: `Order #${order.short_code || order.system_queue_number} is already completed.` 
         };
       }
 
-      const nextQueueNumber = this.getNextSystemQueueNumber();
+      const storeForNumber = order.store_id || order.store_code || order.store_name || targetStore;
+      const nextQueueNumber = this.getNextSystemQueueNumber(storeForNumber);
 
       return {
         success: true,
@@ -350,13 +451,46 @@ export const useQueueStore = defineStore('queue', {
      * Zone A: Confirm Intake from Pop-up Modal
      * Moves order to in_queue, assigns official 4-digit system queue number (e.g. #0021)
      */
-    confirmOrderIntake(orderId) {
+    confirmOrderIntake(orderId, activeStoreId = null) {
       const order = this.orders.find(o => o.order_id === orderId || o.short_code === orderId || o.intake_code === orderId);
       if (!order) {
         return { success: false, message: 'Order not found.' };
       }
 
-      const newQueueNumber = this.getNextSystemQueueNumber();
+      const isSameStore = (storeA, storeB) => {
+        if (!storeA || !storeB) return false;
+        if (storeA === '*' || storeB === '*' || storeA === 'HQ Central' || storeB === 'HQ Central') return true;
+        const a = String(storeA).trim().toLowerCase();
+        const b = String(storeB).trim().toLowerCase();
+        if (!a || !b) return false;
+        if (a === b) return true;
+        const cleanA = a.replace(/[^a-z0-9]/g, '');
+        const cleanB = b.replace(/[^a-z0-9]/g, '');
+        if (!cleanA || !cleanB) return false;
+        return cleanA === cleanB;
+      };
+
+      const targetStore = activeStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
+      if (targetStore && targetStore !== '*' && targetStore !== 'HQ Central') {
+        const orderStore = order.store_id || order.store_code || order.store_name;
+        if (orderStore) {
+          const matchId = isSameStore(order.store_id, targetStore);
+          const matchCode = isSameStore(order.store_code, targetStore);
+          const matchName = isSameStore(order.store_name, targetStore);
+          if (!matchId && !matchCode && !matchName) {
+            return {
+              success: false,
+              message: `Order belongs to Store "${orderStore}". Cannot confirm intake at Store "${targetStore}".`
+            };
+          }
+        }
+      }
+
+      let newQueueNumber = order.system_queue_number;
+      if (!newQueueNumber) {
+        const storeForNumber = order.store_id || order.store_code || order.store_name || targetStore;
+        newQueueNumber = this.getNextSystemQueueNumber(storeForNumber);
+      }
       
       // Update order to in_queue with official 4-digit system queue number
       order.status = 'in_queue';

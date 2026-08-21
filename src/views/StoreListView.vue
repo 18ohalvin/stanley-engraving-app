@@ -42,18 +42,6 @@
           </div>
 
           <div class="top-controls-group">
-            <!-- Date Filter Button -->
-            <button 
-              type="button" 
-              class="date-filter-btn"
-              @click="showDatePickerModal = true"
-              title="Select custom date filter"
-            >
-              <img src="/src/assets/icons/clock.svg" alt="Calendar" class="ctrl-icon-calendar" />
-              <span class="ctrl-date-text">{{ formattedSelectedDate }}</span>
-              <img src="/src/assets/icons/chevron-down.svg" alt="Chevron" class="ctrl-icon-chevron" />
-            </button>
-
             <!-- Add New Store CTA Button -->
             <button 
               type="button" 
@@ -179,15 +167,47 @@
                     </span>
                   </td>
 
-                  <!-- 8. Action: Store Info -->
+                  <!-- 8. Action: Customer PWA Visit, Copy URL, Store Info -->
                   <td class="td-cell td-action">
-                    <button 
-                      type="button" 
-                      class="see-detail-btn"
-                      @click="handleSeeDetail(store)"
-                    >
-                      Store Info
-                    </button>
+                    <div class="store-actions-group">
+                      <!-- Visit Customer PWA Form Button -->
+                      <button 
+                        type="button" 
+                        class="action-icon-btn btn-visit-form"
+                        @click.stop="visitCustomerForm(store)"
+                        :title="`Open Customer PWA Landing Page for ${store.name}`"
+                        aria-label="Visit Customer Form"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                          <polyline points="15 3 21 3 21 9"></polyline>
+                          <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                      </button>
+
+                      <!-- Copy Form URL Button -->
+                      <button 
+                        type="button" 
+                        class="action-icon-btn btn-copy-url"
+                        @click.stop="copyFormUrl(store)"
+                        :title="`Copy Customer PWA Landing Page URL for ${store.name}`"
+                        aria-label="Copy Form URL"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                      </button>
+
+                      <!-- Store Info Modal Detail Button -->
+                      <button 
+                        type="button" 
+                        class="see-detail-btn"
+                        @click.stop="handleSeeDetail(store)"
+                      >
+                        Store Info
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -359,6 +379,16 @@
                 type="text" 
                 class="product-name-underline-input" 
                 placeholder="e.g. Grand Indonesia West Mall, Level 2, Jakarta Pusat" 
+              />
+            </div>
+
+            <div class="product-name-input-block">
+              <label class="param-col-title" style="display:block; margin-bottom: 4px;">Store Phone / WhatsApp Number</label>
+              <input 
+                v-model="newStoreForm.phone" 
+                type="tel" 
+                class="product-name-underline-input" 
+                placeholder="e.g. +62 817-5566-7788" 
               />
             </div>
 
@@ -547,6 +577,16 @@
               />
             </div>
 
+            <div class="product-name-input-block">
+              <label class="param-col-title" style="display:block; margin-bottom: 4px;">Store Phone / WhatsApp Number</label>
+              <input 
+                v-model="editStoreForm.phone" 
+                type="tel" 
+                class="product-name-underline-input" 
+                placeholder="e.g. +62 817-5566-7788" 
+              />
+            </div>
+
             <!-- Store Admins & Operators Management Section (Figma 411:603) -->
             <div class="edit-store-admins-block">
               <div class="edit-admins-header">
@@ -659,104 +699,14 @@
       </div>
     </Teleport>
 
-    <!-- DATE PICKER MODAL (Material 2-Pane Calendar) -->
+    <!-- SUCCESS TOAST NOTIFICATION -->
     <Teleport to="body">
-      <div v-if="showDatePickerModal" class="date-modal-backdrop" @click="showDatePickerModal = false">
-        <div class="date-picker-dialog fade-in" @click.stop>
-          <div class="date-picker-layout">
-            
-            <!-- Left Preset Column -->
-            <div class="date-presets-sidebar">
-              <button 
-                type="button" 
-                class="preset-item-btn"
-                :class="{ 'is-active': tempActivePreset === 'today' }"
-                @click="selectPreset('today')"
-              >
-                Today
-              </button>
-              <button 
-                type="button" 
-                class="preset-item-btn"
-                :class="{ 'is-active': tempActivePreset === 'yesterday' }"
-                @click="selectPreset('yesterday')"
-              >
-                Yesterday
-              </button>
-              <button 
-                type="button" 
-                class="preset-item-btn"
-                :class="{ 'is-active': tempActivePreset === '7d' }"
-                @click="selectPreset('7d')"
-              >
-                Last 7 Days
-              </button>
-              <button 
-                type="button" 
-                class="preset-item-btn"
-                :class="{ 'is-active': tempActivePreset === '30d' }"
-                @click="selectPreset('30d')"
-              >
-                Last 30 Days
-              </button>
-              <button 
-                type="button" 
-                class="preset-item-btn"
-                :class="{ 'is-active': tempActivePreset === 'custom' }"
-                @click="tempActivePreset = 'custom'"
-              >
-                Custom Date
-              </button>
-            </div>
-
-            <!-- Right Calendar View -->
-            <div class="date-calendar-pane">
-              <div class="calendar-nav-row">
-                <button type="button" class="month-nav-btn" @click="changeMonth(-1)">‹</button>
-                <span class="month-label-display">{{ calendarMonthYearLabel }}</span>
-                <button type="button" class="month-nav-btn" @click="changeMonth(1)">›</button>
-              </div>
-
-              <!-- Days of Week Header -->
-              <div class="calendar-weekdays-row">
-                <span v-for="day in ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']" :key="day" class="weekday-th">
-                  {{ day }}
-                </span>
-              </div>
-
-              <!-- Month Days Grid -->
-              <div class="calendar-days-grid">
-                <button 
-                  v-for="(dayObj, idx) in calendarDays" 
-                  :key="idx"
-                  type="button"
-                  class="day-cell-btn"
-                  :class="{
-                    'is-empty': !dayObj.dayNumber,
-                    'is-selected': dayObj.dateStr === tempSelectedDate,
-                    'is-today': dayObj.isToday
-                  }"
-                  :disabled="!dayObj.dayNumber"
-                  @click="pickCalendarDate(dayObj.dateStr)"
-                >
-                  {{ dayObj.dayNumber }}
-                </button>
-              </div>
-
-              <!-- Calendar Action Buttons -->
-              <div class="calendar-footer-row">
-                <button type="button" class="cal-btn-cancel" @click="showDatePickerModal = false">
-                  Cancel
-                </button>
-                <button type="button" class="cal-btn-apply" @click="applySelectedDate">
-                  Apply Date
-                </button>
-              </div>
-            </div>
-
-          </div>
+      <Transition name="fade">
+        <div v-if="toastVisible" class="toast-notification">
+          <div class="toast-icon">✓</div>
+          <span class="toast-text">{{ toastMessage }}</span>
         </div>
-      </div>
+      </Transition>
     </Teleport>
 
   </div>
@@ -771,13 +721,62 @@ import { getAnalyticsLogs } from '../utils/analyticsService.js';
 const router = useRouter();
 const queueStore = useQueueStore();
 
-// Selected Date State
-const todayStr = new Date().toISOString().split('T')[0];
-const selectedDate = ref(todayStr);
-const tempSelectedDate = ref(todayStr);
-const currentCalendarMonth = ref(new Date());
-const tempActivePreset = ref('today');
-const showDatePickerModal = ref(false);
+// Toast Feedback State
+const toastMessage = ref('');
+const toastVisible = ref(false);
+
+function triggerToast(msg) {
+  toastMessage.value = msg;
+  toastVisible.value = true;
+  setTimeout(() => {
+    toastVisible.value = false;
+  }, 2500);
+}
+
+function getCleanStoreAlias(store) {
+  if (!store) return 'EG-021';
+  if (store.code && typeof store.code === 'string' && store.code.trim()) {
+    return store.code.trim().toUpperCase();
+  }
+  if (store.id && !store.id.startsWith('st-custom-')) {
+    return String(store.id).trim();
+  }
+  if (store.name) {
+    return String(store.name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
+  return 'EG-021';
+}
+
+function visitCustomerForm(store) {
+  const storeId = getCleanStoreAlias(store);
+  const routeData = router.resolve({
+    name: 'engrave-store',
+    params: { storeId }
+  });
+  window.open(routeData.href, '_blank');
+}
+
+async function copyFormUrl(store) {
+  const storeId = getCleanStoreAlias(store);
+  const url = `${window.location.origin}/engrave/${storeId}`;
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    triggerToast(`Customer form link for ${store.name} (${storeId}) copied to clipboard!`);
+  } catch (err) {
+    console.error('Clipboard copy error:', err);
+  }
+}
 
 // Modals
 const showAddStoreModal = ref(false);
@@ -1076,6 +1075,7 @@ function handleOpenAddStore() {
     city: 'Jakarta',
     totalMachines: 1,
     address: '',
+    phone: '',
     assignedStaffIds: []
   };
   addStaffSearchQuery.value = '';
@@ -1120,6 +1120,7 @@ function handleOpenEditStore(store) {
     city: store.city || cityGuess,
     totalMachines: store.totalMachines || 1,
     address: store.address || '',
+    phone: store.phone || '',
     assignedStaffIds: currentAdmins.map(a => a.id)
   };
 
@@ -1141,7 +1142,8 @@ function saveEditStore() {
     name: storeName,
     city: editStoreForm.value.city,
     totalMachines: editStoreForm.value.totalMachines,
-    address: editStoreForm.value.address
+    address: editStoreForm.value.address,
+    phone: editStoreForm.value.phone
   };
   saveStoreOverrides();
 
@@ -1180,6 +1182,7 @@ function saveNewStore() {
     code: storeCode,
     name: storeName,
     address: newStoreForm.value.address || `${newStoreForm.value.city}, Indonesia`,
+    phone: newStoreForm.value.phone || '',
     currentQueue: 0,
     estWaitTime: '0 Minutes',
     avgDuration: '—',
@@ -1216,8 +1219,9 @@ function saveNewStore() {
 
 function openStoreDashboard(store) {
   selectedDetailStore.value = null;
+  const storeId = store.code || store.id || store.name;
   router.push({
-    path: '/dashboard',
+    path: `/dashboard/${encodeURIComponent(storeId)}`,
     query: {
       from: 'stores',
       storeName: store.name,
@@ -1265,76 +1269,6 @@ function openWhatsApp(phone, staffName, storeName) {
   const intlPhone = cleanPhone.startsWith('0') ? '62' + cleanPhone.slice(1) : cleanPhone;
   const message = encodeURIComponent(`Hi ${staffName}, contacting you regarding Stanley ${storeName} engraving operations.`);
   window.open(`https://wa.me/${intlPhone}?text=${message}`, '_blank');
-}
-
-// ----------------------------------------------------
-// DATE PICKER LOGIC
-// ----------------------------------------------------
-const formattedSelectedDate = computed(() => {
-  if (!selectedDate.value) return 'Tue, 20 May 2025';
-  const d = new Date(selectedDate.value + 'T00:00:00');
-  if (isNaN(d.getTime())) return 'Tue, 20 May 2025';
-  const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
-  return d.toLocaleDateString('en-GB', options);
-});
-
-const calendarMonthYearLabel = computed(() => {
-  const d = currentCalendarMonth.value;
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-});
-
-const calendarDays = computed(() => {
-  const d = currentCalendarMonth.value;
-  const year = d.getFullYear();
-  const month = d.getMonth();
-  const firstDayIndex = new Date(year, month, 1).getDay();
-  const totalDays = new Date(year, month + 1, 0).getDate();
-  const days = [];
-
-  for (let i = 0; i < firstDayIndex; i++) {
-    days.push({ dayNumber: '', dateStr: '', isToday: false });
-  }
-
-  for (let day = 1; day <= totalDays; day++) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const isToday = dateStr === todayStr;
-    days.push({ dayNumber: day, dateStr, isToday });
-  }
-
-  return days;
-});
-
-function changeMonth(delta) {
-  const cur = currentCalendarMonth.value;
-  currentCalendarMonth.value = new Date(cur.getFullYear(), cur.getMonth() + delta, 1);
-}
-
-function pickCalendarDate(dateStr) {
-  if (!dateStr) return;
-  tempSelectedDate.value = dateStr;
-  tempActivePreset.value = 'custom';
-}
-
-function selectPreset(preset) {
-  tempActivePreset.value = preset;
-  const now = new Date();
-  if (preset === 'today') {
-    tempSelectedDate.value = now.toISOString().split('T')[0];
-  } else if (preset === 'yesterday') {
-    const y = new Date(now.getTime() - 86400000);
-    tempSelectedDate.value = y.toISOString().split('T')[0];
-  } else if (preset === '7d') {
-    const past7 = new Date(now.getTime() - 7 * 86400000);
-    tempSelectedDate.value = past7.toISOString().split('T')[0];
-  } else if (preset === '30d') {
-    const past30 = new Date(now.getTime() - 30 * 86400000);
-    tempSelectedDate.value = past30.toISOString().split('T')[0];
-  }
-}
-
-function applySelectedDate() {
-  selectedDate.value = tempSelectedDate.value;
-  showDatePickerModal.value = false;
 }
 </script>
 
@@ -1505,40 +1439,7 @@ function applySelectedDate() {
   gap: 12px;
 }
 
-.date-filter-btn {
-  height: 44px;
-  padding: 0 14px;
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
 
-.date-filter-btn:hover {
-  border-color: #111827;
-}
-
-.ctrl-icon-calendar {
-  width: 16px;
-  height: 16px;
-}
-
-.ctrl-date-text {
-  font-size: 13px;
-  font-weight: 500;
-  color: #111827;
-  white-space: nowrap;
-}
-
-.ctrl-icon-chevron {
-  width: 12px;
-  height: 12px;
-  opacity: 0.7;
-}
 
 .add-store-btn {
   height: 44px;
@@ -1771,10 +1672,43 @@ function applySelectedDate() {
   color: #9CA3AF;
 }
 
-/* Action: See Detail Button (Figma 97:642) */
+/* Action: Store Actions & Buttons Group */
+.store-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+  background: #FFFFFF;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.action-icon-btn:hover {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+  color: #111827;
+}
+
+.action-icon-btn.btn-delete-store:hover {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+}
+
 .see-detail-btn {
-  height: 38px;
-  padding: 0 20px;
+  height: 34px;
+  padding: 0 14px;
   background: #000000;
   color: #FFFFFF;
   border: none;
@@ -1788,6 +1722,38 @@ function applySelectedDate() {
 
 .see-detail-btn:hover {
   opacity: 0.85;
+}
+
+/* Floating Toast Notification */
+.toast-notification {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #111827;
+  color: #FFFFFF;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-family: var(--font-brand);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+}
+
+.toast-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #10B981;
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Modals */
@@ -2590,171 +2556,6 @@ function applySelectedDate() {
 .btn-primary-black:hover {
   background-color: #1F2937;
   border-color: #1F2937;
-}
-
-/* Material Date Picker Dialog */
-.date-picker-dialog {
-  background: #FFFFFF;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 580px;
-  overflow: hidden;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-.date-picker-layout {
-  display: flex;
-  min-height: 380px;
-}
-
-.date-presets-sidebar {
-  width: 170px;
-  background-color: #F9FAFB;
-  border-right: 1px solid #E5E7EB;
-  padding: 16px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.preset-item-btn {
-  width: 100%;
-  text-align: left;
-  padding: 10px 14px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.preset-item-btn:hover {
-  background: #E5E7EB;
-}
-
-.preset-item-btn.is-active {
-  background: #111827;
-  color: #FFFFFF;
-  font-weight: 600;
-}
-
-.date-calendar-pane {
-  flex: 1;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-}
-
-.calendar-nav-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.month-nav-btn {
-  width: 32px;
-  height: 32px;
-  border: 1px solid #E5E7EB;
-  background: #FFFFFF;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.month-label-display {
-  font-size: 14px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.calendar-weekdays-row {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 8px;
-  text-align: center;
-}
-
-.weekday-th {
-  font-size: 11px;
-  font-weight: 600;
-  color: #9CA3AF;
-}
-
-.calendar-days-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  margin-bottom: 20px;
-}
-
-.day-cell-btn {
-  aspect-ratio: 1;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #111827;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.day-cell-btn:hover:not(:disabled) {
-  background: #F3F4F6;
-}
-
-.day-cell-btn.is-selected {
-  background: #111827 !important;
-  color: #FFFFFF !important;
-  font-weight: 700;
-}
-
-.day-cell-btn.is-today:not(.is-selected) {
-  border: 1px solid #111827;
-}
-
-.day-cell-btn:disabled {
-  opacity: 0;
-  cursor: default;
-}
-
-.calendar-footer-row {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.cal-btn-cancel {
-  padding: 8px 16px;
-  background: transparent;
-  border: 1px solid #D1D5DB;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-  cursor: pointer;
-}
-
-.cal-btn-apply {
-  padding: 8px 18px;
-  background: #111827;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .fade-in {

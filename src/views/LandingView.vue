@@ -29,16 +29,29 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router';
+import { onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import CTAButton from '../components/CTAButton.vue';
 import { useEngravingStore } from '../store/engravingStore';
 
 const router = useRouter();
+const route = useRoute();
 const engravingStore = useEngravingStore();
+
+onMounted(() => {
+  if (route.params.storeId) {
+    engravingStore.setStoreId(route.params.storeId);
+  }
+});
 
 function startCustomization() {
   engravingStore.resetDraft();
-  router.push('/step-1');
+  const storeId = route.params.storeId || engravingStore.selectedStoreId;
+  if (storeId) {
+    router.push(`/engrave/${storeId}/step-1`);
+  } else {
+    router.push('/step-1');
+  }
 }
 </script>
 

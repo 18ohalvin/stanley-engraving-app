@@ -19,7 +19,7 @@
           <button class="logout-btn" @click="handleLogout" title="Sign out of station">
             Logout
           </button>
-          <router-link to="/dashboard" class="see-dashboard-btn">
+          <router-link :to="dashboardRoute" class="see-dashboard-btn">
             <img src="/src/assets/icons/chart.svg" alt="Analytics" class="chart-icon" />
             <span>Dashboard</span>
           </router-link>
@@ -418,20 +418,35 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';
 import { getAnalyticsSummary, getWhatsAppLogs } from '../utils/analyticsService.js';
+import { getCanonicalStore } from '../utils/storeResolver.js';
 
 const router = useRouter();
+const route = useRoute();
 const queueStore = useQueueStore();
 
 const currentStoreLocation = computed(() => {
-  const userStore = localStorage.getItem('stanley_user_store');
+  const storeIdParam = route.params.storeId;
+  const userStore = storeIdParam || localStorage.getItem('stanley_user_store');
+  const canonical = getCanonicalStore(userStore);
+  if (canonical && canonical.name) {
+    const s = canonical.name.toUpperCase();
+    return s.startsWith('STANLEY') ? s : `STANLEY ${s}`;
+  }
   if (userStore && userStore.trim()) {
     const s = userStore.trim().toUpperCase();
     return s.startsWith('STANLEY') ? s : `STANLEY ${s}`;
   }
-  return 'STANLEY PONDOK INDAH MALL 5';
+  return 'STANLEY PONDOK INDAH MALL';
+});
+
+const dashboardRoute = computed(() => {
+  const userStore = route.params.storeId || localStorage.getItem('stanley_user_store');
+  const canonical = getCanonicalStore(userStore);
+  const code = canonical ? canonical.code : userStore;
+  return code ? `/dashboard/${encodeURIComponent(code)}` : '/dashboard';
 });
 
 function handleLogout() {
@@ -486,7 +501,15 @@ function handleStorageUpdate() {
   queueStore.refreshFromStorage();
 }
 
-const upcomingListOrders = computed(() => queueStore.upcomingListOrders);
+const activeStoreId = computed(() => {
+  return route.params.storeId || localStorage.getItem('stanley_user_store') || 'EG-021';
+});
+
+const upcomingListOrders = computed(() => {
+  return typeof queueStore.upcomingListOrders === 'function'
+    ? queueStore.upcomingListOrders(activeStoreId.value)
+    : queueStore.upcomingListOrders;
+});
 const analyticsSummary = computed(() => getAnalyticsSummary());
 const whatsappLogs = computed(() => getWhatsAppLogs());
 
@@ -568,7 +591,7 @@ async function copyToClipboard(text, machineId) {
 function handleIntakeLookup() {
   if (!intakeCode.value.trim()) return;
   const clean = intakeCode.value.trim().toUpperCase();
-  const res = queueStore.lookupIntakeOrder(clean);
+  const res = queueStore.lookupIntakeOrder(clean, activeStoreId.value);
   
   if (res.success) {
     pendingIntakeOrder.value = res.order;
@@ -587,7 +610,7 @@ function handleIntakeLookup() {
  */
 function handleConfirmIntakeModal() {
   if (!pendingIntakeOrder.value) return;
-  const res = queueStore.confirmOrderIntake(pendingIntakeOrder.value.order_id);
+  const res = queueStore.confirmOrderIntake(pendingIntakeOrder.value.order_id, activeStoreId.value);
   
   if (res.success) {
     showIntakeModal.value = false;

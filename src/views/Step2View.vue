@@ -54,12 +54,13 @@
 
 <script setup>
 import { computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import StepHeader from '../components/StepHeader.vue';
 import CTAButton from '../components/CTAButton.vue';
 import { useEngravingStore, CUP_MODELS, getCatalogCupModels } from '../store/engravingStore';
 
 const router = useRouter();
+const route = useRoute();
 const engravingStore = useEngravingStore();
 
 const currentModel = computed(() => {
@@ -72,6 +73,9 @@ const availablePositions = computed(() => {
 });
 
 onMounted(() => {
+  if (route.params.storeId) {
+    engravingStore.setStoreId(route.params.storeId);
+  }
   if (!engravingStore.currentItem.position || !availablePositions.value.includes(engravingStore.currentItem.position)) {
     engravingStore.setPosition(availablePositions.value[0] || 'Horizontal');
   }
@@ -86,7 +90,12 @@ function selectPosition(pos) {
 
 function goNext() {
   if (isStepValid.value) {
-    router.push('/step-3');
+    const storeId = route.params.storeId || engravingStore.selectedStoreId;
+    if (storeId) {
+      router.push(`/engrave/${storeId}/step-3`);
+    } else {
+      router.push('/step-3');
+    }
   }
 }
 </script>

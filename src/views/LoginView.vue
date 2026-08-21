@@ -173,6 +173,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { getCanonicalStore } from '../utils/storeResolver.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -251,7 +252,9 @@ async function handleSignIn() {
     } else if (isSuperAdmin) {
       router.push('/admin');
     } else {
-      router.push('/engraver');
+      const canonical = getCanonicalStore(user.store || user.staffId || rawId);
+      const storeCode = canonical ? canonical.code : (user.store || user.staffId || rawId);
+      router.push(`/engraver/${encodeURIComponent(storeCode)}`);
     }
   } catch (err) {
     // Network/server unreachable — do not fall back to an insecure client-side check.

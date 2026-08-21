@@ -90,7 +90,9 @@ export const useEngravingStore = defineStore('engraving', {
       countryCode: '+62',
       phone: '',
       email: ''
-    }
+    },
+    // Dynamically selected storeId from route URL /engrave/:storeId
+    selectedStoreId: ''
   }),
 
   getters: {
@@ -110,6 +112,12 @@ export const useEngravingStore = defineStore('engraving', {
   },
 
   actions: {
+    setStoreId(storeId) {
+      if (storeId) {
+        this.selectedStoreId = String(storeId).trim();
+      }
+    },
+
     setModel(modelName, shortName) {
       this.currentItem.model = modelName;
       this.currentItem.shortName = shortName || modelName;
@@ -242,10 +250,11 @@ export const useEngravingStore = defineStore('engraving', {
       const bookingTime = formatBookingTime(now);
       const fullPhone = formatPhoneNumber(this.customer.countryCode, this.customer.phone);
 
+      const targetStoreId = this.selectedStoreId || 'EG-021';
       const orderPayload = {
         order_id: orderId,
         intake_code: intakeCode,
-        short_code: intakeCode,
+        short_code: null,
         system_queue_number: null,
         customer_name: this.customer.name.trim(),
         phone: fullPhone,
@@ -253,6 +262,9 @@ export const useEngravingStore = defineStore('engraving', {
         booking_time: bookingTime,
         created_at: now.toISOString(),
         status: 'pending_dropoff',
+        store_id: targetStoreId,
+        store_code: targetStoreId,
+        store_name: targetStoreId,
         queue_position: queueStore.getActiveQueueCount() + 1,
         items: this.items.map(item => ({
           id: item.id,

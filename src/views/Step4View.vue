@@ -65,38 +65,65 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import StepHeader from '../components/StepHeader.vue';
 import CTAButton from '../components/CTAButton.vue';
 import { useEngravingStore } from '../store/engravingStore';
 
 const router = useRouter();
+const route = useRoute();
 const engravingStore = useEngravingStore();
+
+onMounted(() => {
+  if (route.params.storeId) {
+    engravingStore.setStoreId(route.params.storeId);
+  }
+});
 
 const items = computed(() => engravingStore.items);
 
 function editItem(index) {
   engravingStore.editItem(index);
-  router.push('/step-3');
+  const storeId = route.params.storeId || engravingStore.selectedStoreId;
+  if (storeId) {
+    router.push(`/engrave/${storeId}/step-3`);
+  } else {
+    router.push('/step-3');
+  }
 }
 
 function deleteItem(index) {
   engravingStore.deleteItem(index);
   if (engravingStore.items.length === 0) {
     engravingStore.resetDraft();
-    router.push('/step-1');
+    const storeId = route.params.storeId || engravingStore.selectedStoreId;
+    if (storeId) {
+      router.push(`/engrave/${storeId}/step-1`);
+    } else {
+      router.push('/step-1');
+    }
   }
 }
 
 function addAnotherItem() {
   engravingStore.resetDraft();
-  router.push('/step-1');
+  const storeId = route.params.storeId || engravingStore.selectedStoreId;
+  if (storeId) {
+    router.push(`/engrave/${storeId}/step-1`);
+  } else {
+    router.push('/step-1');
+  }
 }
 
 function goNext() {
   if (items.value.length > 0) {
-    router.push('/step-5');
+    const storeId = route.params.storeId || engravingStore.selectedStoreId;
+    if (storeId) {
+      router.push(`/engrave/${storeId}/step-5`);
+    } else {
+      router.push('/step-5');
+    }
   }
 }
 </script>

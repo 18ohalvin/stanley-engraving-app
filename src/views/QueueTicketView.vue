@@ -40,7 +40,7 @@
           <div class="notice-row">
             <img src="/src/assets/icons/info-black-circle.svg" alt="Info" class="info-circle-icon" />
             <p class="notice-text">
-              Need a help? Check counter or <strong>contact us</strong>.
+              Need a help? Check counter or <a :href="storeWhatsAppLink" target="_blank" class="contact-us-wa-link">contact us</a>.
             </p>
           </div>
         </section>
@@ -63,7 +63,7 @@
           <div class="notice-row">
             <img src="/src/assets/icons/info-black-circle.svg" alt="Info" class="info-circle-icon" />
             <p class="notice-text">
-              Need a help? Check counter or <strong>contact us</strong>.
+              Need a help? Check counter or <a :href="storeWhatsAppLink" target="_blank" class="contact-us-wa-link">contact us</a>.
             </p>
           </div>
         </section>
@@ -135,6 +135,10 @@
 
           <!-- Action Buttons -->
           <div class="ticket-actions">
+            <a :href="storeWhatsAppLink" target="_blank" class="wa-contact-btn">
+              <img src="/src/assets/icons/chat.svg" alt="WhatsApp" class="wa-icon" />
+              <span>Contact Store on WhatsApp</span>
+            </a>
             <CTAButton
               variant="outline"
               label="View Order Details"
@@ -215,6 +219,7 @@ import CTAButton from '../components/CTAButton.vue';
 import OrderDetailsModal from '../components/OrderDetailsModal.vue';
 import CancelOrderModal from '../components/CancelOrderModal.vue';
 import { useQueueStore } from '../store/queueStore';
+import { getStorePhone } from '../utils/storeResolver.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -229,6 +234,23 @@ const showDetailsModal = ref(false);
 const showCancelModal = ref(false);
 const showDevDemo = ref(false);
 let pollInterval = null;
+
+const storePhone = computed(() => {
+  const s = order.value ? (order.value.store_id || order.value.store_code || order.value.store_name) : null;
+  return getStorePhone(s);
+});
+
+const storeWhatsAppLink = computed(() => {
+  const phoneRaw = storePhone.value || '+62 817-5566-7788';
+  let cleanDigits = phoneRaw.replace(/\D/g, '');
+  if (cleanDigits.startsWith('0')) {
+    cleanDigits = '62' + cleanDigits.slice(1);
+  }
+  const ticketId = order.value ? (order.value.system_queue_number || order.value.short_code || order.value.order_id || '') : '';
+  const storeName = order.value ? (order.value.store_name || 'Stanley') : 'Stanley';
+  const msg = encodeURIComponent(`Hi ${storeName}! I have a question about my engraving order #${ticketId}`);
+  return `https://wa.me/${cleanDigits}?text=${msg}`;
+});
 
 const maskedPhone = computed(() => {
   if (!order.value || !order.value.phone) return '+62 812-77XX-XX70';
@@ -726,5 +748,46 @@ onUnmounted(() => {
 .fade-slide-leave-to {
   opacity: 0;
   transform: translateY(6px);
+}
+
+.contact-us-wa-link {
+  color: #000000;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.contact-us-wa-link:hover {
+  color: #25D366;
+}
+
+.wa-contact-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 48px;
+  background-color: #25D366;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.wa-contact-btn:hover {
+  background-color: #1EBE57;
+}
+
+.wa-contact-btn:active {
+  transform: scale(0.99);
+}
+
+.wa-icon {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) invert(1);
 }
 </style>

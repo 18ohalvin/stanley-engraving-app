@@ -45,3 +45,37 @@ export function requireSuperAdmin(req, res, next) {
     });
   });
 }
+
+/**
+ * Express middleware to enforce strict multi-tenant store access control
+ */
+export function requireStoreAccess(req, res, next) {
+  requireAuth(req, res, () => {
+    const session = req.staffSession;
+    if (!session) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    // Super Admin & Master Developer accounts have network-wide access
+    if (session.isDeveloper || session.role === 'Super Admin' || session.storeId === '*' || session.storeId === 'HQ Central') {
+      return next();
+    }
+
+    const requestedStoreId = req.params.storeId || req.params.store_id || req.params.storeCode || req.query.storeId || req.query.store;
+
+    if (!requestedStoreId) {
+      return next();
+    }
+
+    const sessionStore = (session.storeId || '').trim().toLowerCase();
+    const targetStore = String(requestedStoreId).trim().toLowerCase();
+
+    if (sessionStore !== targetStore) {
+      return res.status(403).json({
+        error: `Access denied: Staff assigned to store "${session.storeId}" cannot access store "${requestedStoreId}".`
+      });
+    }
+
+    next();
+  });
+}
