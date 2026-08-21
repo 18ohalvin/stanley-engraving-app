@@ -835,6 +835,27 @@ const DEVELOPER_ACCOUNT = {
 const defaultStaffUsers = [DEVELOPER_ACCOUNT];
 const staffUsers = ref([...defaultStaffUsers]);
 
+let eventSource = null;
+let pollInterval = null;
+
+async function fetchStaffUsers() {
+  try {
+    const token = localStorage.getItem('stanley_staff_token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('/api/staff', { headers });
+    if (res.ok) {
+      const serverStaff = await res.json();
+      if (Array.isArray(serverStaff)) {
+        const withoutDev = serverStaff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+        staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+        localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
+      }
+    }
+  } catch (e) {}
+}
+
 onMounted(async () => {
   try {
     const saved = localStorage.getItem('stanley_product_catalog_order');
@@ -855,24 +876,47 @@ onMounted(async () => {
       }
     }
 
-    // Fetch master staff users from SQLite backend database
-    const token = localStorage.getItem('stanley_staff_token');
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    await fetchStaffUsers();
 
-    const res = await fetch('/api/staff', { headers });
-    if (res.ok) {
-      const serverStaff = await res.json();
-      if (Array.isArray(serverStaff)) {
-        const withoutDev = serverStaff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
-        staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
-        localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
-      }
+    if (typeof EventSource !== 'undefined') {
+      try {
+        eventSource = new EventSource('/api/events');
+        eventSource.addEventListener('staff_updated', (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (Array.isArray(data)) {
+              const withoutDev = data.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+              staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+            }
+          } catch (err) {}
+        });
+      } catch (e) {}
     }
+
+    window.addEventListener('stanley_staff_updated', handleStaffEvent);
+
+    pollInterval = setInterval(() => {
+      fetchStaffUsers();
+    }, 800);
   } catch (e) {
     console.error('Failed to load saved settings data:', e);
   }
 });
+
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval);
+  if (eventSource) eventSource.close();
+  window.removeEventListener('stanley_staff_updated', handleStaffEvent);
+});
+
+function handleStaffEvent(e) {
+  if (e.detail && Array.isArray(e.detail)) {
+    const withoutDev = e.detail.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+    staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+  } else {
+    fetchStaffUsers();
+  }
+}
 
 function persistProducts() {
   try {

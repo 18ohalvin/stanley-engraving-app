@@ -197,8 +197,13 @@ export const useQueueStore = defineStore('queue', {
       });
 
       // Listen to in-app custom event
-      window.addEventListener('stanley_orders_updated', () => {
-        this.refreshFromStorage();
+      window.addEventListener('stanley_orders_updated', (e) => {
+        if (e.detail && Array.isArray(e.detail)) {
+          this.orders = e.detail;
+          this.autoAssignMachines();
+        } else {
+          this.refreshFromStorage();
+        }
       });
 
       // Listen to real-time events broadcasted across devices over LAN/WiFi via SSE
@@ -211,16 +216,43 @@ export const useQueueStore = defineStore('queue', {
               if (Array.isArray(updated)) {
                 this.orders = updated;
                 this.autoAssignMachines();
+                if (typeof localStorage !== 'undefined') {
+                  localStorage.setItem('stanley_engraving_orders', JSON.stringify(updated));
+                }
               }
+            } catch (err) {}
+          });
+          es.addEventListener('stores_updated', (e) => {
+            try {
+              const updated = JSON.parse(e.data);
+              if (Array.isArray(updated) && typeof localStorage !== 'undefined') {
+                localStorage.setItem('stanley_custom_stores', JSON.stringify(updated));
+                window.dispatchEvent(new CustomEvent('stanley_stores_updated', { detail: updated }));
+              }
+            } catch (err) {}
+          });
+          es.addEventListener('staff_updated', (e) => {
+            try {
+              const updated = JSON.parse(e.data);
+              if (Array.isArray(updated) && typeof localStorage !== 'undefined') {
+                localStorage.setItem('stanley_master_staff_users', JSON.stringify(updated));
+                window.dispatchEvent(new CustomEvent('stanley_staff_updated', { detail: updated }));
+              }
+            } catch (err) {}
+          });
+          es.addEventListener('settings_updated', (e) => {
+            try {
+              const payload = JSON.parse(e.data);
+              window.dispatchEvent(new CustomEvent('stanley_settings_updated', { detail: payload }));
             } catch (err) {}
           });
         } catch (e) {}
       }
 
-      // Fast network polling sync (every 1.5s) for rock-solid cross-device sync
+      // Fast sub-second fallback network polling sync (800ms) for instant cross-device sync
       setInterval(() => {
         this.refreshFromStorage();
-      }, 1500);
+      }, 800);
     },
 
     resetDatabase() {

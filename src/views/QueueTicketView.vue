@@ -336,10 +336,10 @@ onMounted(() => {
     } catch (e) {}
   }
 
-  // Fast network polling sync (every 1.5s)
+  // Fast sub-second network polling sync (800ms)
   pollInterval = setInterval(() => {
     fetchOrder();
-  }, 1500);
+  }, 800);
 
   // Storage listeners for real-time cross-tab sync
   window.addEventListener('stanley_orders_updated', fetchOrder);

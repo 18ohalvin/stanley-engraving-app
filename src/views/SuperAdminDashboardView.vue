@@ -1699,16 +1699,27 @@ onMounted(() => {
       eventSource.addEventListener('orders_updated', () => {
         queueStore.refreshFromStorage();
       });
+      eventSource.addEventListener('stores_updated', () => {
+        queueStore.refreshFromStorage();
+      });
+      eventSource.addEventListener('staff_updated', () => {
+        queueStore.refreshFromStorage();
+      });
+      eventSource.addEventListener('settings_updated', () => {
+        loadCategoryTargets();
+        queueStore.refreshFromStorage();
+      });
     } catch (e) {}
   }
 
   window.addEventListener('storage', handleStorageUpdate);
   window.addEventListener('stanley_orders_updated', handleStorageUpdate);
   window.addEventListener('stanley_targets_updated', handleStorageUpdate);
+  window.addEventListener('stanley_settings_updated', handleStorageUpdate);
 
   pollInterval = setInterval(() => {
     queueStore.refreshFromStorage();
-  }, 2000);
+  }, 800);
 });
 
 onUnmounted(() => {
@@ -1717,6 +1728,7 @@ onUnmounted(() => {
   window.removeEventListener('storage', handleStorageUpdate);
   window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
   window.removeEventListener('stanley_targets_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_settings_updated', handleStorageUpdate);
 });
 
 function handleStorageUpdate() {

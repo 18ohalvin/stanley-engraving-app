@@ -1098,24 +1098,53 @@ onMounted(() => {
           }
         } catch (err) {}
       });
+      eventSource.addEventListener('staff_updated', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (Array.isArray(data)) {
+            masterStaffUsers.value = data;
+            localStorage.setItem('stanley_master_staff_users', JSON.stringify(data));
+          }
+        } catch (err) {}
+      });
     } catch (e) {}
   }
 
   window.addEventListener('storage', handleStorageUpdate);
   window.addEventListener('stanley_orders_updated', handleStorageUpdate);
+  window.addEventListener('stanley_stores_updated', handleStoresUpdate);
+  window.addEventListener('stanley_staff_updated', handleStaffUpdate);
 
   pollInterval = setInterval(() => {
     queueStore.refreshFromStorage();
     fetchNetworkStores();
     loadMasterStaff();
-  }, 2500);
+  }, 800);
 });
+
+function handleStoresUpdate(e) {
+  if (e.detail && Array.isArray(e.detail)) {
+    customStores.value = e.detail;
+  } else {
+    loadCustomStores();
+  }
+}
+
+function handleStaffUpdate(e) {
+  if (e.detail && Array.isArray(e.detail)) {
+    masterStaffUsers.value = e.detail;
+  } else {
+    loadMasterStaff();
+  }
+}
 
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval);
   if (eventSource) eventSource.close();
   window.removeEventListener('storage', handleStorageUpdate);
   window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_stores_updated', handleStoresUpdate);
+  window.removeEventListener('stanley_staff_updated', handleStaffUpdate);
 });
 
 function handleStorageUpdate() {

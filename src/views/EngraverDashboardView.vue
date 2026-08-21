@@ -480,6 +480,8 @@ const pendingIntakeOrder = ref(null);
 const nextAssignedQueueNumber = ref('');
 
 let timerInterval = null;
+let pollInterval = null;
+let eventSource = null;
 
 onMounted(() => {
   queueStore.refreshFromStorage();
@@ -489,13 +491,31 @@ onMounted(() => {
     queueStore.tickTimers();
   }, 1000);
 
-  // Auto-sync across browser tabs (localStorage event listener)
+  // Fast sub-second 800ms fallback network polling
+  pollInterval = setInterval(() => {
+    queueStore.refreshFromStorage();
+  }, 800);
+
+  if (typeof EventSource !== 'undefined') {
+    try {
+      eventSource = new EventSource('/api/events');
+      eventSource.addEventListener('orders_updated', () => {
+        queueStore.refreshFromStorage();
+      });
+    } catch (e) {}
+  }
+
+  // Auto-sync across browser tabs & network events
   window.addEventListener('storage', handleStorageUpdate);
+  window.addEventListener('stanley_orders_updated', handleStorageUpdate);
 });
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
+  if (pollInterval) clearInterval(pollInterval);
+  if (eventSource) eventSource.close();
   window.removeEventListener('storage', handleStorageUpdate);
+  window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
 });
 
 function handleStorageUpdate() {
