@@ -3,7 +3,7 @@
     <!-- Full-bleed background image -->
     <div class="bg-image-container">
       <img 
-        src="/src/assets/images/landing-bg.png" 
+        :src="landingBg" 
         alt="Stanley Lifestyle" 
         class="bg-image"
       />
@@ -31,6 +31,7 @@
 <script setup>
 import { onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import landingBg from '../assets/images/landing-bg.png';
 import CTAButton from '../components/CTAButton.vue';
 import { useEngravingStore } from '../store/engravingStore';
 
