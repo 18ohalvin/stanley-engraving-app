@@ -291,6 +291,14 @@
           <div class="store-info-bottom-actions">
             <button 
               type="button" 
+              class="btn-remove-store"
+              @click="handleRemoveStore(selectedDetailStore)"
+              title="Remove store from retail network"
+            >
+              Remove Store
+            </button>
+            <button 
+              type="button" 
               class="btn-edit-store-info"
               @click="handleOpenEditStore(selectedDetailStore)"
             >
@@ -305,6 +313,48 @@
             </button>
           </div>
 
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- REMOVE STORE CONFIRMATION MODAL -->
+    <Teleport to="body">
+      <div v-if="showRemoveConfirmModal" class="modal-backdrop" @click="showRemoveConfirmModal = false">
+        <div class="product-modal-card fade-in" style="max-width: min(94vw, 440px);" @click.stop>
+          <div class="modal-header-row">
+            <h3 class="modal-title-bold" style="color: #DC2626;">Remove Retail Store</h3>
+            <button type="button" class="modal-close-icon-btn" @click="showRemoveConfirmModal = false" aria-label="Close">
+              ✕
+            </button>
+          </div>
+
+          <div class="modal-form-content" style="padding-top: 8px;">
+            <p style="font-size: 14px; color: #374151; line-height: 1.5;">
+              Are you sure you want to remove <strong>{{ storeToRemove?.name }}</strong> ({{ storeToRemove?.code }}) from the store network?
+            </p>
+            <p style="font-size: 12px; color: #6B7280; margin-top: 8px;">
+              This store will be deleted from the database and removed across all connected devices.
+            </p>
+
+            <div class="modal-actions-row" style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
+              <button 
+                type="button" 
+                class="btn-edit-store-info" 
+                style="flex: 1;"
+                @click="showRemoveConfirmModal = false"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                class="btn-remove-store-confirm" 
+                style="flex: 1; height: 48px; background: #DC2626; color: #FFFFFF; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;"
+                @click="confirmRemoveStore"
+              >
+                Confirm Remove
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -922,6 +972,46 @@ function handleRemoveStaffFromEdit(staffId) {
 
 const customStores = ref([]);
 const storeOverrides = ref({});
+const showRemoveConfirmModal = ref(false);
+const storeToRemove = ref(null);
+
+function handleRemoveStore(store) {
+  if (!store) return;
+  storeToRemove.value = store;
+  showRemoveConfirmModal.value = true;
+}
+
+async function confirmRemoveStore() {
+  if (!storeToRemove.value) return;
+  const target = storeToRemove.value;
+  const storeId = target.id || target.code;
+  const storeName = target.name;
+
+  const token = localStorage.getItem('stanley_staff_token');
+  if (token) {
+    try {
+      const res = await fetch(`/api/network/stores/${encodeURIComponent(storeId)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.stores && Array.isArray(data.stores)) {
+          customStores.value = data.stores;
+          localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
+        }
+      }
+    } catch (e) {}
+  }
+
+  customStores.value = customStores.value.filter(s => s.id !== storeId && s.code !== storeId);
+  localStorage.setItem('stanley_custom_stores', JSON.stringify(customStores.value));
+
+  showRemoveConfirmModal.value = false;
+  selectedDetailStore.value = null;
+  storeToRemove.value = null;
+  showToast(`Store "${storeName}" removed successfully.`);
+}
 
 function loadStoreOverrides() {
   try {
@@ -2142,8 +2232,31 @@ function openWhatsApp(phone, staffName, storeName) {
   width: 100%;
 }
 
-.btn-edit-store-info {
+.btn-remove-store {
   flex: 1;
+  min-width: 0;
+  height: 48px;
+  border: 1px solid #FCA5A5;
+  background: #FFFFFF;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #DC2626;
+  cursor: pointer;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  transition: all 0.15s ease;
+}
+
+.btn-remove-store:hover {
+  background-color: #FEF2F2;
+  border-color: #EF4444;
+}
+
+.btn-edit-store-info {
+  flex: 2;
+  min-width: 0;
   height: 48px;
   border: 1px solid #000000;
   background: #FFFFFF;
@@ -2160,7 +2273,8 @@ function openWhatsApp(phone, staffName, storeName) {
 }
 
 .btn-store-dashboard-black {
-  flex: 1;
+  flex: 2;
+  min-width: 0;
   height: 48px;
   border: none;
   background: #000000;
