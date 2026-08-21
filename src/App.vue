@@ -10,7 +10,7 @@
       title="Stanley 1913"
     >
       <img 
-        :src="isLanding ? '/src/assets/images/logo-white.png' : '/src/assets/images/logo-black.png'" 
+        :src="isLanding ? logoWhite : logoBlack" 
         alt="Stanley 1913" 
         class="stationary-logo"
       />
@@ -28,6 +28,8 @@
 <script setup>
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
+import logoBlack from './assets/images/logo-black.png';
+import logoWhite from './assets/images/logo-white.png';
 
 const route = useRoute();
 

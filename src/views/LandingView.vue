@@ -1,5 +1,8 @@
 <template>
   <div class="landing-page">
+    <!-- Top White Logo Header -->
+    <StanleyHeader :isDark="true" />
+
     <!-- Full-bleed background image -->
     <div class="bg-image-container">
       <img 
@@ -31,6 +34,7 @@
 <script setup>
 import { onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import StanleyHeader from '../components/StanleyHeader.vue';
 import CTAButton from '../components/CTAButton.vue';
 import { useEngravingStore } from '../store/engravingStore';
 
