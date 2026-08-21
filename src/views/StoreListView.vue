@@ -227,17 +227,17 @@
           <div class="store-info-header">
             <div class="store-info-header-left">
               <div class="store-info-badges-row">
-                <span class="store-info-code-badge">{{ selectedDetailStore.code }}</span>
+                <span class="store-info-code-badge">{{ selectedDetailStore?.code }}</span>
                 <span 
                   class="store-info-status-badge"
-                  :class="{ 'is-online': selectedDetailStore.status === 'Online', 'is-offline': selectedDetailStore.status === 'Offline' }"
+                  :class="{ 'is-online': selectedDetailStore?.status === 'Online', 'is-offline': selectedDetailStore?.status === 'Offline' }"
                 >
                   <span class="status-dot"></span>
-                  {{ selectedDetailStore.status }}
+                  {{ selectedDetailStore?.status }}
                 </span>
               </div>
-              <h2 class="store-info-title">{{ selectedDetailStore.name }}</h2>
-              <p class="store-info-address">{{ selectedDetailStore.address }}</p>
+              <h2 class="store-info-title">{{ selectedDetailStore?.name }}</h2>
+              <p class="store-info-address">{{ selectedDetailStore?.address }}</p>
             </div>
             <div class="store-info-header-right">
               <button 
@@ -269,7 +269,7 @@
 
             <div class="admins-list-container">
               <div v-if="getStoreAdmins(selectedDetailStore).length === 0" class="empty-admins-placeholder" style="padding: 24px 16px; text-align: center; color: #71717A; font-size: 13px; background: #F4F4F5; border-radius: 8px; font-weight: 500;">
-                No staff or store operators assigned to {{ selectedDetailStore.name }} yet.
+                No staff or store operators assigned to {{ selectedDetailStore?.name }} yet.
               </div>
               <div 
                 v-for="admin in getStoreAdmins(selectedDetailStore)" 
@@ -286,7 +286,7 @@
                       <span class="admin-role-tag">{{ admin.role || 'Staff Store' }}</span>
                     </div>
                     <div class="admin-code-phone-row">
-                      <span class="admin-code-bold">{{ selectedDetailStore.code }}</span>
+                      <span class="admin-code-bold">{{ selectedDetailStore?.code }}</span>
                       <span class="admin-phone-gray">{{ admin.whatsapp || '082909012901' }}</span>
                     </div>
                   </div>
@@ -296,7 +296,7 @@
                   <button 
                     type="button" 
                     class="btn-contact-admin-black"
-                    @click="openWhatsApp(admin.whatsapp || '082909012901', admin.name, selectedDetailStore.name)"
+                    @click="openWhatsApp(admin.whatsapp || '082909012901', admin.name, selectedDetailStore?.name)"
                   >
                     Contact Admin
                   </button>
@@ -1052,7 +1052,12 @@ function saveStoreOverrides() {
 function loadCustomStores() {
   try {
     const saved = localStorage.getItem('stanley_custom_stores');
-    if (saved) customStores.value = JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        customStores.value = parsed;
+      }
+    }
   } catch (e) {}
 }
 
@@ -1066,6 +1071,9 @@ async function fetchNetworkStores() {
       if (Array.isArray(data)) {
         customStores.value = data;
         localStorage.setItem('stanley_custom_stores', JSON.stringify(data));
+      } else if (data && Array.isArray(data.stores)) {
+        customStores.value = data.stores;
+        localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
       }
     }
   } catch (e) {
@@ -1095,15 +1103,9 @@ onMounted(() => {
           if (Array.isArray(data)) {
             customStores.value = data;
             localStorage.setItem('stanley_custom_stores', JSON.stringify(data));
-          }
-        } catch (err) {}
-      });
-      eventSource.addEventListener('staff_updated', (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (Array.isArray(data)) {
-            masterStaffUsers.value = data;
-            localStorage.setItem('stanley_master_staff_users', JSON.stringify(data));
+          } else if (data && Array.isArray(data.stores)) {
+            customStores.value = data.stores;
+            localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
           }
         } catch (err) {}
       });
@@ -1112,39 +1114,19 @@ onMounted(() => {
 
   window.addEventListener('storage', handleStorageUpdate);
   window.addEventListener('stanley_orders_updated', handleStorageUpdate);
-  window.addEventListener('stanley_stores_updated', handleStoresUpdate);
-  window.addEventListener('stanley_staff_updated', handleStaffUpdate);
 
   pollInterval = setInterval(() => {
     queueStore.refreshFromStorage();
     fetchNetworkStores();
     loadMasterStaff();
-  }, 800);
+  }, 2500);
 });
-
-function handleStoresUpdate(e) {
-  if (e.detail && Array.isArray(e.detail)) {
-    customStores.value = e.detail;
-  } else {
-    loadCustomStores();
-  }
-}
-
-function handleStaffUpdate(e) {
-  if (e.detail && Array.isArray(e.detail)) {
-    masterStaffUsers.value = e.detail;
-  } else {
-    loadMasterStaff();
-  }
-}
 
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval);
   if (eventSource) eventSource.close();
   window.removeEventListener('storage', handleStorageUpdate);
   window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
-  window.removeEventListener('stanley_stores_updated', handleStoresUpdate);
-  window.removeEventListener('stanley_staff_updated', handleStaffUpdate);
 });
 
 function handleStorageUpdate() {
@@ -1157,36 +1139,46 @@ function handleStorageUpdate() {
 // Dynamic Real Queue from Store
 const realLiveQueueCount = computed(() => {
   const orders = queueStore.orders || [];
-  const valid = orders.filter(o => o.status !== 'cancelled');
+  const valid = orders.filter(o => o && o.status !== 'cancelled');
   return valid.length;
 });
 
 const activePimMachines = computed(() => {
-  return queueStore.machines.filter(m => m.isActive !== false).length;
+  const machines = queueStore.machines || [];
+  return machines.filter(m => m && m.isActive !== false).length;
 });
 
 // Store Network Database List - Starts Clean Empty for Fresh Setup
 const storeList = computed(() => {
-  const combined = [...customStores.value];
-  return combined.map(store => {
+  const rawList = Array.isArray(customStores.value) ? customStores.value : [];
+  const overridesObj = (storeOverrides.value && typeof storeOverrides.value === 'object') ? storeOverrides.value : {};
+  const ordersList = Array.isArray(queueStore.orders) ? queueStore.orders : [];
+
+  return rawList.map(store => {
+    if (!store || typeof store !== 'object') return null;
+    const storeIdKey = store.id || store.code || '';
+    const override = overridesObj[storeIdKey] || overridesObj[store.code] || overridesObj[store.id] || {};
+    
     // Filter real orders for this store
-    const storeOrders = (queueStore.orders || []).filter(o => 
-      (o.store_code && (o.store_code === store.code || o.store_code === store.id)) || 
-      (o.store_id && (o.store_id === store.id || o.store_id === store.code)) || 
-      (o.store_name && o.store_name === store.name) ||
-      (store.isCurrentStation && !o.store_code)
+    const storeOrders = ordersList.filter(o => 
+      o && (
+        (o.store_code && o.store_code === store.code) || 
+        (o.store_id && o.store_id === store.id) || 
+        (o.store_name && o.store_name === store.name) ||
+        (store.isCurrentStation && !o.store_code)
+      )
     );
 
-    const inQueueOrders = storeOrders.filter(o => o.status === 'in_queue' || o.status === 'engraving_in_progress');
+    const inQueueOrders = storeOrders.filter(o => o && (o.status === 'in_queue' || o.status === 'engraving_in_progress'));
     const currentQueue = inQueueOrders.length;
 
-    const totalMachines = Number(store.totalMachines || store.total_machines || 1);
+    const totalMachines = override.totalMachines || store.totalMachines || store.total_machines || 1;
     const activeMachines = Math.min(store.activeMachines !== undefined ? store.activeMachines : (store.active_machines !== undefined ? store.active_machines : totalMachines), totalMachines);
 
     const estWaitMin = Math.round((currentQueue * 3.5) / Math.max(1, activeMachines));
     const estWaitTime = `${estWaitMin} Minutes`;
 
-    const completedOrders = storeOrders.filter(o => o.status === 'ready_for_pickup' || o.status === 'completed' || o.status === 'picked_up');
+    const completedOrders = storeOrders.filter(o => o && (o.status === 'ready_for_pickup' || o.status === 'completed' || o.status === 'picked_up'));
     
     let hasAvgData = false;
     let avgDuration = '—';
@@ -1216,6 +1208,12 @@ const storeList = computed(() => {
     return {
       ...store,
       ...override,
+      code: store.code || override.code || store.id || 'STORE',
+      name: store.name || override.name || 'Stanley Store',
+      city: store.city || override.city || 'Jakarta',
+      address: store.address || override.address || '',
+      phone: store.phone || override.phone || '',
+      status: store.status || override.status || 'Online',
       currentQueue,
       estWaitTime,
       hasAvgData,
@@ -1224,7 +1222,7 @@ const storeList = computed(() => {
       activeMachines,
       totalMachines
     };
-  });
+  }).filter(Boolean);
 });
 
 // Format Queue Numbers with 3-digit padding (e.g. 500, 010, 005)
