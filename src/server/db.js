@@ -701,19 +701,21 @@ export function saveStoreInDb(store) {
   if (existing) {
     db.prepare(`
       UPDATE stores SET
-        code = ?, name = ?, city = ?, address = ?, phone = ?,
+        id = ?, code = ?, name = ?, city = ?, address = ?, phone = ?,
         total_machines = ?, active_machines = ?, status = ?
-      WHERE id = ?
+      WHERE id = ? OR code = ?
     `).run(
+      storeId,
       storeCode,
       store.name || existing.name,
       store.city !== undefined ? store.city : existing.city,
       store.address !== undefined ? store.address : existing.address,
       store.phone !== undefined ? store.phone : existing.phone,
-      store.totalMachines || store.total_machines || existing.total_machines || 1,
-      store.activeMachines || store.active_machines || existing.active_machines || 1,
+      store.totalMachines !== undefined ? store.totalMachines : (store.total_machines !== undefined ? store.total_machines : existing.total_machines),
+      store.activeMachines !== undefined ? store.activeMachines : (store.active_machines !== undefined ? store.active_machines : existing.active_machines),
       store.status || existing.status || 'Online',
-      existing.id
+      existing.id,
+      existing.code
     );
   } else {
     db.prepare(`

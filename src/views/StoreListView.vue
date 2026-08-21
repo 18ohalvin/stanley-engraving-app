@@ -1169,12 +1169,10 @@ const activePimMachines = computed(() => {
 const storeList = computed(() => {
   const combined = [...customStores.value];
   return combined.map(store => {
-    const override = storeOverrides.value[store.id] || storeOverrides.value[store.code] || {};
-    
     // Filter real orders for this store
     const storeOrders = (queueStore.orders || []).filter(o => 
-      (o.store_code && o.store_code === store.code) || 
-      (o.store_id && o.store_id === store.id) || 
+      (o.store_code && (o.store_code === store.code || o.store_code === store.id)) || 
+      (o.store_id && (o.store_id === store.id || o.store_id === store.code)) || 
       (o.store_name && o.store_name === store.name) ||
       (store.isCurrentStation && !o.store_code)
     );
@@ -1182,8 +1180,8 @@ const storeList = computed(() => {
     const inQueueOrders = storeOrders.filter(o => o.status === 'in_queue' || o.status === 'engraving_in_progress');
     const currentQueue = inQueueOrders.length;
 
-    const totalMachines = override.totalMachines || store.totalMachines || 1;
-    const activeMachines = Math.min(store.activeMachines !== undefined ? store.activeMachines : totalMachines, totalMachines);
+    const totalMachines = Number(store.totalMachines || store.total_machines || 1);
+    const activeMachines = Math.min(store.activeMachines !== undefined ? store.activeMachines : (store.active_machines !== undefined ? store.active_machines : totalMachines), totalMachines);
 
     const estWaitMin = Math.round((currentQueue * 3.5) / Math.max(1, activeMachines));
     const estWaitTime = `${estWaitMin} Minutes`;
