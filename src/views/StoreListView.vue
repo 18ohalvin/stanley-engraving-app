@@ -943,12 +943,32 @@ function loadCustomStores() {
   } catch (e) {}
 }
 
+async function fetchNetworkStores() {
+  const token = localStorage.getItem('stanley_staff_token');
+  if (!token) return;
+  try {
+    const res = await fetch('/api/network/stores', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        customStores.value = data;
+        localStorage.setItem('stanley_custom_stores', JSON.stringify(data));
+      }
+    }
+  } catch (e) {
+    loadCustomStores();
+  }
+}
+
 let pollInterval = null;
 let eventSource = null;
 
 onMounted(() => {
   queueStore.refreshFromStorage();
   loadCustomStores();
+  fetchNetworkStores();
   loadStoreOverrides();
   loadMasterStaff();
 
@@ -957,6 +977,15 @@ onMounted(() => {
       eventSource = new EventSource('/api/events');
       eventSource.addEventListener('orders_updated', () => {
         queueStore.refreshFromStorage();
+      });
+      eventSource.addEventListener('stores_updated', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (Array.isArray(data)) {
+            customStores.value = data;
+            localStorage.setItem('stanley_custom_stores', JSON.stringify(data));
+          }
+        } catch (err) {}
       });
     } catch (e) {}
   }
@@ -1147,6 +1176,35 @@ function saveEditStore() {
   };
   saveStoreOverrides();
 
+  const updatedStore = {
+    id: storeId,
+    code: storeCode,
+    name: storeName,
+    city: editStoreForm.value.city || '',
+    address: editStoreForm.value.address || '',
+    phone: editStoreForm.value.phone || '',
+    total_machines: editStoreForm.value.totalMachines || 1,
+    active_machines: editStoreForm.value.totalMachines || 1,
+    status: 'Online'
+  };
+
+  const token = localStorage.getItem('stanley_staff_token');
+  if (token) {
+    fetch('/api/network/stores', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(updatedStore)
+    }).then(res => res.json()).then(data => {
+      if (data && data.stores && Array.isArray(data.stores)) {
+        customStores.value = data.stores;
+        localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
+      }
+    }).catch(() => {});
+  }
+
   // 2. Sync Staff Assignments in Master Staff Accounts
   const assignedIds = editStoreForm.value.assignedStaffIds || [];
   
@@ -1181,6 +1239,7 @@ function saveNewStore() {
     id: newStoreId,
     code: storeCode,
     name: storeName,
+    city: newStoreForm.value.city || 'Jakarta',
     address: newStoreForm.value.address || `${newStoreForm.value.city}, Indonesia`,
     phone: newStoreForm.value.phone || '',
     currentQueue: 0,
@@ -1190,13 +1249,34 @@ function saveNewStore() {
     isOnTrack: true,
     activeMachines: newStoreForm.value.totalMachines,
     totalMachines: newStoreForm.value.totalMachines,
+    total_machines: newStoreForm.value.totalMachines,
+    active_machines: newStoreForm.value.totalMachines,
     status: 'Online',
     isCurrentStation: false
   };
-  customStores.value.push(newStore);
-  try {
+
+  const token = localStorage.getItem('stanley_staff_token');
+  if (token) {
+    fetch('/api/network/stores', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(newStore)
+    }).then(res => res.json()).then(data => {
+      if (data && data.stores && Array.isArray(data.stores)) {
+        customStores.value = data.stores;
+        localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
+      }
+    }).catch(() => {
+      customStores.value.push(newStore);
+      localStorage.setItem('stanley_custom_stores', JSON.stringify(customStores.value));
+    });
+  } else {
+    customStores.value.push(newStore);
     localStorage.setItem('stanley_custom_stores', JSON.stringify(customStores.value));
-  } catch (e) {}
+  }
 
   // Sync assigned staff
   const assignedIds = newStoreForm.value.assignedStaffIds || [];
@@ -1214,7 +1294,7 @@ function saveNewStore() {
   } catch (e) {}
 
   showAddStoreModal.value = false;
-  newStoreForm.value = { code: '', name: '', city: 'Jakarta', totalMachines: 1, address: '', assignedStaffIds: [] };
+  newStoreForm.value = { code: '', name: '', city: 'Jakarta', totalMachines: 1, address: '', phone: '', assignedStaffIds: [] };
 }
 
 function openStoreDashboard(store) {

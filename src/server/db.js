@@ -144,6 +144,27 @@ function seedDefaultMasterData() {
     );
   }
 
+  // Seed default network stores if empty
+  const storeCheck = db.prepare(`SELECT count(*) as count FROM stores`).get();
+  if (!storeCheck || storeCheck.count === 0) {
+    const defaultStores = [
+      { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', city: 'Jakarta Selatan', address: 'Pondok Indah Mall 5, Lt 2, Jakarta', phone: '+62 817-5566-7788', total_machines: 2, active_machines: 2, status: 'Online' },
+      { id: '002', code: '002', name: 'Stanley Grand Indonesia', city: 'Jakarta Pusat', address: 'Grand Indonesia East Mall, Lt 1, Jakarta', phone: '+62 812-9988-7766', total_machines: 2, active_machines: 2, status: 'Online' },
+      { id: '003', code: '003', name: 'Stanley Senayan City', city: 'Jakarta Selatan', address: 'Senayan City Mall, Lt Ground, Jakarta', phone: '+62 813-1122-3344', total_machines: 1, active_machines: 1, status: 'Online' },
+      { id: 'SG001', code: 'SG001', name: 'Stanley Singapore Store', city: 'Singapore', address: 'Orchard Road #01-12, Singapore', phone: '+65 8123 4567', total_machines: 1, active_machines: 1, status: 'Online' }
+    ];
+
+    const insertStmt = db.prepare(`
+      INSERT INTO stores (id, code, name, city, address, phone, total_machines, active_machines, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const now = new Date().toISOString();
+    for (const s of defaultStores) {
+      insertStmt.run(s.id, s.code, s.name, s.city, s.address, s.phone, s.total_machines, s.active_machines, s.status, now);
+    }
+  }
+
   // Migrate legacy data from data/orders.json if orders table is empty
   const legacyOrdersFile = path.resolve(dataDir, 'orders.json');
   const countStmt = db.prepare(`SELECT count(*) as count FROM orders`).get();
@@ -642,6 +663,100 @@ export function verifyAuthSessionToken(token) {
 
 export function deleteAuthSessionToken(token) {
   db.prepare(`DELETE FROM auth_sessions WHERE token = ?`).run(token);
+}
+
+// ----------------------------------------------------
+// STORE NETWORK & SETTINGS QUERIES
+// ----------------------------------------------------
+export function getAllStoresFromDb() {
+  const rows = db.prepare(`SELECT * FROM stores ORDER BY created_at ASC`).all();
+  return rows.map(r => ({
+    id: r.id,
+    code: r.code || r.id,
+    name: r.name,
+    city: r.city || '',
+    address: r.address || '',
+    phone: r.phone || '',
+    totalMachines: r.total_machines || 1,
+    activeMachines: r.active_machines || 1,
+    total_machines: r.total_machines || 1,
+    active_machines: r.active_machines || 1,
+    status: r.status || 'Online',
+    createdAt: r.created_at
+  }));
+}
+
+export function saveStoreInDb(store) {
+  if (!store || (!store.id && !store.code && !store.name)) {
+    throw new Error('Store ID/Code and Name are required.');
+  }
+
+  const storeId = store.id || store.code || `str-${Date.now()}`;
+  const storeCode = store.code || storeId;
+  const existing = db.prepare(`SELECT * FROM stores WHERE id = ? OR code = ?`).get(storeId, storeCode);
+  const now = new Date().toISOString();
+
+  if (existing) {
+    db.prepare(`
+      UPDATE stores SET
+        code = ?, name = ?, city = ?, address = ?, phone = ?,
+        total_machines = ?, active_machines = ?, status = ?
+      WHERE id = ?
+    `).run(
+      storeCode,
+      store.name || existing.name,
+      store.city !== undefined ? store.city : existing.city,
+      store.address !== undefined ? store.address : existing.address,
+      store.phone !== undefined ? store.phone : existing.phone,
+      store.totalMachines || store.total_machines || existing.total_machines || 1,
+      store.activeMachines || store.active_machines || existing.active_machines || 1,
+      store.status || existing.status || 'Online',
+      existing.id
+    );
+  } else {
+    db.prepare(`
+      INSERT INTO stores (id, code, name, city, address, phone, total_machines, active_machines, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      storeId,
+      storeCode,
+      store.name || 'New Store',
+      store.city || '',
+      store.address || '',
+      store.phone || '',
+      store.totalMachines || store.total_machines || 1,
+      store.activeMachines || store.active_machines || 1,
+      store.status || 'Online',
+      now
+    );
+  }
+
+  return db.prepare(`SELECT * FROM stores WHERE id = ? OR code = ?`).get(storeId, storeCode);
+}
+
+export function deleteStoreFromDb(id) {
+  const res = db.prepare(`DELETE FROM stores WHERE id = ? OR code = ?`).run(id, id);
+  return res.changes > 0;
+}
+
+export function getSettingsFromDb(key) {
+  const row = db.prepare(`SELECT * FROM settings WHERE key = ?`).get(key);
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value_json);
+  } catch (e) {
+    return row.value_json;
+  }
+}
+
+export function saveSettingsInDb(key, value) {
+  const now = new Date().toISOString();
+  const valueJson = typeof value === 'string' ? value : JSON.stringify(value);
+  db.prepare(`
+    INSERT OR REPLACE INTO settings (key, value_json, updated_at)
+    VALUES (?, ?, ?)
+  `).run(key, valueJson, now);
+  return getSettingsFromDb(key);
 }
 
 // Initialize database automatically

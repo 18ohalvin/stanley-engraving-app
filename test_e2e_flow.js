@@ -12,7 +12,10 @@ import {
   getAllOrdersFromDb,
   upsertSingleOrderInDb,
   getNextQueueNumberFromDb,
-  clearAllOrdersInDb
+  clearAllOrdersInDb,
+  getAllStoresFromDb,
+  saveStoreInDb,
+  deleteStoreFromDb
 } from './src/server/db.js';
 import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
 import bcrypt from 'bcryptjs';
@@ -553,6 +556,28 @@ assert(fetchedOrder !== null, 'Order saved and fetched from SQLite database data
 assert(fetchedOrder.customer_name === 'SQL Tester', 'Fetched SQLite order matches customer name');
 assert(fetchedOrder.items[0].text === 'SQLTEST', 'Fetched SQLite order preserves customized items JSON');
 clearAllOrdersInDb();
+
+// 4. SQLite Store Network Storage & Retrieval
+const initialStores = getAllStoresFromDb();
+assert(initialStores.length >= 4, 'Default network stores seeded in SQLite database');
+const newStoreDb = {
+  id: 'EG-TEST',
+  code: 'EG-TEST',
+  name: 'Test Kiosk Store',
+  city: 'Bandung',
+  address: 'Paris Van Java, Bandung',
+  phone: '+62 811-2233-4455',
+  total_machines: 2,
+  active_machines: 2,
+  status: 'Online'
+};
+saveStoreInDb(newStoreDb);
+const updatedStores = getAllStoresFromDb();
+const foundStore = updatedStores.find(s => s.code === 'EG-TEST');
+assert(foundStore !== undefined, 'New store saved to SQLite database data/stanley.db');
+assert(foundStore.name === 'Test Kiosk Store', 'Fetched SQLite store matches name');
+deleteStoreFromDb('EG-TEST');
+assert(getAllStoresFromDb().find(s => s.code === 'EG-TEST') === undefined, 'Store deleted from SQLite database');
 
 // 4. Express authorization middleware mock test
 let reqMock = { headers: { authorization: `Bearer invalid_token` } };

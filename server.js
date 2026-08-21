@@ -20,7 +20,12 @@ import {
   deleteStaffUserFromDb,
   createAuthSessionInDb,
   verifyAuthSessionToken,
-  deleteAuthSessionToken
+  deleteAuthSessionToken,
+  getAllStoresFromDb,
+  saveStoreInDb,
+  deleteStoreFromDb,
+  getSettingsFromDb,
+  saveSettingsInDb
 } from './src/server/db.js';
 
 import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
@@ -295,7 +300,63 @@ app.delete('/api/staff/:id', requireSuperAdmin, (req, res) => {
   if (!success) {
     return res.status(403).json({ error: 'Master Developer account cannot be deleted' });
   }
-  res.json({ success: true });
+  const allStaff = getAllStaffUsersFromDb();
+  broadcast('staff_updated', allStaff);
+  res.json({ success: true, staff: allStaff });
+});
+
+// ----------------------------------------------------
+// STORE NETWORK & SETTINGS MANAGEMENT ENDPOINTS
+// ----------------------------------------------------
+
+// GET network stores (Protected)
+app.get('/api/network/stores', requireAuth, (req, res) => {
+  res.json(getAllStoresFromDb());
+});
+
+// POST add/update store in network (Protected Super Admin)
+app.post('/api/network/stores', requireSuperAdmin, (req, res) => {
+  try {
+    const store = req.body;
+    if (!store || (!store.id && !store.code && !store.name)) {
+      return res.status(400).json({ error: 'Store ID/Code and Name are required' });
+    }
+    const saved = saveStoreInDb(store);
+    const allStores = getAllStoresFromDb();
+    broadcast('stores_updated', allStores);
+    res.json({ success: true, store: saved, stores: allStores });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE store from network (Protected Super Admin)
+app.delete('/api/network/stores/:id', requireSuperAdmin, (req, res) => {
+  const success = deleteStoreFromDb(req.params.id);
+  if (!success) {
+    return res.status(404).json({ error: 'Store not found or could not be deleted' });
+  }
+  const allStores = getAllStoresFromDb();
+  broadcast('stores_updated', allStores);
+  res.json({ success: true, stores: allStores });
+});
+
+// GET setting by key (Protected)
+app.get('/api/settings/:key', requireAuth, (req, res) => {
+  const val = getSettingsFromDb(req.params.key);
+  res.json({ key: req.params.key, value: val });
+});
+
+// POST save setting by key (Protected Super Admin)
+app.post('/api/settings/:key', requireSuperAdmin, (req, res) => {
+  try {
+    const val = req.body.value !== undefined ? req.body.value : req.body;
+    const saved = saveSettingsInDb(req.params.key, val);
+    broadcast('settings_updated', { key: req.params.key, value: saved });
+    res.json({ success: true, key: req.params.key, value: saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // Serve frontend static build assets
