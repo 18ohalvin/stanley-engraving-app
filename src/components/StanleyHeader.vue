@@ -2,20 +2,25 @@
   <header class="stanley-header" :class="{ 'is-dark': isDark }">
     <div class="logo-wrapper">
       <img 
-        :src="isDark ? '/src/assets/images/logo-white.png' : '/src/assets/images/logo-black.png'" 
+        :src="isDark ? logoWhite : logoBlack" 
         alt="Stanley 1913" 
         class="stanley-logo"
       />
     </div>
     <div v-if="showBack" class="header-action">
       <button @click="$emit('back')" class="back-btn" aria-label="Go back">
-        <img src="/src/assets/icons/chevron-left.svg" alt="Back" class="icon" />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
       </button>
     </div>
   </header>
 </template>
 
 <script setup>
+import logoBlack from '../assets/images/logo-black.png';
+import logoWhite from '../assets/images/logo-white.png';
+
 defineProps({
   isDark: {
     type: Boolean,

@@ -7,7 +7,7 @@
         <!-- Left: Stanley Bear Logo & Title -->
         <div class="header-titles">
           <img 
-            src="/src/assets/images/logo-black.png" 
+            :src="logoBlack" 
             alt="Stanley 1913" 
             class="stanley-logo" 
           />
@@ -773,6 +773,7 @@
 </template>
 
 <script setup>
+import logoBlack from '../assets/images/logo-black.png';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';

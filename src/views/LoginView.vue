@@ -13,7 +13,7 @@
     <!-- Top Centered Header (Figma 84:322) -->
     <header class="login-header">
       <img 
-        src="/src/assets/images/logo-white.png" 
+        :src="logoWhite" 
         alt="Stanley 1913" 
         class="stanley-white-logo" 
       />
@@ -171,6 +171,7 @@
 </template>
 
 <script setup>
+import logoWhite from '../assets/images/logo-white.png';
 import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { getCanonicalStore } from '../utils/storeResolver.js';
