@@ -239,7 +239,23 @@
               <h2 class="store-info-title">{{ selectedDetailStore.name }}</h2>
               <p class="store-info-address">{{ selectedDetailStore.address }}</p>
             </div>
-            <button class="store-info-close-btn" @click="selectedDetailStore = null" aria-label="Close">✕</button>
+            <div class="store-info-header-right">
+              <button 
+                type="button" 
+                class="store-info-trash-btn" 
+                @click="handleRemoveStore(selectedDetailStore)" 
+                title="Remove Store" 
+                aria-label="Remove Store"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+              </button>
+              <button class="store-info-close-btn" @click="selectedDetailStore = null" aria-label="Close">✕</button>
+            </div>
           </div>
 
           <div class="store-info-divider"></div>
@@ -264,39 +280,33 @@
                   <div class="admin-circle-avatar">
                     {{ getInitials(admin.name) }}
                   </div>
-                  <div class="admin-card-info">
+                  <div class="admin-details-block">
                     <div class="admin-name-role-row">
                       <span class="admin-full-name">{{ admin.name }}</span>
-                      <span class="admin-role-tag">{{ admin.role }}</span>
+                      <span class="admin-role-tag">{{ admin.role || 'Staff Store' }}</span>
                     </div>
                     <div class="admin-code-phone-row">
-                      <span class="admin-code-text">{{ admin.staffId || selectedDetailStore.code }}</span>
-                      <span class="admin-phone-text">{{ admin.whatsapp || '082909012901' }}</span>
+                      <span class="admin-code-bold">{{ selectedDetailStore.code }}</span>
+                      <span class="admin-phone-gray">{{ admin.whatsapp || '082909012901' }}</span>
                     </div>
                   </div>
                 </div>
 
-                <button 
-                  type="button" 
-                  class="btn-contact-admin-black"
-                  @click="openWhatsApp(admin.whatsapp || '082909012901', admin.name, selectedDetailStore.name)"
-                >
-                  Contact Admin
-                </button>
+                <div class="admin-card-right">
+                  <button 
+                    type="button" 
+                    class="btn-contact-admin-black"
+                    @click="openWhatsApp(admin.whatsapp || '082909012901', admin.name, selectedDetailStore.name)"
+                  >
+                    Contact Admin
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Bottom Action Buttons (Figma 402:468) -->
           <div class="store-info-bottom-actions">
-            <button 
-              type="button" 
-              class="btn-remove-store"
-              @click="handleRemoveStore(selectedDetailStore)"
-              title="Remove store from retail network"
-            >
-              Remove Store
-            </button>
             <button 
               type="button" 
               class="btn-edit-store-info"
@@ -2071,6 +2081,32 @@ function openWhatsApp(phone, staffName, storeName) {
   margin: 0;
 }
 
+.store-info-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.store-info-trash-btn {
+  background: transparent;
+  border: none;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.store-info-trash-btn:hover {
+  color: #DC2626;
+  background: #FEF2F2;
+}
+
 .store-info-close-btn {
   background: transparent;
   border: none;
@@ -2228,35 +2264,12 @@ function openWhatsApp(phone, staffName, storeName) {
   padding-top: 24px;
   margin-top: 20px;
   display: flex;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
 }
 
-.btn-remove-store {
-  flex: 1;
-  min-width: 0;
-  height: 48px;
-  border: 1px solid #FCA5A5;
-  background: #FFFFFF;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #DC2626;
-  cursor: pointer;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  transition: all 0.15s ease;
-}
-
-.btn-remove-store:hover {
-  background-color: #FEF2F2;
-  border-color: #EF4444;
-}
-
 .btn-edit-store-info {
-  flex: 2;
-  min-width: 0;
+  flex: 1;
   height: 48px;
   border: 1px solid #000000;
   background: #FFFFFF;
@@ -2273,8 +2286,7 @@ function openWhatsApp(phone, staffName, storeName) {
 }
 
 .btn-store-dashboard-black {
-  flex: 2;
-  min-width: 0;
+  flex: 1;
   height: 48px;
   border: none;
   background: #000000;
