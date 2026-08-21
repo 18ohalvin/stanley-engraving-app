@@ -74,6 +74,11 @@ function broadcast(event, data) {
   }
 }
 
+// Periodic heartbeat ping to keep SSE connection alive behind proxies (Coolify/Nginx/Cloudflare)
+setInterval(() => {
+  broadcast('ping', { timestamp: Date.now() });
+}, 15000);
+
 // ----------------------------------------------------
 // PUBLIC ENDPOINTS (Customer PWA & Ticket View)
 // ----------------------------------------------------
@@ -82,8 +87,9 @@ function broadcast(event, data) {
 app.get('/api/events', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
     'Access-Control-Allow-Origin': '*'
   });
   res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
@@ -275,9 +281,11 @@ app.post('/api/reset', requireSuperAdmin, (req, res) => {
   res.json({ success: true, orders: [] });
 });
 
-// GET staff users (Protected)
-app.get('/api/staff', requireAuth, (req, res) => {
-  res.json(getAllStaffUsersFromDb());
+// GET staff list (Public/Sanitized - PIN hashes stripped)
+app.get('/api/staff', (req, res) => {
+  const staff = getAllStaffUsersFromDb();
+  const sanitized = staff.map(({ pin, ...rest }) => rest);
+  res.json(sanitized);
 });
 
 // POST add/update staff user (Protected Super Admin)
@@ -288,7 +296,9 @@ app.post('/api/staff', requireSuperAdmin, (req, res) => {
       return res.status(400).json({ error: 'staffId and name are required' });
     }
     saveStaffUserInDb(user);
-    res.json({ success: true, user });
+    const allStaff = getAllStaffUsersFromDb();
+    broadcast('staff_updated', allStaff);
+    res.json({ success: true, user, staff: allStaff });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -309,8 +319,8 @@ app.delete('/api/staff/:id', requireSuperAdmin, (req, res) => {
 // STORE NETWORK & SETTINGS MANAGEMENT ENDPOINTS
 // ----------------------------------------------------
 
-// GET network stores (Protected)
-app.get('/api/network/stores', requireAuth, (req, res) => {
+// GET network stores (Public/Optional Auth)
+app.get('/api/network/stores', (req, res) => {
   res.json(getAllStoresFromDb());
 });
 

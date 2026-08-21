@@ -880,20 +880,32 @@ const defaultStaffUsers = [DEVELOPER_ACCOUNT];
 
 const masterStaffUsers = ref([...defaultStaffUsers]);
 
-function loadMasterStaff() {
+async function loadMasterStaff() {
+  const token = localStorage.getItem('stanley_staff_token');
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  try {
+    const res = await fetch('/api/staff', { headers });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        masterStaffUsers.value = data;
+        localStorage.setItem('stanley_staff_users', JSON.stringify(data));
+        return;
+      }
+    }
+  } catch (e) {}
+  
   try {
     const saved = localStorage.getItem('stanley_staff_users');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         masterStaffUsers.value = parsed;
         return;
       }
     }
-    masterStaffUsers.value = [DEVELOPER_ACCOUNT];
-  } catch (e) {
-    masterStaffUsers.value = [DEVELOPER_ACCOUNT];
-  }
+  } catch (e) {}
+  masterStaffUsers.value = [DEVELOPER_ACCOUNT];
 }
 
 // Add Store Staff State
@@ -1045,11 +1057,9 @@ function loadCustomStores() {
 
 async function fetchNetworkStores() {
   const token = localStorage.getItem('stanley_staff_token');
-  if (!token) return;
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
   try {
-    const res = await fetch('/api/network/stores', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const res = await fetch('/api/network/stores', { headers });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
@@ -1095,7 +1105,9 @@ onMounted(() => {
 
   pollInterval = setInterval(() => {
     queueStore.refreshFromStorage();
-  }, 2000);
+    fetchNetworkStores();
+    loadMasterStaff();
+  }, 2500);
 });
 
 onUnmounted(() => {
@@ -1305,7 +1317,7 @@ function saveEditStore() {
     }).catch(() => {});
   }
 
-  // 2. Sync Staff Assignments in Master Staff Accounts
+  // 2. Sync Staff Assignments in Master Staff Accounts & Server DB
   const assignedIds = editStoreForm.value.assignedStaffIds || [];
   
   masterStaffUsers.value.forEach(u => {
@@ -1318,6 +1330,14 @@ function saveEditStore() {
       u.store = '';
       u.staffId = '';
       u.idCode = '';
+    }
+    
+    if (token) {
+      fetch('/api/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(u)
+      }).catch(() => {});
     }
   });
 
@@ -1385,6 +1405,14 @@ function saveNewStore() {
       u.store = storeName;
       u.staffId = storeCode;
       u.idCode = storeCode;
+
+      if (token) {
+        fetch('/api/staff', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(u)
+        }).catch(() => {});
+      }
     }
   });
 
