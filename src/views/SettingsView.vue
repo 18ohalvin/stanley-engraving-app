@@ -770,7 +770,7 @@ import logoBlack from '../assets/images/logo-black.png';
 import productStep1 from '../assets/images/product-step1.png';
 import productStep2 from '../assets/images/product-step2.png';
 import productIceflow from '../assets/images/product-iceflow-fastflow.png';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
