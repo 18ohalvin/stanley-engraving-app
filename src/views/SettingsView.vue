@@ -216,7 +216,7 @@
                   <!-- Size Options -->
                   <div class="tags-row">
                     <span 
-                      v-for="size in product.availableSizes" 
+                      v-for="size in (product.availableSizes || [])" 
                       :key="size" 
                       class="spec-tag-pill"
                     >
@@ -227,7 +227,7 @@
                   <!-- Orientation Options -->
                   <div class="tags-row">
                     <span 
-                      v-for="pos in product.availablePositions" 
+                      v-for="pos in (product.availablePositions || [])" 
                       :key="pos" 
                       class="spec-tag-pill"
                     >
@@ -511,7 +511,7 @@
                     :key="sizeOpt"
                     type="button" 
                     class="figma-option-pill"
-                    :class="{ 'is-selected': productForm.availableSizes.includes(sizeOpt) }"
+                    :class="{ 'is-selected': (productForm.availableSizes || []).includes(sizeOpt) }"
                     @click="toggleSizeOption(sizeOpt)"
                   >
                     {{ sizeOpt }}
@@ -528,7 +528,7 @@
                     :key="posOpt"
                     type="button" 
                     class="figma-option-pill"
-                    :class="{ 'is-selected': productForm.availablePositions.includes(posOpt) }"
+                    :class="{ 'is-selected': (productForm.availablePositions || []).includes(posOpt) }"
                     @click="togglePositionOption(posOpt)"
                   >
                     {{ posOpt }}
@@ -769,7 +769,7 @@ const AVAILABLE_STORE_LOCATIONS = computed(() => {
     if (custom) {
       const parsed = JSON.parse(custom);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(s => s.name);
+        return parsed.map(s => s && s.name).filter(Boolean);
       }
     }
   } catch (e) {}
@@ -835,27 +835,6 @@ const DEVELOPER_ACCOUNT = {
 const defaultStaffUsers = [DEVELOPER_ACCOUNT];
 const staffUsers = ref([...defaultStaffUsers]);
 
-let eventSource = null;
-let pollInterval = null;
-
-async function fetchStaffUsers() {
-  try {
-    const token = localStorage.getItem('stanley_staff_token');
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const res = await fetch('/api/staff', { headers });
-    if (res.ok) {
-      const serverStaff = await res.json();
-      if (Array.isArray(serverStaff)) {
-        const withoutDev = serverStaff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
-        staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
-        localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
-      }
-    }
-  } catch (e) {}
-}
-
 onMounted(async () => {
   try {
     const saved = localStorage.getItem('stanley_product_catalog_order');
@@ -871,52 +850,29 @@ onMounted(async () => {
     if (savedStaff) {
       const parsedStaff = JSON.parse(savedStaff);
       if (Array.isArray(parsedStaff)) {
-        const withoutDev = parsedStaff.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+        const withoutDev = parsedStaff.filter(u => u && u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
         staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
       }
     }
 
-    await fetchStaffUsers();
+    // Fetch master staff users from SQLite backend database
+    const token = localStorage.getItem('stanley_staff_token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    if (typeof EventSource !== 'undefined') {
-      try {
-        eventSource = new EventSource('/api/events');
-        eventSource.addEventListener('staff_updated', (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            if (Array.isArray(data)) {
-              const withoutDev = data.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
-              staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
-            }
-          } catch (err) {}
-        });
-      } catch (e) {}
+    const res = await fetch('/api/staff', { headers });
+    if (res.ok) {
+      const serverStaff = await res.json();
+      if (Array.isArray(serverStaff)) {
+        const withoutDev = serverStaff.filter(u => u && u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+        staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+        localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
+      }
     }
-
-    window.addEventListener('stanley_staff_updated', handleStaffEvent);
-
-    pollInterval = setInterval(() => {
-      fetchStaffUsers();
-    }, 800);
   } catch (e) {
     console.error('Failed to load saved settings data:', e);
   }
 });
-
-onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval);
-  if (eventSource) eventSource.close();
-  window.removeEventListener('stanley_staff_updated', handleStaffEvent);
-});
-
-function handleStaffEvent(e) {
-  if (e.detail && Array.isArray(e.detail)) {
-    const withoutDev = e.detail.filter(u => u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
-    staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
-  } else {
-    fetchStaffUsers();
-  }
-}
 
 function persistProducts() {
   try {
@@ -936,22 +892,26 @@ function persistStaffUsers() {
 
 // Filtered Lists
 const filteredProducts = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return products.value;
-  return products.value.filter(p => p.name.toLowerCase().includes(q));
+  const list = Array.isArray(products.value) ? products.value.filter(Boolean) : [];
+  const q = (searchQuery.value || '').trim().toLowerCase();
+  if (!q) return list;
+  return list.filter(p => p && p.name && p.name.toLowerCase().includes(q));
 });
 
 const filteredStaffUsers = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return staffUsers.value;
-  return staffUsers.value.filter(u => 
-    (u.name && u.name.toLowerCase().includes(q)) || 
-    (u.staffId && u.staffId.toLowerCase().includes(q)) || 
-    (u.idCode && u.idCode.toLowerCase().includes(q)) || 
-    (u.username && u.username.toLowerCase().includes(q)) || 
-    (u.whatsapp && u.whatsapp.toLowerCase().includes(q)) || 
-    (u.role && u.role.toLowerCase().includes(q)) || 
-    (u.store && u.store.toLowerCase().includes(q))
+  const list = Array.isArray(staffUsers.value) ? staffUsers.value.filter(Boolean) : [];
+  const q = (searchQuery.value || '').trim().toLowerCase();
+  if (!q) return list;
+  return list.filter(u => 
+    u && (
+      (u.name && String(u.name).toLowerCase().includes(q)) || 
+      (u.staffId && String(u.staffId).toLowerCase().includes(q)) || 
+      (u.idCode && String(u.idCode).toLowerCase().includes(q)) || 
+      (u.username && String(u.username).toLowerCase().includes(q)) || 
+      (u.whatsapp && String(u.whatsapp).toLowerCase().includes(q)) || 
+      (u.role && String(u.role).toLowerCase().includes(q)) || 
+      (u.store && String(u.store).toLowerCase().includes(q))
+    )
   );
 });
 
