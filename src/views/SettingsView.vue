@@ -313,32 +313,32 @@
 
                 <tr 
                   v-for="user in filteredStaffUsers" 
-                  :key="user.id" 
+                  :key="user.id || user.username || user.staffId" 
                   class="user-tr"
                   :class="{ 'developer-row': user.isDeveloper || user.username === 'devsosco01' }"
                 >
                   <td class="user-td col-staff-id">
                     <span class="staff-id-text" :class="{ 'dev-id-text': user.isDeveloper || user.username === 'devsosco01' }">
-                      {{ user.staffId || user.idCode }}
+                      {{ user.staffId || user.idCode || '-' }}
                     </span>
                   </td>
                   <td class="user-td col-name">
                     <div class="user-name-cell">
-                      <span class="user-name-text">{{ user.name }}</span>
+                      <span class="user-name-text">{{ user.name || '-' }}</span>
                       <span v-if="user.isDeveloper || user.username === 'devsosco01'" class="dev-badge-pill">Master Developer</span>
                     </div>
                   </td>
-                  <td class="user-td col-username">{{ user.username || user.name }}</td>
+                  <td class="user-td col-username">{{ user.username || user.name || '-' }}</td>
                   <td class="user-td col-whatsapp">{{ user.whatsapp || '-' }}</td>
                   <td class="user-td col-role">
                     <span class="user-role-badge" :class="{ 'role-super-admin': user.role === 'Super Admin' }">
-                      {{ user.role }}
+                      {{ user.role || 'Staff Store' }}
                     </span>
                   </td>
-                  <td class="user-td col-store">{{ user.store }}</td>
+                  <td class="user-td col-store">{{ user.store || '-' }}</td>
                   <td class="user-td col-status">
                     <span class="user-status-text" :class="{ 'is-inactive': user.status === 'Inactive' }">
-                      {{ user.status }}
+                      {{ user.status || 'Active' }}
                     </span>
                   </td>
                   <td class="user-td col-action">

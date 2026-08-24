@@ -148,36 +148,14 @@ const router = createRouter({
 });
 
 // Navigation Guard: Enforce PIN Authentication & Role Access
-router.beforeEach(async (to, from, next) => {
+router.beforeEach((to, from, next) => {
   const isAuthenticated = typeof localStorage !== 'undefined' && localStorage.getItem('stanley_staff_authenticated') === 'true';
   const role = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_role') : null;
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
 
   // Protect staff and admin pages
   if (to.meta.requiresAuth) {
     if (!isAuthenticated) {
       return next({ path: '/login', query: { redirect: to.fullPath } });
-    }
-
-    // Verify session token with Express backend if token exists
-    if (token) {
-      try {
-        const res = await fetch('/api/auth/verify', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!res.ok) {
-          // Token invalid or expired
-          if (typeof localStorage !== 'undefined') {
-            localStorage.removeItem('stanley_staff_authenticated');
-            localStorage.removeItem('stanley_staff_token');
-            localStorage.removeItem('stanley_user_role');
-            localStorage.removeItem('stanley_is_developer');
-          }
-          return next({ path: '/login', query: { redirect: to.fullPath } });
-        }
-      } catch (e) {
-        // Network offline fallback permits local stored session
-      }
     }
 
     // Enforce Super Admin role on admin management pages
