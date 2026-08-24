@@ -751,6 +751,9 @@
 
 <script setup>
 import logoBlack from '../assets/images/logo-black.png';
+import productStep1 from '../assets/images/product-step1.png';
+import productStep2 from '../assets/images/product-step2.png';
+import productIceflow from '../assets/images/product-iceflow-fastflow.png';
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -812,8 +815,31 @@ const staffForm = ref({
   status: 'Active'
 });
 
-// Master Product Catalog - Starts Clean Empty for Fresh Setup
-const defaultProducts = [];
+// Master Product Catalog - Pre-seeded with Stanley Cup Models
+const defaultProducts = [
+  {
+    id: 'prod-quencher-40',
+    name: 'Quencher H2.O FlowState 40 Oz',
+    image: productStep1,
+    engravedImage: productStep2,
+    availableSizes: ['20 Oz', '30 Oz', '40 Oz'],
+    availablePositions: ['Vertical', 'Horizontal'],
+    defaultDuration: '03:45',
+    maxChars: 7,
+    isActive: true
+  },
+  {
+    id: 'prod-iceflow-30',
+    name: 'IceFlow Flip Straw 30 Oz',
+    image: productIceflow,
+    engravedImage: productStep2,
+    availableSizes: ['16 Oz', '30 Oz'],
+    availablePositions: ['Vertical', 'Horizontal'],
+    defaultDuration: '03:30',
+    maxChars: 7,
+    isActive: true
+  }
+];
 const products = ref([...defaultProducts]);
 
 // Master Developer Access Account (Protected Super Admin)
