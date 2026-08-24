@@ -144,10 +144,9 @@ function seedDefaultMasterData() {
     );
   }
 
-  // Seed default network stores if database has never been initialized
-  const storeInitCheck = getSettingsFromDb('stores_initialized');
+  // Seed default network stores if empty
   const storeCheck = db.prepare(`SELECT count(*) as count FROM stores`).get();
-  if (!storeInitCheck && (!storeCheck || storeCheck.count === 0)) {
+  if (!storeCheck || storeCheck.count === 0) {
     const defaultStores = [
       { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', city: 'Jakarta Selatan', address: 'Pondok Indah Mall 5, Lt 2, Jakarta', phone: '+62 817-5566-7788', total_machines: 2, active_machines: 2, status: 'Online' },
       { id: '002', code: '002', name: 'Stanley Grand Indonesia', city: 'Jakarta Pusat', address: 'Grand Indonesia East Mall, Lt 1, Jakarta', phone: '+62 812-9988-7766', total_machines: 2, active_machines: 2, status: 'Online' },
@@ -164,7 +163,6 @@ function seedDefaultMasterData() {
     for (const s of defaultStores) {
       insertStmt.run(s.id, s.code, s.name, s.city, s.address, s.phone, s.total_machines, s.active_machines, s.status, now);
     }
-    saveSettingsInDb('stores_initialized', true);
   }
 
   // Migrate legacy data from data/orders.json if orders table is empty
@@ -457,19 +455,24 @@ export function upsertSingleOrderInDb(order, storeId) {
 }
 
 export function getOrderByIdFromDb(idOrCode, storeId) {
+  if (!idOrCode) return null;
+  const clean = String(idOrCode).replace('#', '').trim().toLowerCase();
+  
   let row = null;
   if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
     const s = String(storeId).trim().toLowerCase();
     row = db.prepare(`
       SELECT * FROM orders 
-      WHERE (order_id = ? OR short_code = ? OR intake_code = ?)
+      WHERE (LOWER(order_id) = ? OR LOWER(short_code) = ? OR LOWER(intake_code) = ? OR LOWER(system_queue_number) = ? OR LOWER(order_id) LIKE ?)
         AND (LOWER(store_id) = ? OR LOWER(store_code) = ? OR LOWER(store_name) = ?)
-    `).get(idOrCode, idOrCode, idOrCode, s, s, s);
+      ORDER BY created_at DESC LIMIT 1
+    `).get(clean, clean, clean, clean, `%${clean}`, s, s, s);
   } else {
     row = db.prepare(`
       SELECT * FROM orders 
-      WHERE order_id = ? OR short_code = ? OR intake_code = ?
-    `).get(idOrCode, idOrCode, idOrCode);
+      WHERE LOWER(order_id) = ? OR LOWER(short_code) = ? OR LOWER(intake_code) = ? OR LOWER(system_queue_number) = ? OR LOWER(order_id) LIKE ?
+      ORDER BY created_at DESC LIMIT 1
+    `).get(clean, clean, clean, clean, `%${clean}`);
   }
 
   if (!row) return null;
@@ -701,21 +704,19 @@ export function saveStoreInDb(store) {
   if (existing) {
     db.prepare(`
       UPDATE stores SET
-        id = ?, code = ?, name = ?, city = ?, address = ?, phone = ?,
+        code = ?, name = ?, city = ?, address = ?, phone = ?,
         total_machines = ?, active_machines = ?, status = ?
-      WHERE id = ? OR code = ?
+      WHERE id = ?
     `).run(
-      storeId,
       storeCode,
       store.name || existing.name,
       store.city !== undefined ? store.city : existing.city,
       store.address !== undefined ? store.address : existing.address,
       store.phone !== undefined ? store.phone : existing.phone,
-      store.totalMachines !== undefined ? store.totalMachines : (store.total_machines !== undefined ? store.total_machines : existing.total_machines),
-      store.activeMachines !== undefined ? store.activeMachines : (store.active_machines !== undefined ? store.active_machines : existing.active_machines),
+      store.totalMachines || store.total_machines || existing.total_machines || 1,
+      store.activeMachines || store.active_machines || existing.active_machines || 1,
       store.status || existing.status || 'Online',
-      existing.id,
-      existing.code
+      existing.id
     );
   } else {
     db.prepare(`

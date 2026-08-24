@@ -40,7 +40,7 @@
           <div class="notice-row">
             <img src="/src/assets/icons/info-black-circle.svg" alt="Info" class="info-circle-icon" />
             <p class="notice-text">
-              Need a help? Check counter or <a :href="storeWhatsAppLink" target="_blank" class="contact-us-wa-link">contact us</a>.
+              Need help? Please check at the engraving counter.
             </p>
           </div>
         </section>
@@ -63,7 +63,7 @@
           <div class="notice-row">
             <img src="/src/assets/icons/info-black-circle.svg" alt="Info" class="info-circle-icon" />
             <p class="notice-text">
-              Need a help? Check counter or <a :href="storeWhatsAppLink" target="_blank" class="contact-us-wa-link">contact us</a>.
+              Need help? Please check at the engraving counter.
             </p>
           </div>
         </section>
@@ -135,10 +135,6 @@
 
           <!-- Action Buttons -->
           <div class="ticket-actions">
-            <a :href="storeWhatsAppLink" target="_blank" class="wa-contact-btn">
-              <img src="/src/assets/icons/chat.svg" alt="WhatsApp" class="wa-icon" />
-              <span>Contact Store on WhatsApp</span>
-            </a>
             <CTAButton
               variant="outline"
               label="View Order Details"
@@ -156,45 +152,19 @@
       </div>
 
       <!-- Loading / Not found state -->
-      <div v-else class="not-found-state">
-        <p>Loading ticket status...</p>
+      <div v-else class="not-found-state" style="padding: 48px 24px; text-align: center;">
+        <div v-if="isNotFound" class="not-found-card fade-in" style="display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 400px; margin: 0 auto;">
+          <h2 class="headline-title" style="font-size: 24px;">Ticket Not Found</h2>
+          <p class="headline-subtitle" style="color: #71717A; font-size: 14px; text-align: center;">
+            We couldn't find an engraving ticket matching <strong>#{{ orderId }}</strong>. Please check your code or speak to our associate at the engraving counter.
+          </p>
+          <CTAButton label="Start New Order" @click="startNewOrder" style="margin-top: 8px;" />
+        </div>
+        <div v-else class="loading-card" style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+          <p class="notice-text" style="font-size: 15px; color: #52525B;">Loading ticket status...</p>
+        </div>
       </div>
     </main>
-
-    <!-- Floating Retail Demo Overlay Tool (Independent Overlay, outside design flow) -->
-    <div class="dev-demo-overlay">
-      <button 
-        class="dev-toggle-pill"
-        @click="showDevDemo = !showDevDemo"
-        title="Toggle Retail Demo Controls"
-      >
-        <span>⚡ Demo Tool</span>
-        <span class="pill-arrow">{{ showDevDemo ? '▼' : '▲' }}</span>
-      </button>
-
-      <transition name="fade-slide">
-        <div v-if="showDevDemo" class="dev-demo-panel">
-          <div class="dev-demo-header">
-            <span class="dev-tag">Retail Status Switcher:</span>
-            <button class="dev-close-btn" @click="showDevDemo = false">✕</button>
-          </div>
-          <div class="dev-btn-group">
-            <button 
-              v-for="s in ['pending_dropoff', 'in_queue', 'engraving_in_progress', 'ready_for_pickup']" 
-              :key="s"
-              class="dev-btn"
-              :class="{ 'is-active': order && order.status === s }"
-              @click="manuallySetStatus(s)"
-            >
-              {{ s.replace('_', ' ') }}
-            </button>
-          </div>
-          <router-link to="/engraver" target="_blank" class="dev-link">
-            Open iPad Dashboard ↗
-          </router-link>
-        </div>
-      </transition>
-    </div>
 
     <!-- Order Details Modal Drawer -->
     <OrderDetailsModal
@@ -232,24 +202,12 @@ const order = computed(() => {
 });
 const showDetailsModal = ref(false);
 const showCancelModal = ref(false);
-const showDevDemo = ref(false);
+const isNotFound = ref(false);
 let pollInterval = null;
 
 const storePhone = computed(() => {
   const s = order.value ? (order.value.store_id || order.value.store_code || order.value.store_name) : null;
   return getStorePhone(s);
-});
-
-const storeWhatsAppLink = computed(() => {
-  const phoneRaw = storePhone.value || '+62 817-5566-7788';
-  let cleanDigits = phoneRaw.replace(/\D/g, '');
-  if (cleanDigits.startsWith('0')) {
-    cleanDigits = '62' + cleanDigits.slice(1);
-  }
-  const ticketId = order.value ? (order.value.system_queue_number || order.value.short_code || order.value.order_id || '') : '';
-  const storeName = order.value ? (order.value.store_name || 'Stanley') : 'Stanley';
-  const msg = encodeURIComponent(`Hi ${storeName}! I have a question about my engraving order #${ticketId}`);
-  return `https://wa.me/${cleanDigits}?text=${msg}`;
 });
 
 const maskedPhone = computed(() => {
@@ -300,15 +258,33 @@ const queueAheadCount = computed(() => {
 
 async function fetchOrder() {
   await queueStore.refreshFromStorage();
-  const found = queueStore.getOrderById(orderId.value);
+  const rawId = orderId.value;
+  if (!rawId) return;
+
+  const found = queueStore.getOrderById(rawId);
   if (found) {
     fallbackOrder.value = found;
+    isNotFound.value = false;
+    return;
   }
-}
 
-function manuallySetStatus(newStatus) {
-  if (!order.value) return;
-  queueStore.updateStatus(order.value.order_id, newStatus);
+  // Direct public HTTP API ticket status lookup from SQLite backend
+  try {
+    const cleanId = String(rawId).replace('#', '').trim();
+    const res = await fetch(`/api/orders/public/${encodeURIComponent(cleanId)}`);
+    if (res.ok) {
+      const serverOrder = await res.json();
+      if (serverOrder && (serverOrder.order_id || serverOrder.short_code)) {
+        fallbackOrder.value = serverOrder;
+        isNotFound.value = false;
+        return;
+      }
+    }
+  } catch (e) {}
+
+  if (!fallbackOrder.value) {
+    isNotFound.value = true;
+  }
 }
 
 function handleConfirmCancel() {
@@ -336,10 +312,10 @@ onMounted(() => {
     } catch (e) {}
   }
 
-  // Fast sub-second network polling sync (800ms)
+  // Fast network polling sync (every 1.5s)
   pollInterval = setInterval(() => {
     fetchOrder();
-  }, 800);
+  }, 1500);
 
   // Storage listeners for real-time cross-tab sync
   window.addEventListener('stanley_orders_updated', fetchOrder);
