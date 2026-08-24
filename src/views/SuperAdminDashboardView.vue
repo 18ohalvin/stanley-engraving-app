@@ -1689,9 +1689,25 @@ async function handleResetDatabase() {
 let pollInterval = null;
 let eventSource = null;
 
+async function fetchNetworkStores() {
+  const token = localStorage.getItem('stanley_staff_token');
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  try {
+    const res = await fetch('/api/network/stores', { headers });
+    if (res.ok) {
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
+      if (list.length > 0) {
+        localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
+      }
+    }
+  } catch (e) {}
+}
+
 onMounted(() => {
   loadCategoryTargets();
   queueStore.refreshFromStorage();
+  fetchNetworkStores();
 
   if (typeof EventSource !== 'undefined') {
     try {
@@ -1699,15 +1715,14 @@ onMounted(() => {
       eventSource.addEventListener('orders_updated', () => {
         queueStore.refreshFromStorage();
       });
-      eventSource.addEventListener('stores_updated', () => {
-        queueStore.refreshFromStorage();
-      });
-      eventSource.addEventListener('staff_updated', () => {
-        queueStore.refreshFromStorage();
-      });
-      eventSource.addEventListener('settings_updated', () => {
-        loadCategoryTargets();
-        queueStore.refreshFromStorage();
+      eventSource.addEventListener('stores_updated', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
+          if (list.length > 0) {
+            localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
+          }
+        } catch (err) {}
       });
     } catch (e) {}
   }
@@ -1715,11 +1730,12 @@ onMounted(() => {
   window.addEventListener('storage', handleStorageUpdate);
   window.addEventListener('stanley_orders_updated', handleStorageUpdate);
   window.addEventListener('stanley_targets_updated', handleStorageUpdate);
-  window.addEventListener('stanley_settings_updated', handleStorageUpdate);
+  window.addEventListener('stanley_stores_updated', handleStorageUpdate);
 
   pollInterval = setInterval(() => {
     queueStore.refreshFromStorage();
-  }, 800);
+    fetchNetworkStores();
+  }, 2500);
 });
 
 onUnmounted(() => {
@@ -1728,7 +1744,7 @@ onUnmounted(() => {
   window.removeEventListener('storage', handleStorageUpdate);
   window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
   window.removeEventListener('stanley_targets_updated', handleStorageUpdate);
-  window.removeEventListener('stanley_settings_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_stores_updated', handleStorageUpdate);
 });
 
 function handleStorageUpdate() {

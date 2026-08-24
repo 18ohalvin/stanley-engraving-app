@@ -41,7 +41,40 @@ export function getCanonicalStore(inputStr) {
   const lower = raw.toLowerCase();
   const clean = lower.replace(/[^a-z0-9]/g, '');
 
-  // Check against known store database
+  // 1. Check custom stores saved in localStorage
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const rawCustom = localStorage.getItem('stanley_custom_stores');
+      if (rawCustom) {
+        const customStores = JSON.parse(rawCustom);
+        if (Array.isArray(customStores)) {
+          for (const store of customStores) {
+            const sId = (store.id || '').toLowerCase();
+            const sCode = (store.code || '').toLowerCase();
+            const sName = (store.name || '').toLowerCase();
+            const sIdClean = sId.replace(/[^a-z0-9]/g, '');
+            const sCodeClean = sCode.replace(/[^a-z0-9]/g, '');
+            const sNameClean = sName.replace(/[^a-z0-9]/g, '');
+
+            if (
+              sId === lower || sCode === lower || sName === lower ||
+              sIdClean === clean || sCodeClean === clean || sNameClean === clean
+            ) {
+              return {
+                id: store.id,
+                code: store.code || store.id,
+                name: store.name,
+                phone: store.phone || '+62 817-5566-7788',
+                aliases: [sId, sCode, sName, sIdClean, sCodeClean, sNameClean]
+              };
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 2. Check against known store database
   for (const store of KNOWN_STORES) {
     if (
       store.id.toLowerCase() === lower ||

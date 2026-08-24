@@ -5,29 +5,6 @@ let syncChannel = null;
 if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
   try {
     syncChannel = new BroadcastChannel('stanley_sync_channel');
-    syncChannel.onmessage = (event) => {
-      const { type, payload } = event.data || {};
-      if (type === 'orders_updated') {
-        if (typeof localStorage !== 'undefined' && Array.isArray(payload)) {
-          localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(payload));
-          window.dispatchEvent(new CustomEvent('stanley_orders_updated', { detail: payload }));
-        }
-      } else if (type === 'stores_updated') {
-        if (typeof localStorage !== 'undefined' && Array.isArray(payload)) {
-          localStorage.setItem('stanley_custom_stores', JSON.stringify(payload));
-          window.dispatchEvent(new CustomEvent('stanley_stores_updated', { detail: payload }));
-        }
-      } else if (type === 'staff_updated') {
-        if (typeof localStorage !== 'undefined' && Array.isArray(payload)) {
-          localStorage.setItem('stanley_master_staff_users', JSON.stringify(payload));
-          window.dispatchEvent(new CustomEvent('stanley_staff_updated', { detail: payload }));
-        }
-      } else if (type === 'settings_updated') {
-        if (typeof localStorage !== 'undefined' && payload) {
-          window.dispatchEvent(new CustomEvent('stanley_settings_updated', { detail: payload }));
-        }
-      }
-    };
   } catch (e) {}
 }
 

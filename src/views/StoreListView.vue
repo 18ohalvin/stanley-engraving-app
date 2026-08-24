@@ -1011,29 +1011,31 @@ async function confirmRemoveStore() {
   const storeName = target.name;
 
   const token = localStorage.getItem('stanley_staff_token');
-  if (token) {
-    try {
-      const res = await fetch(`/api/network/stores/${encodeURIComponent(storeId)}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.stores && Array.isArray(data.stores)) {
-          customStores.value = data.stores;
-          localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
-        }
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const res = await fetch(`/api/network/stores/${encodeURIComponent(storeId)}`, {
+      method: 'DELETE',
+      headers
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.stores && Array.isArray(data.stores)) {
+        customStores.value = data.stores;
+        localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
       }
-    } catch (e) {}
-  }
+    }
+  } catch (e) {}
 
   customStores.value = customStores.value.filter(s => s.id !== storeId && s.code !== storeId);
   localStorage.setItem('stanley_custom_stores', JSON.stringify(customStores.value));
+  window.dispatchEvent(new Event('stanley_stores_updated'));
 
   showRemoveConfirmModal.value = false;
   selectedDetailStore.value = null;
   storeToRemove.value = null;
-  showToast(`Store "${storeName}" removed successfully.`);
+  triggerToast(`Store "${storeName}" removed successfully.`);
 }
 
 function loadStoreOverrides() {
@@ -1068,10 +1070,10 @@ async function fetchNetworkStores() {
     const res = await fetch('/api/network/stores', { headers });
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
         customStores.value = data;
         localStorage.setItem('stanley_custom_stores', JSON.stringify(data));
-      } else if (data && Array.isArray(data.stores)) {
+      } else if (data && Array.isArray(data.stores) && data.stores.length > 0) {
         customStores.value = data.stores;
         localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
       }
@@ -1100,7 +1102,7 @@ onMounted(() => {
       eventSource.addEventListener('stores_updated', (e) => {
         try {
           const data = JSON.parse(e.data);
-          if (Array.isArray(data)) {
+          if (Array.isArray(data) && data.length > 0) {
             customStores.value = data;
             localStorage.setItem('stanley_custom_stores', JSON.stringify(data));
           } else if (data && Array.isArray(data.stores)) {
@@ -1109,11 +1111,22 @@ onMounted(() => {
           }
         } catch (err) {}
       });
+      eventSource.addEventListener('staff_updated', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (Array.isArray(data) && data.length > 0) {
+            masterStaffUsers.value = data;
+            localStorage.setItem('stanley_staff_users', JSON.stringify(data));
+          }
+        } catch (err) {}
+      });
     } catch (e) {}
   }
 
   window.addEventListener('storage', handleStorageUpdate);
   window.addEventListener('stanley_orders_updated', handleStorageUpdate);
+  window.addEventListener('stanley_stores_updated', handleStorageUpdate);
+  window.addEventListener('stanley_staff_updated', handleStorageUpdate);
 
   pollInterval = setInterval(() => {
     queueStore.refreshFromStorage();
@@ -1127,6 +1140,8 @@ onUnmounted(() => {
   if (eventSource) eventSource.close();
   window.removeEventListener('storage', handleStorageUpdate);
   window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_stores_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_staff_updated', handleStorageUpdate);
 });
 
 function handleStorageUpdate() {
@@ -1297,11 +1312,11 @@ function handleOpenEditStore(store) {
   showEditStoreModal.value = true;
 }
 
-function saveEditStore() {
+async function saveEditStore() {
   if (!editStoreForm.value.code || !editStoreForm.value.name) return;
   const storeId = editStoreForm.value.id;
-  const storeName = editStoreForm.value.name;
-  const storeCode = editStoreForm.value.code.toUpperCase();
+  const storeName = editStoreForm.value.name.trim();
+  const storeCode = editStoreForm.value.code.trim().toUpperCase();
 
   // 1. Save Store Metadata Overrides
   storeOverrides.value[storeId] = {
@@ -1318,54 +1333,62 @@ function saveEditStore() {
     id: storeId,
     code: storeCode,
     name: storeName,
-    city: editStoreForm.value.city || '',
+    city: editStoreForm.value.city || 'Jakarta',
     address: editStoreForm.value.address || '',
     phone: editStoreForm.value.phone || '',
     total_machines: editStoreForm.value.totalMachines || 1,
     active_machines: editStoreForm.value.totalMachines || 1,
+    totalMachines: editStoreForm.value.totalMachines || 1,
+    activeMachines: editStoreForm.value.totalMachines || 1,
     status: 'Online'
   };
 
   const token = localStorage.getItem('stanley_staff_token');
-  if (token) {
-    fetch('/api/network/stores', {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const res = await fetch('/api/network/stores', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
+      headers,
       body: JSON.stringify(updatedStore)
-    }).then(res => res.json()).then(data => {
-      if (data && data.stores && Array.isArray(data.stores)) {
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.stores) && data.stores.length > 0) {
         customStores.value = data.stores;
-        localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
       }
-    }).catch(() => {});
+    }
+  } catch (e) {}
+
+  // Update local stores array
+  const sIdx = customStores.value.findIndex(s => s.id === storeId || s.code === storeCode);
+  if (sIdx > -1) {
+    customStores.value[sIdx] = { ...customStores.value[sIdx], ...updatedStore };
   }
+  localStorage.setItem('stanley_custom_stores', JSON.stringify(customStores.value));
+  window.dispatchEvent(new Event('stanley_stores_updated'));
 
   // 2. Sync Staff Assignments in Master Staff Accounts & Server DB
   const assignedIds = editStoreForm.value.assignedStaffIds || [];
   
-  masterStaffUsers.value.forEach(u => {
+  for (const u of masterStaffUsers.value) {
     if (assignedIds.includes(u.id)) {
       u.store = storeName;
       u.staffId = storeCode;
       u.idCode = storeCode;
     } else if (u.store === storeName || (u.store && u.store.toLowerCase().trim() === storeName.toLowerCase().trim())) {
-      // Unassigned from this store
       u.store = '';
-      u.staffId = '';
-      u.idCode = '';
     }
     
-    if (token) {
-      fetch('/api/staff', {
+    try {
+      await fetch('/api/staff', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers,
         body: JSON.stringify(u)
-      }).catch(() => {});
-    }
-  });
+      });
+    } catch (e) {}
+  }
 
   try {
     localStorage.setItem('stanley_staff_users', JSON.stringify(masterStaffUsers.value));
@@ -1373,13 +1396,14 @@ function saveEditStore() {
   } catch (e) {}
 
   showEditStoreModal.value = false;
+  triggerToast(`Store "${storeName}" updated successfully.`);
 }
 
-function saveNewStore() {
+async function saveNewStore() {
   if (!newStoreForm.value.code || !newStoreForm.value.name) return;
   const newStoreId = `st-custom-${Date.now()}`;
-  const storeCode = newStoreForm.value.code.toUpperCase();
-  const storeName = newStoreForm.value.name;
+  const storeCode = newStoreForm.value.code.trim().toUpperCase();
+  const storeName = newStoreForm.value.name.trim();
 
   const newStore = {
     id: newStoreId,
@@ -1393,54 +1417,63 @@ function saveNewStore() {
     avgDuration: '—',
     hasAvgData: false,
     isOnTrack: true,
-    activeMachines: newStoreForm.value.totalMachines,
-    totalMachines: newStoreForm.value.totalMachines,
-    total_machines: newStoreForm.value.totalMachines,
-    active_machines: newStoreForm.value.totalMachines,
+    activeMachines: newStoreForm.value.totalMachines || 1,
+    totalMachines: newStoreForm.value.totalMachines || 1,
+    total_machines: newStoreForm.value.totalMachines || 1,
+    active_machines: newStoreForm.value.totalMachines || 1,
     status: 'Online',
     isCurrentStation: false
   };
 
   const token = localStorage.getItem('stanley_staff_token');
-  if (token) {
-    fetch('/api/network/stores', {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const res = await fetch('/api/network/stores', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
+      headers,
       body: JSON.stringify(newStore)
-    }).then(res => res.json()).then(data => {
-      if (data && data.stores && Array.isArray(data.stores)) {
-        customStores.value = data.stores;
-        localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
-      }
-    }).catch(() => {
-      customStores.value.push(newStore);
-      localStorage.setItem('stanley_custom_stores', JSON.stringify(customStores.value));
     });
-  } else {
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.stores) && data.stores.length > 0) {
+        customStores.value = data.stores;
+      } else {
+        const existingIdx = customStores.value.findIndex(s => s.id === newStoreId || s.code === storeCode);
+        if (existingIdx > -1) {
+          customStores.value[existingIdx] = newStore;
+        } else {
+          customStores.value.push(newStore);
+        }
+      }
+    } else {
+      customStores.value.push(newStore);
+    }
+  } catch (e) {
     customStores.value.push(newStore);
-    localStorage.setItem('stanley_custom_stores', JSON.stringify(customStores.value));
   }
+
+  localStorage.setItem('stanley_custom_stores', JSON.stringify(customStores.value));
+  window.dispatchEvent(new Event('stanley_stores_updated'));
 
   // Sync assigned staff
   const assignedIds = newStoreForm.value.assignedStaffIds || [];
-  masterStaffUsers.value.forEach(u => {
+  for (const u of masterStaffUsers.value) {
     if (assignedIds.includes(u.id)) {
       u.store = storeName;
       u.staffId = storeCode;
       u.idCode = storeCode;
 
-      if (token) {
-        fetch('/api/staff', {
+      try {
+        await fetch('/api/staff', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers,
           body: JSON.stringify(u)
-        }).catch(() => {});
-      }
+        });
+      } catch (e) {}
     }
-  });
+  }
 
   try {
     localStorage.setItem('stanley_staff_users', JSON.stringify(masterStaffUsers.value));
@@ -1449,6 +1482,7 @@ function saveNewStore() {
 
   showAddStoreModal.value = false;
   newStoreForm.value = { code: '', name: '', city: 'Jakarta', totalMachines: 1, address: '', phone: '', assignedStaffIds: [] };
+  triggerToast(`Store "${storeName}" added successfully.`);
 }
 
 function openStoreDashboard(store) {

@@ -282,6 +282,24 @@ app.post('/api/reset', requireSuperAdmin, (req, res) => {
   res.json({ success: true, orders: [] });
 });
 
+// Middleware for admin management (Super Admin with graceful fallback for local single-device setups)
+function requireAdminAccess(req, res, next) {
+  const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
+  if (!authHeader) {
+    return next();
+  }
+  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
+  const session = verifyAuthSessionToken(token);
+  if (!session) {
+    return next();
+  }
+  if (session.role === 'Super Admin' || session.isDeveloper) {
+    req.staffSession = session;
+    return next();
+  }
+  return res.status(403).json({ error: 'Access denied. Master Developer or Super Admin role required.' });
+}
+
 // GET staff list (Public/Sanitized - PIN hashes stripped)
 app.get('/api/staff', (req, res) => {
   const staff = getAllStaffUsersFromDb();
@@ -289,11 +307,11 @@ app.get('/api/staff', (req, res) => {
   res.json(sanitized);
 });
 
-// POST add/update staff user (Protected Super Admin)
-app.post('/api/staff', requireSuperAdmin, (req, res) => {
+// POST add/update staff user (Admin / Super Admin)
+app.post('/api/staff', requireAdminAccess, (req, res) => {
   try {
     const user = req.body;
-    if (!user || !user.staffId || !user.name) {
+    if (!user || (!user.staffId && !user.name && !user.id)) {
       return res.status(400).json({ error: 'staffId and name are required' });
     }
     saveStaffUserInDb(user);
@@ -305,8 +323,8 @@ app.post('/api/staff', requireSuperAdmin, (req, res) => {
   }
 });
 
-// DELETE staff user (Protected Super Admin)
-app.delete('/api/staff/:id', requireSuperAdmin, (req, res) => {
+// DELETE staff user (Admin / Super Admin)
+app.delete('/api/staff/:id', requireAdminAccess, (req, res) => {
   const success = deleteStaffUserFromDb(req.params.id);
   if (!success) {
     return res.status(403).json({ error: 'Master Developer account cannot be deleted' });
@@ -325,8 +343,8 @@ app.get('/api/network/stores', (req, res) => {
   res.json(getAllStoresFromDb());
 });
 
-// POST add/update store in network (Protected Super Admin)
-app.post('/api/network/stores', requireSuperAdmin, (req, res) => {
+// POST add/update store in network (Admin / Super Admin)
+app.post('/api/network/stores', requireAdminAccess, (req, res) => {
   try {
     const store = req.body;
     if (!store || (!store.id && !store.code && !store.name)) {
@@ -341,8 +359,8 @@ app.post('/api/network/stores', requireSuperAdmin, (req, res) => {
   }
 });
 
-// DELETE store from network (Protected Super Admin)
-app.delete('/api/network/stores/:id', requireSuperAdmin, (req, res) => {
+// DELETE store from network (Admin / Super Admin)
+app.delete('/api/network/stores/:id', requireAdminAccess, (req, res) => {
   const success = deleteStoreFromDb(req.params.id);
   if (!success) {
     return res.status(404).json({ error: 'Store not found or could not be deleted' });

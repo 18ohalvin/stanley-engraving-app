@@ -2,7 +2,7 @@
   <div class="login-screen">
     <!-- Fullscreen Background Image -->
     <img 
-      :src="loginBg" 
+      src="/src/assets/images/login-bg.png" 
       alt="Stanley Background" 
       class="login-bg-img" 
     />
@@ -171,7 +171,6 @@
 </template>
 
 <script setup>
-import loginBg from '../assets/images/login-bg.png';
 import logoWhite from '../assets/images/logo-white.png';
 import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
