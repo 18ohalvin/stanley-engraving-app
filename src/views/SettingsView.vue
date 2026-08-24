@@ -516,6 +516,34 @@
                   >
                     {{ sizeOpt }}
                   </button>
+
+                  <!-- Custom Oz Input / Button -->
+                  <div v-if="showCustomSizeInput" class="custom-size-input-wrapper">
+                    <input 
+                      ref="customSizeInputRef"
+                      v-model="customSizeValue" 
+                      type="text" 
+                      class="custom-size-input" 
+                      placeholder="e.g. 64"
+                      maxlength="10"
+                      @keydown.enter.prevent="submitCustomSize"
+                      @keydown.esc="cancelCustomSize"
+                    />
+                    <button type="button" class="btn-custom-size-add" @click="submitCustomSize">Add</button>
+                    <button type="button" class="btn-custom-size-cancel" @click="cancelCustomSize">✕</button>
+                  </div>
+                  <button 
+                    v-else
+                    type="button" 
+                    class="figma-option-pill btn-add-custom-size"
+                    @click="openCustomSizeInput"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Custom Oz
+                  </button>
                 </div>
               </div>
 
@@ -779,8 +807,16 @@ const router = useRouter();
 const activeTab = ref('product');
 const searchQuery = ref('');
 
-// Constants for available options (Figma 350:401)
-const ALL_SIZE_OPTIONS = ['20 Oz', '30 Oz', '40 Oz', '16 Oz'];
+// Constants for available options (12oz, 14oz, 16oz, 20oz, 24oz, 30oz, 36oz, 40oz, 48oz + Custom)
+const STANDARD_SIZE_OPTIONS = ['12 Oz', '14 Oz', '16 Oz', '20 Oz', '24 Oz', '30 Oz', '36 Oz', '40 Oz', '48 Oz'];
+const customSizeOptions = ref([]);
+
+const ALL_SIZE_OPTIONS = computed(() => {
+  const custom = Array.isArray(customSizeOptions.value) ? customSizeOptions.value : [];
+  const fromForm = Array.isArray(productForm.value.availableSizes) ? productForm.value.availableSizes : [];
+  return [...new Set([...STANDARD_SIZE_OPTIONS, ...custom, ...fromForm])];
+});
+
 const ALL_POSITION_OPTIONS = ['Vertical', 'Horizontal'];
 const storeLocationsList = ref([]);
 
@@ -1135,6 +1171,7 @@ function toggleProductActive(product) {
 // =========================================================================
 function openAddProductModal() {
   isEditMode.value = false;
+  cancelCustomSize();
   productForm.value = {
     id: '',
     name: '',
@@ -1151,6 +1188,7 @@ function openAddProductModal() {
 
 function openEditProductModal(product) {
   isEditMode.value = true;
+  cancelCustomSize();
   productForm.value = {
     id: product.id,
     name: product.name,
@@ -1167,6 +1205,7 @@ function openEditProductModal(product) {
 
 function closeProductModal() {
   showProductModal.value = false;
+  cancelCustomSize();
 }
 
 // File Upload Triggers
@@ -1242,6 +1281,47 @@ function toggleSizeOption(size) {
   } else {
     productForm.value.availableSizes.push(size);
   }
+}
+
+// Custom Oz Handlers
+const showCustomSizeInput = ref(false);
+const customSizeValue = ref('');
+const customSizeInputRef = ref(null);
+
+function openCustomSizeInput() {
+  showCustomSizeInput.value = true;
+  customSizeValue.value = '';
+  setTimeout(() => {
+    if (customSizeInputRef.value) customSizeInputRef.value.focus();
+  }, 60);
+}
+
+function cancelCustomSize() {
+  showCustomSizeInput.value = false;
+  customSizeValue.value = '';
+}
+
+function submitCustomSize() {
+  const raw = (customSizeValue.value || '').trim();
+  if (!raw) {
+    cancelCustomSize();
+    return;
+  }
+  let formatted = raw;
+  const match = raw.match(/^(\d+(?:\.\d+)?)\s*(?:oz|ounces?)?$/i);
+  if (match) {
+    formatted = `${match[1]} Oz`;
+  } else if (!/oz/i.test(raw)) {
+    formatted = `${raw} Oz`;
+  }
+
+  if (!customSizeOptions.value.includes(formatted)) {
+    customSizeOptions.value.push(formatted);
+  }
+  if (!productForm.value.availableSizes.includes(formatted)) {
+    productForm.value.availableSizes.push(formatted);
+  }
+  cancelCustomSize();
 }
 
 function togglePositionOption(pos) {
@@ -2586,6 +2666,76 @@ async function deleteStaff(user) {
   opacity: 1;
   border-width: 1.5px;
   font-weight: 600;
+}
+
+.btn-add-custom-size {
+  border-style: dashed;
+  border-color: #64748B;
+  color: #334155;
+  background: #F8FAFC;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.btn-add-custom-size:hover {
+  opacity: 1;
+  border-color: #000000;
+  color: #000000;
+  background: #F1F5F9;
+}
+
+.custom-size-input-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #FFFFFF;
+  border: 1.5px solid #000000;
+  border-radius: 8px;
+  padding: 2px 4px 2px 8px;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+.custom-size-input {
+  width: 54px;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  color: #000000;
+  background: transparent;
+}
+
+.btn-custom-size-add {
+  padding: 4px 8px;
+  background: #000000;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-custom-size-add:hover {
+  opacity: 0.85;
+}
+
+.btn-custom-size-cancel {
+  padding: 2px 6px;
+  background: transparent;
+  color: #64748B;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.btn-custom-size-cancel:hover {
+  background: #F1F5F9;
+  color: #000000;
 }
 
 .segmented-status-container {
