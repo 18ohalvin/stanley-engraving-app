@@ -269,24 +269,32 @@ async function fetchOrder() {
     return;
   }
 
-  // Direct public HTTP API ticket status lookup from SQLite backend
-  try {
-    const cleanId = String(rawId).replace('#', '').trim();
-    let url = `/api/orders/public/${encodeURIComponent(cleanId)}`;
-    if (storeIdParam) {
-      url += `?storeId=${encodeURIComponent(storeIdParam)}`;
-    }
-    const res = await fetch(url);
-    if (res.ok) {
-      const serverOrder = await res.json();
-      if (serverOrder && (serverOrder.order_id || serverOrder.short_code)) {
-        fallbackOrder.value = serverOrder;
-        isNotFound.value = false;
-        queueStore.upsertOrder(serverOrder);
-        return;
+  // Direct public HTTP API ticket status lookup from SQLite backend with retry loop
+  const cleanId = String(rawId).replace('#', '').trim();
+  let url = `/api/orders/public/${encodeURIComponent(cleanId)}`;
+  if (storeIdParam) {
+    url += `?storeId=${encodeURIComponent(storeIdParam)}`;
+  }
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const serverOrder = await res.json();
+        if (serverOrder && (serverOrder.order_id || serverOrder.short_code || serverOrder.intake_code)) {
+          fallbackOrder.value = serverOrder;
+          isNotFound.value = false;
+          queueStore.upsertOrder(serverOrder);
+          return;
+        }
       }
+    } catch (e) {}
+
+    // Wait 300ms before retrying to allow backend DB write to finish
+    if (attempt < 4) {
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
-  } catch (e) {}
+  }
 
   if (!fallbackOrder.value) {
     isNotFound.value = true;

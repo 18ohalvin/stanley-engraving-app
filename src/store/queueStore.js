@@ -325,6 +325,21 @@ export const useQueueStore = defineStore('queue', {
       this.autoAssignMachines();
     },
 
+    upsertOrder(order) {
+      if (!order || (!order.order_id && !order.short_code && !order.intake_code)) return;
+      const index = this.orders.findIndex(o => 
+        (order.order_id && o.order_id === order.order_id) || 
+        (order.short_code && o.short_code === order.short_code) ||
+        (order.intake_code && o.intake_code === order.intake_code)
+      );
+      if (index !== -1) {
+        this.orders[index] = { ...this.orders[index], ...order };
+      } else {
+        this.orders.unshift(order);
+      }
+      saveStoredOrders(this.orders);
+    },
+
     updateStatus(orderId, newStatus) {
       const index = this.orders.findIndex(o => o.order_id === orderId || o.short_code === orderId || o.intake_code === orderId);
       if (index !== -1) {

@@ -130,7 +130,7 @@ assert(engravingStore.customer.email === 'alvin@example.com', 'Customer email se
 assert(engravingStore.isCustomerValid === true, 'Customer validity check passed');
 
 // Submit Order
-const submittedOrder = engravingStore.submitOrder();
+const submittedOrder = await engravingStore.submitOrder();
 assert(Boolean(submittedOrder.order_id), 'Order generated with unique order_id');
 assert(submittedOrder.status === 'pending_dropoff', 'Order starts in pending_dropoff status');
 assert(submittedOrder.items.length === 2, 'Order contains both customized items');
@@ -664,7 +664,7 @@ assert(storeTestEngravingStore.selectedStoreId === 'EG-099', 'setStoreId updates
 storeTestEngravingStore.setCustomerDetails({ name: 'Dynamic Store Customer', countryCode: '+62', phone: '81987654321', email: 'dynamic@stanley.com' });
 storeTestEngravingStore.currentItem = { model: 'IceFlow', size: '40oz', position: 'Horizontal', text: 'STORE99', font: 'Helvetica Bold', fontId: 'lato', fontClass: 'font-engraving-lato' };
 storeTestEngravingStore.saveCurrentItem();
-const dynamicOrderPayload = storeTestEngravingStore.submitOrder();
+const dynamicOrderPayload = await storeTestEngravingStore.submitOrder();
 
 assert(dynamicOrderPayload.store_id === 'EG-099', 'Order payload automatically injects store_id EG-099');
 assert(dynamicOrderPayload.store_code === 'EG-099', 'Order payload automatically injects store_code EG-099');

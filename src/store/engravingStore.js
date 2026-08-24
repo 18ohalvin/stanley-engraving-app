@@ -236,7 +236,7 @@ export const useEngravingStore = defineStore('engraving', {
     /**
      * Generates and submits the final order payload
      */
-    submitOrder() {
+    async submitOrder() {
       const queueStore = useQueueStore();
       
       // If current item has text and isn't saved yet, auto-save it
@@ -277,7 +277,22 @@ export const useEngravingStore = defineStore('engraving', {
         }))
       };
 
+      // Save locally in Pinia & localStorage
       queueStore.addOrder(orderPayload);
+
+      // Direct HTTP POST sync to backend SQLite database
+      try {
+        if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.startsWith('http')) {
+          const endpoint = new URL('/api/orders/public', window.location.origin).toString();
+          await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderPayload)
+          });
+        }
+      } catch (e) {
+        // Ignore test runner or network sync errors
+      }
 
       return orderPayload;
     },
