@@ -596,7 +596,7 @@
             </button>
           </div>
 
-          <form @submit.prevent="saveStaffForm" class="modal-form-content">
+          <form @submit.prevent="saveStaffForm" class="modal-form-content" autocomplete="off">
             
             <div class="two-images-upload-grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
               <div class="product-name-input-block">
@@ -606,6 +606,10 @@
                   type="text" 
                   class="product-name-underline-input" 
                   placeholder="e.g. EG-021" 
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
                   required 
                 />
               </div>
@@ -616,6 +620,10 @@
                   type="text" 
                   class="product-name-underline-input" 
                   placeholder="e.g. Ayu Dewi" 
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
                   required 
                 />
               </div>
@@ -647,6 +655,10 @@
                   type="text" 
                   class="product-name-underline-input" 
                   placeholder="e.g. 082909012901" 
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
                   required 
                 />
               </div>
@@ -665,6 +677,10 @@
                   class="product-name-underline-input"
                   :placeholder="isEditStaffMode ? 'Leave blank to keep current PIN' : 'e.g. 1913'"
                   maxlength="6"
+                  autocomplete="new-password"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
                   :required="!isEditStaffMode"
                   style="padding-right: 48px; letter-spacing: 2px; font-weight: 600;"
                 />
