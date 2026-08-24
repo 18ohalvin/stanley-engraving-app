@@ -258,7 +258,8 @@ const queueAheadCount = computed(() => {
 
 async function fetchOrder() {
   await queueStore.refreshFromStorage();
-  const rawId = orderId.value;
+  const rawId = route.params.orderId || route.params.ticketId || route.params.code;
+  const storeIdParam = route.params.storeId || route.query.storeId || route.query.store;
   if (!rawId) return;
 
   const found = queueStore.getOrderById(rawId);
@@ -271,12 +272,17 @@ async function fetchOrder() {
   // Direct public HTTP API ticket status lookup from SQLite backend
   try {
     const cleanId = String(rawId).replace('#', '').trim();
-    const res = await fetch(`/api/orders/public/${encodeURIComponent(cleanId)}`);
+    let url = `/api/orders/public/${encodeURIComponent(cleanId)}`;
+    if (storeIdParam) {
+      url += `?storeId=${encodeURIComponent(storeIdParam)}`;
+    }
+    const res = await fetch(url);
     if (res.ok) {
       const serverOrder = await res.json();
       if (serverOrder && (serverOrder.order_id || serverOrder.short_code)) {
         fallbackOrder.value = serverOrder;
         isNotFound.value = false;
+        queueStore.upsertOrder(serverOrder);
         return;
       }
     }

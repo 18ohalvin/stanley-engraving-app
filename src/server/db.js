@@ -457,22 +457,34 @@ export function upsertSingleOrderInDb(order, storeId) {
 export function getOrderByIdFromDb(idOrCode, storeId) {
   if (!idOrCode) return null;
   const clean = String(idOrCode).replace('#', '').trim().toLowerCase();
+  const parts = clean.split('-');
+  const subCode = parts[parts.length - 1];
   
   let row = null;
+  // 1. Try matching with storeId filter if provided
   if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
     const s = String(storeId).trim().toLowerCase();
     row = db.prepare(`
       SELECT * FROM orders 
-      WHERE (LOWER(order_id) = ? OR LOWER(short_code) = ? OR LOWER(intake_code) = ? OR LOWER(system_queue_number) = ? OR LOWER(order_id) LIKE ?)
+      WHERE (LOWER(order_id) = ? OR LOWER(short_code) = ? OR LOWER(intake_code) = ? OR LOWER(system_queue_number) = ? OR LOWER(order_id) LIKE ? OR LOWER(short_code) = ? OR LOWER(intake_code) = ?)
         AND (LOWER(store_id) = ? OR LOWER(store_code) = ? OR LOWER(store_name) = ?)
       ORDER BY created_at DESC LIMIT 1
-    `).get(clean, clean, clean, clean, `%${clean}`, s, s, s);
-  } else {
+    `).get(clean, clean, clean, clean, `%${clean}%`, subCode, subCode, s, s, s);
+  }
+
+  // 2. Fallback: Search globally across all stores if storeId didn't match (prevents false 404s for customers)
+  if (!row) {
     row = db.prepare(`
       SELECT * FROM orders 
-      WHERE LOWER(order_id) = ? OR LOWER(short_code) = ? OR LOWER(intake_code) = ? OR LOWER(system_queue_number) = ? OR LOWER(order_id) LIKE ?
+      WHERE LOWER(order_id) = ? 
+         OR LOWER(short_code) = ? 
+         OR LOWER(intake_code) = ? 
+         OR LOWER(system_queue_number) = ? 
+         OR LOWER(order_id) LIKE ?
+         OR LOWER(short_code) = ?
+         OR LOWER(intake_code) = ?
       ORDER BY created_at DESC LIMIT 1
-    `).get(clean, clean, clean, clean, `%${clean}`);
+    `).get(clean, clean, clean, clean, `%${clean}%`, subCode, subCode);
   }
 
   if (!row) return null;

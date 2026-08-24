@@ -116,9 +116,10 @@ app.post('/api/orders/public', publicOrderLimiter, (req, res) => {
   }
 });
 
-// Customer Ticket Status Lookup
+// Customer Ticket Status Lookup (Supports single order_id or optional store query)
 app.get('/api/orders/public/:id', (req, res) => {
-  const order = getOrderByIdFromDb(req.params.id);
+  const storeId = req.query.storeId || req.query.store;
+  const order = getOrderByIdFromDb(req.params.id, storeId);
   if (!order) {
     return res.status(404).json({ error: 'Order ticket not found' });
   }

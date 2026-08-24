@@ -94,6 +94,7 @@ const routes = [
   },
   {
     path: '/queue/:orderId',
+    alias: ['/queue/:storeId/:orderId', '/ticket/:orderId', '/ticket/:storeId/:orderId', '/q/:orderId', '/q/:storeId/:orderId'],
     name: 'queue-ticket',
     component: QueueTicketView,
     meta: { isMobileFlow: true }
