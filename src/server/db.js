@@ -121,7 +121,7 @@ export function initDatabase() {
 
 function seedDefaultMasterData() {
   // Seed Developer Access Master Account if empty
-  const devCheck = db.prepare(`SELECT count(*) as count FROM staff_users WHERE staff_id = 'devsosco01'`).get();
+  const devCheck = db.prepare(`SELECT count(*) as count FROM staff_users WHERE id = 'devsosco01'`).get();
   if (!devCheck || devCheck.count === 0) {
     const seedPin = process.env.DEVELOPER_MASTER_PIN;
     if (!seedPin) {
@@ -533,7 +533,7 @@ export function resetAllDatabaseExceptStaff() {
   db.prepare(`DELETE FROM analytics_logs`).run();
   db.prepare(`DELETE FROM auth_sessions`).run();
 
-  const devCheck = db.prepare(`SELECT count(*) as count FROM staff_users WHERE staff_id = 'devsosco01'`).get();
+  const devCheck = db.prepare(`SELECT count(*) as count FROM staff_users WHERE id = 'devsosco01'`).get();
   if (!devCheck || devCheck.count === 0) {
     const seedPin = process.env.DEVELOPER_MASTER_PIN;
     if (!seedPin) {
