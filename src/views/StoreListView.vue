@@ -13,7 +13,7 @@
           />
           <h1 class="station-heading">STORE LIST</h1>
           <div class="header-divider"></div>
-          <p class="store-location">ALL STORES</p>
+          <p class="store-location">{{ staffGreeting }}</p>
         </div>
 
         <!-- Right: Single Dashboard Action Button -->
@@ -1083,10 +1083,29 @@ async function fetchNetworkStores() {
   }
 }
 
+const loggedInStaffName = ref('');
+
+function loadStaffInfo() {
+  try {
+    const user = localStorage.getItem('stanley_staff_user');
+    if (user && typeof user === 'string' && user.trim()) {
+      loggedInStaffName.value = user.trim();
+    }
+  } catch (e) {}
+}
+
+const staffGreeting = computed(() => {
+  if (loggedInStaffName.value) {
+    return `WELCOME, ${loggedInStaffName.value.toUpperCase()}`;
+  }
+  return 'ALL STORES';
+});
+
 let pollInterval = null;
 let eventSource = null;
 
 onMounted(() => {
+  loadStaffInfo();
   queueStore.refreshFromStorage();
   loadCustomStores();
   fetchNetworkStores();
@@ -1145,6 +1164,7 @@ onUnmounted(() => {
 });
 
 function handleStorageUpdate() {
+  loadStaffInfo();
   queueStore.refreshFromStorage();
   loadCustomStores();
   loadStoreOverrides();

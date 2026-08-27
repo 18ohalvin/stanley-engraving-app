@@ -11,7 +11,7 @@
           />
           <h1 class="station-heading">MAIN DASHBOARD</h1>
           <div class="header-divider"></div>
-          <p class="store-location">ALL STORES</p>
+          <p class="store-location">{{ staffGreeting }}</p>
         </div>
 
         <!-- Right Action Buttons: Store List, Logout (both outline box style), and Setting Icon -->
@@ -1704,7 +1704,26 @@ async function fetchNetworkStores() {
   } catch (e) {}
 }
 
+const loggedInStaffName = ref('');
+
+function loadStaffInfo() {
+  try {
+    const user = localStorage.getItem('stanley_staff_user');
+    if (user && typeof user === 'string' && user.trim()) {
+      loggedInStaffName.value = user.trim();
+    }
+  } catch (e) {}
+}
+
+const staffGreeting = computed(() => {
+  if (loggedInStaffName.value) {
+    return `WELCOME, ${loggedInStaffName.value.toUpperCase()}`;
+  }
+  return 'ALL STORES';
+});
+
 onMounted(() => {
+  loadStaffInfo();
   loadCategoryTargets();
   queueStore.refreshFromStorage();
   fetchNetworkStores();
@@ -1748,6 +1767,7 @@ onUnmounted(() => {
 });
 
 function handleStorageUpdate() {
+  loadStaffInfo();
   loadCategoryTargets();
   queueStore.refreshFromStorage();
 }
