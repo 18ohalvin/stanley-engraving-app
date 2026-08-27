@@ -41,8 +41,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-// Initialize SQLite database
-initDatabase();
+// Initialize database (PostgreSQL, MySQL, or SQLite)
+initDatabase().catch(err => {
+  console.error('❌ Database initialization error:', err);
+});
 
 // Rate limiter for customer public order submissions
 const publicOrderLimiter = rateLimit({
@@ -103,14 +105,14 @@ app.get('/api/events', (req, res) => {
 });
 
 // Customer Public Order Submission (Strict Rate Limited)
-app.post('/api/orders/public', publicOrderLimiter, (req, res) => {
+app.post('/api/orders/public', publicOrderLimiter, async (req, res) => {
   try {
     const payload = req.body;
     if (!payload || !payload.order_id) {
       return res.status(400).json({ error: 'Order payload must include order_id' });
     }
-    const saved = upsertSingleOrderInDb(payload);
-    const allOrders = getAllOrdersFromDb();
+    const saved = await upsertSingleOrderInDb(payload);
+    const allOrders = await getAllOrdersFromDb();
     broadcast('orders_updated', allOrders);
     res.json({ success: true, order: saved });
   } catch (err) {
@@ -119,28 +121,32 @@ app.post('/api/orders/public', publicOrderLimiter, (req, res) => {
 });
 
 // Customer Ticket Status Lookup (Supports single order_id or optional store query)
-app.get('/api/orders/public/:id', (req, res) => {
-  const storeId = req.query.storeId || req.query.store;
-  const order = getOrderByIdFromDb(req.params.id, storeId);
-  if (!order) {
-    return res.status(404).json({ error: 'Order ticket not found' });
+app.get('/api/orders/public/:id', async (req, res) => {
+  try {
+    const storeId = req.query.storeId || req.query.store;
+    const order = await getOrderByIdFromDb(req.params.id, storeId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order ticket not found' });
+    }
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.json(order);
 });
 
 // ----------------------------------------------------
 // AUTHENTICATION ENDPOINTS (Staff PIN Authentication)
 // ----------------------------------------------------
 
-// POST /api/auth/login (PIN Authentication against SQLite)
-app.post('/api/auth/login', loginLimiter, (req, res) => {
+// POST /api/auth/login (PIN Authentication against DB)
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
   try {
     const { idOrUsername, pin } = req.body;
     if (!idOrUsername || !pin) {
       return res.status(400).json({ error: 'Staff ID/Username and PIN are required' });
     }
 
-    const staff = findStaffForAuth(idOrUsername);
+    const staff = await findStaffForAuth(idOrUsername);
     if (!staff) {
       return res.status(404).json({ error: 'Account not found. Only registered staff members can log in.' });
     }
@@ -156,8 +162,8 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
       return res.status(401).json({ error: 'Invalid PIN for this staff account. Please try again.' });
     }
 
-    // Create persistent auth session in SQLite
-    const session = createAuthSessionInDb(staff);
+    // Create persistent auth session in DB
+    const session = await createAuthSessionInDb(staff);
 
     res.json({
       success: true,
@@ -189,11 +195,11 @@ app.get('/api/auth/verify', requireAuth, (req, res) => {
 });
 
 // POST /api/auth/logout
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
   const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
   if (authHeader) {
     const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
-    deleteAuthSessionToken(token);
+    await deleteAuthSessionToken(token);
   }
   res.json({ success: true });
 });
@@ -203,7 +209,7 @@ app.post('/api/auth/logout', (req, res) => {
 // ----------------------------------------------------
 
 // Best-effort auth check: identifies a logged-in staff session without rejecting the request
-function getOptionalStaffSession(req) {
+async function getOptionalStaffSession(req) {
   const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
   if (!authHeader) return null;
   const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
@@ -211,25 +217,32 @@ function getOptionalStaffSession(req) {
 }
 
 // GET orders isolated by storeID
-app.get('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, (req, res) => {
-  const storeId = req.params.storeId;
-  res.json(getAllOrdersFromDb(storeId));
+app.get('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, async (req, res) => {
+  try {
+    const storeId = req.params.storeId;
+    const orders = await getAllOrdersFromDb(storeId);
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST save/upsert orders for specific storeID
-app.post('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, (req, res) => {
+app.post('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, async (req, res) => {
   try {
     const storeId = req.params.storeId;
     const payload = req.body;
 
     if (Array.isArray(payload)) {
-      saveAllOrdersToDb(payload, storeId);
-      broadcast('orders_updated', getAllOrdersFromDb());
+      await saveAllOrdersToDb(payload, storeId);
+      const allOrders = await getAllOrdersFromDb();
+      broadcast('orders_updated', allOrders);
       return res.json({ success: true, count: payload.length });
     }
 
-    const saved = upsertSingleOrderInDb(payload, storeId);
-    broadcast('orders_updated', getAllOrdersFromDb());
+    const saved = await upsertSingleOrderInDb(payload, storeId);
+    const allOrders = await getAllOrdersFromDb();
+    broadcast('orders_updated', allOrders);
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -237,40 +250,50 @@ app.post('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, (req, r
 });
 
 // GET single order by ID isolated by storeID
-app.get('/api/stores/:storeId/orders/:id', requireAuth, requireStoreAccess, (req, res) => {
-  const order = getOrderByIdFromDb(req.params.id, req.params.storeId);
-  if (!order) {
-    return res.status(404).json({ error: 'Order ticket not found for this store' });
+app.get('/api/stores/:storeId/orders/:id', requireAuth, requireStoreAccess, async (req, res) => {
+  try {
+    const order = await getOrderByIdFromDb(req.params.id, req.params.storeId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order ticket not found for this store' });
+    }
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.json(order);
 });
 
-// GET all orders from SQLite (filtered by staff session storeId if authenticated;
+// GET all orders from DB (filtered by staff session storeId if authenticated;
 // customer PII stripped for unauthenticated/public access)
-app.get('/api/orders', (req, res) => {
-  const session = getOptionalStaffSession(req);
-  const orders = getAllOrdersFromDb(session ? session.storeId : null);
-  if (session) {
-    return res.json(orders);
+app.get('/api/orders', async (req, res) => {
+  try {
+    const session = await getOptionalStaffSession(req);
+    const orders = await getAllOrdersFromDb(session ? session.storeId : null);
+    if (session) {
+      return res.json(orders);
+    }
+    const sanitized = orders.map(({ phone, email, ...rest }) => rest);
+    res.json(sanitized);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  const sanitized = orders.map(({ phone, email, ...rest }) => rest);
-  res.json(sanitized);
 });
 
-// POST save/upsert orders in SQLite (Protected)
-app.post('/api/orders', requireAuth, (req, res) => {
+// POST save/upsert orders in DB (Protected)
+app.post('/api/orders', requireAuth, async (req, res) => {
   try {
     const payload = req.body;
     const storeId = req.staffSession ? req.staffSession.storeId : null;
 
     if (Array.isArray(payload)) {
-      saveAllOrdersToDb(payload, storeId);
-      broadcast('orders_updated', getAllOrdersFromDb());
+      await saveAllOrdersToDb(payload, storeId);
+      const allOrders = await getAllOrdersFromDb();
+      broadcast('orders_updated', allOrders);
       return res.json({ success: true, count: payload.length });
     }
 
-    const saved = upsertSingleOrderInDb(payload, storeId);
-    broadcast('orders_updated', getAllOrdersFromDb());
+    const saved = await upsertSingleOrderInDb(payload, storeId);
+    const allOrders = await getAllOrdersFromDb();
+    broadcast('orders_updated', allOrders);
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -278,20 +301,24 @@ app.post('/api/orders', requireAuth, (req, res) => {
 });
 
 // POST reset database (Protected Super Admin)
-app.post('/api/reset', requireSuperAdmin, (req, res) => {
-  resetAllDatabaseExceptStaff();
-  broadcast('orders_updated', []);
-  res.json({ success: true, orders: [] });
+app.post('/api/reset', requireSuperAdmin, async (req, res) => {
+  try {
+    await resetAllDatabaseExceptStaff();
+    broadcast('orders_updated', []);
+    res.json({ success: true, orders: [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Middleware for admin management (Super Admin with graceful fallback for local single-device setups)
-function requireAdminAccess(req, res, next) {
+async function requireAdminAccess(req, res, next) {
   const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
   if (!authHeader) {
     return next();
   }
   const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
-  const session = verifyAuthSessionToken(token);
+  const session = await verifyAuthSessionToken(token);
   if (!session) {
     return next();
   }
@@ -303,21 +330,25 @@ function requireAdminAccess(req, res, next) {
 }
 
 // GET staff list (Public/Sanitized - PIN hashes stripped)
-app.get('/api/staff', (req, res) => {
-  const staff = getAllStaffUsersFromDb();
-  const sanitized = staff.map(({ pin, ...rest }) => rest);
-  res.json(sanitized);
+app.get('/api/staff', async (req, res) => {
+  try {
+    const staff = await getAllStaffUsersFromDb();
+    const sanitized = staff.map(({ pin, ...rest }) => rest);
+    res.json(sanitized);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST add/update staff user (Admin / Super Admin)
-app.post('/api/staff', requireAdminAccess, (req, res) => {
+app.post('/api/staff', requireAdminAccess, async (req, res) => {
   try {
     const user = req.body;
     if (!user || (!user.staffId && !user.name && !user.id)) {
       return res.status(400).json({ error: 'staffId and name are required' });
     }
-    saveStaffUserInDb(user);
-    const allStaff = getAllStaffUsersFromDb();
+    await saveStaffUserInDb(user);
+    const allStaff = await getAllStaffUsersFromDb();
     broadcast('staff_updated', allStaff);
     res.json({ success: true, user, staff: allStaff });
   } catch (err) {
@@ -326,14 +357,18 @@ app.post('/api/staff', requireAdminAccess, (req, res) => {
 });
 
 // DELETE staff user (Admin / Super Admin)
-app.delete('/api/staff/:id', requireAdminAccess, (req, res) => {
-  const success = deleteStaffUserFromDb(req.params.id);
-  if (!success) {
-    return res.status(403).json({ error: 'Master Developer account cannot be deleted' });
+app.delete('/api/staff/:id', requireAdminAccess, async (req, res) => {
+  try {
+    const success = await deleteStaffUserFromDb(req.params.id);
+    if (!success) {
+      return res.status(403).json({ error: 'Master Developer account cannot be deleted' });
+    }
+    const allStaff = await getAllStaffUsersFromDb();
+    broadcast('staff_updated', allStaff);
+    res.json({ success: true, staff: allStaff });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
-  const allStaff = getAllStaffUsersFromDb();
-  broadcast('staff_updated', allStaff);
-  res.json({ success: true, staff: allStaff });
 });
 
 // ----------------------------------------------------
@@ -341,19 +376,24 @@ app.delete('/api/staff/:id', requireAdminAccess, (req, res) => {
 // ----------------------------------------------------
 
 // GET network stores (Public/Optional Auth)
-app.get('/api/network/stores', (req, res) => {
-  res.json(getAllStoresFromDb());
+app.get('/api/network/stores', async (req, res) => {
+  try {
+    const stores = await getAllStoresFromDb();
+    res.json(stores);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST add/update store in network (Admin / Super Admin)
-app.post('/api/network/stores', requireAdminAccess, (req, res) => {
+app.post('/api/network/stores', requireAdminAccess, async (req, res) => {
   try {
     const store = req.body;
     if (!store || (!store.id && !store.code && !store.name)) {
       return res.status(400).json({ error: 'Store ID/Code and Name are required' });
     }
-    const saved = saveStoreInDb(store);
-    const allStores = getAllStoresFromDb();
+    const saved = await saveStoreInDb(store);
+    const allStores = await getAllStoresFromDb();
     broadcast('stores_updated', allStores);
     res.json({ success: true, store: saved, stores: allStores });
   } catch (err) {
@@ -362,20 +402,24 @@ app.post('/api/network/stores', requireAdminAccess, (req, res) => {
 });
 
 // DELETE store from network (Admin / Super Admin)
-app.delete('/api/network/stores/:id', requireAdminAccess, (req, res) => {
-  const success = deleteStoreFromDb(req.params.id);
-  if (!success) {
-    return res.status(404).json({ error: 'Store not found or could not be deleted' });
+app.delete('/api/network/stores/:id', requireAdminAccess, async (req, res) => {
+  try {
+    const success = await deleteStoreFromDb(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Store not found or could not be deleted' });
+    }
+    const allStores = await getAllStoresFromDb();
+    broadcast('stores_updated', allStores);
+    res.json({ success: true, stores: allStores });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
-  const allStores = getAllStoresFromDb();
-  broadcast('stores_updated', allStores);
-  res.json({ success: true, stores: allStores });
 });
 
 // GET products catalog (Public for customer PWA & Admin settings)
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
   try {
-    const products = getAllProductsFromDb();
+    const products = await getAllProductsFromDb();
     res.json(products);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -383,10 +427,10 @@ app.get('/api/products', (req, res) => {
 });
 
 // POST save products catalog (Admin / Super Admin)
-app.post('/api/products', requireAdminAccess, (req, res) => {
+app.post('/api/products', requireAdminAccess, async (req, res) => {
   try {
     const products = Array.isArray(req.body) ? req.body : (req.body.products || []);
-    const saved = saveProductsInDb(products);
+    const saved = await saveProductsInDb(products);
     broadcast('products_updated', saved);
     broadcast('settings_updated', { key: 'products', value: saved });
     res.json({ success: true, products: saved });
@@ -396,16 +440,20 @@ app.post('/api/products', requireAdminAccess, (req, res) => {
 });
 
 // GET setting by key (Public for PWA / settings synchronization)
-app.get('/api/settings/:key', (req, res) => {
-  const val = getSettingsFromDb(req.params.key);
-  res.json({ key: req.params.key, value: val });
+app.get('/api/settings/:key', async (req, res) => {
+  try {
+    const val = await getSettingsFromDb(req.params.key);
+    res.json({ key: req.params.key, value: val });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST save setting by key (Admin / Super Admin)
-app.post('/api/settings/:key', requireAdminAccess, (req, res) => {
+app.post('/api/settings/:key', requireAdminAccess, async (req, res) => {
   try {
     const val = req.body.value !== undefined ? req.body.value : req.body;
-    const saved = saveSettingsInDb(req.params.key, val);
+    const saved = await saveSettingsInDb(req.params.key, val);
     broadcast('settings_updated', { key: req.params.key, value: saved });
     res.json({ success: true, key: req.params.key, value: saved });
   } catch (err) {
@@ -423,5 +471,5 @@ if (fs.existsSync(distPath)) {
 }
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Stanley Engraving Server running with SQLite & Express Auth at http://0.0.0.0:${PORT}`);
+  console.log(`🚀 Stanley Engraving Server running with Multi-DB (PostgreSQL/MySQL/SQLite) at http://0.0.0.0:${PORT}`);
 });

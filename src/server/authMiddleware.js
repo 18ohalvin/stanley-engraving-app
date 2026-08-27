@@ -3,7 +3,7 @@ import { verifyAuthSessionToken } from './db.js';
 /**
  * Express middleware to enforce valid Staff Auth Session Token
  */
-export function requireAuth(req, res, next) {
+export async function requireAuth(req, res, next) {
   const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
   let token = null;
 
@@ -21,7 +21,7 @@ export function requireAuth(req, res, next) {
     });
   }
 
-  const session = verifyAuthSessionToken(token);
+  const session = await verifyAuthSessionToken(token);
   if (!session) {
     return res.status(401).json({ 
       error: 'Invalid or expired session token. Please log in again.' 
@@ -35,8 +35,8 @@ export function requireAuth(req, res, next) {
 /**
  * Express middleware to enforce Super Admin or Master Developer role
  */
-export function requireSuperAdmin(req, res, next) {
-  requireAuth(req, res, () => {
+export async function requireSuperAdmin(req, res, next) {
+  await requireAuth(req, res, () => {
     if (req.staffSession && (req.staffSession.role === 'Super Admin' || req.staffSession.isDeveloper)) {
       return next();
     }
@@ -49,8 +49,8 @@ export function requireSuperAdmin(req, res, next) {
 /**
  * Express middleware to enforce strict multi-tenant store access control
  */
-export function requireStoreAccess(req, res, next) {
-  requireAuth(req, res, () => {
+export async function requireStoreAccess(req, res, next) {
+  await requireAuth(req, res, () => {
     const session = req.staffSession;
     if (!session) {
       return res.status(401).json({ error: 'Authentication required.' });

@@ -516,25 +516,25 @@ assert(formatTimeTick(3.5) === '03:30', '3.5 minutes formats to 03:30');
 assert(formatTimeTick(15.0) === '15:00', '15.0 minutes formats to 15:00');
 
 console.log('\n--- 9. Testing SQLite Database Persistence & Express Auth Middleware ---');
-initDatabase();
+await initDatabase();
 
 // 1. Check Developer Account in SQLite DB
-const devDbStaff = findStaffForAuth('devsosco01');
+const devDbStaff = await findStaffForAuth('devsosco01');
 assert(devDbStaff !== null, 'Developer Master account devsosco01 exists in SQLite staff_users');
 assert(devDbStaff.pin !== process.env.DEVELOPER_MASTER_PIN, 'Developer account PIN is stored hashed, not plaintext');
 assert(bcrypt.compareSync(process.env.DEVELOPER_MASTER_PIN, devDbStaff.pin), 'Developer account PIN hash matches seeded PIN');
 assert(devDbStaff.isDeveloper === true, 'Developer account has isDeveloper flag');
 
 // 2. Auth session token generation & verification
-const devSession = createAuthSessionInDb(devDbStaff);
+const devSession = await createAuthSessionInDb(devDbStaff);
 assert(devSession.token.startsWith('stk_'), 'Generates secure session bearer token');
 
-const verifiedSession = verifyAuthSessionToken(devSession.token);
+const verifiedSession = await verifyAuthSessionToken(devSession.token);
 assert(verifiedSession !== null, 'Verifies valid session token');
 assert(verifiedSession.staffId === 'devsosco01', 'Verified session matches staffId devsosco01');
 
-deleteAuthSessionToken(devSession.token);
-assert(verifyAuthSessionToken(devSession.token) === null, 'Session token invalidated after logout');
+await deleteAuthSessionToken(devSession.token);
+assert(await verifyAuthSessionToken(devSession.token) === null, 'Session token invalidated after logout');
 
 // 3. SQLite order storage & retrieval
 const testOrder = {
@@ -550,15 +550,16 @@ const testOrder = {
   durationSeconds: 210
 };
 
-upsertSingleOrderInDb(testOrder);
-const fetchedOrder = getAllOrdersFromDb().find(o => o.order_id === 'sql-test-101');
+await upsertSingleOrderInDb(testOrder);
+const allDbOrders = await getAllOrdersFromDb();
+const fetchedOrder = allDbOrders.find(o => o.order_id === 'sql-test-101');
 assert(fetchedOrder !== null, 'Order saved and fetched from SQLite database data/stanley.db');
 assert(fetchedOrder.customer_name === 'SQL Tester', 'Fetched SQLite order matches customer name');
 assert(fetchedOrder.items[0].text === 'SQLTEST', 'Fetched SQLite order preserves customized items JSON');
-clearAllOrdersInDb();
+await clearAllOrdersInDb();
 
 // 4. SQLite Store Network Storage & Retrieval
-const initialStores = getAllStoresFromDb();
+const initialStores = await getAllStoresFromDb();
 assert(initialStores.length >= 4, 'Default network stores seeded in SQLite database');
 const newStoreDb = {
   id: 'EG-TEST',
@@ -571,13 +572,14 @@ const newStoreDb = {
   active_machines: 2,
   status: 'Online'
 };
-saveStoreInDb(newStoreDb);
-const updatedStores = getAllStoresFromDb();
+await saveStoreInDb(newStoreDb);
+const updatedStores = await getAllStoresFromDb();
 const foundStore = updatedStores.find(s => s.code === 'EG-TEST');
 assert(foundStore !== undefined, 'New store saved to SQLite database data/stanley.db');
 assert(foundStore.name === 'Test Kiosk Store', 'Fetched SQLite store matches name');
-deleteStoreFromDb('EG-TEST');
-assert(getAllStoresFromDb().find(s => s.code === 'EG-TEST') === undefined, 'Store deleted from SQLite database');
+await deleteStoreFromDb('EG-TEST');
+const storesAfterDelete = await getAllStoresFromDb();
+assert(storesAfterDelete.find(s => s.code === 'EG-TEST') === undefined, 'Store deleted from SQLite database');
 
 // 4. Express authorization middleware mock test
 let reqMock = { headers: { authorization: `Bearer invalid_token` } };
@@ -588,7 +590,7 @@ let resMock = {
 };
 let nextCalled = false;
 
-requireAuth(reqMock, resMock, () => { nextCalled = true; });
+await requireAuth(reqMock, resMock, () => { nextCalled = true; });
 assert(resMock.statusCode === 401, 'requireAuth rejects invalid bearer token with HTTP 401');
 assert(nextCalled === false, 'Next route handler not called when unauthenticated');
 
@@ -596,11 +598,11 @@ console.log('\n--- 10. Testing Backend Multi-Tenancy Architecture & requireStore
 
 // 1. Session token embeds assigned storeID
 const egStaff = { id: 'usr-1', staffId: 'EG-021', name: 'Ayu Dewi', role: 'Staff Store', store: 'EG-021' };
-const egSession = createAuthSessionInDb(egStaff);
+const egSession = await createAuthSessionInDb(egStaff);
 assert(Boolean(egSession.token), 'Staff session created with token');
 assert(egSession.storeId === 'EG-021', 'Session embeds staff assigned storeID EG-021');
 
-const verifiedEgSession = verifyAuthSessionToken(egSession.token);
+const verifiedEgSession = await verifyAuthSessionToken(egSession.token);
 assert(verifiedEgSession.storeId === 'EG-021', 'verifyAuthSessionToken returns embedded storeID');
 
 // 2. requireStoreAccess Middleware Verification
@@ -611,7 +613,7 @@ let storeReqAllowed = {
 let storeResAllowed = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(d) { this.data = d; return this; } };
 let allowedNext = false;
 
-requireStoreAccess(storeReqAllowed, storeResAllowed, () => { allowedNext = true; });
+await requireStoreAccess(storeReqAllowed, storeResAllowed, () => { allowedNext = true; });
 assert(allowedNext === true, 'requireStoreAccess permits staff to access their assigned store (EG-021)');
 
 let storeReqDenied = {
@@ -621,12 +623,12 @@ let storeReqDenied = {
 let storeResDenied = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(d) { this.data = d; return this; } };
 let deniedNext = false;
 
-requireStoreAccess(storeReqDenied, storeResDenied, () => { deniedNext = true; });
+await requireStoreAccess(storeReqDenied, storeResDenied, () => { deniedNext = true; });
 assert(storeResDenied.statusCode === 403, 'requireStoreAccess blocks staff from accessing another store with HTTP 403');
 assert(deniedNext === false, 'Next handler not called when cross-store access is blocked');
 
 // Super Admin / Master Developer bypass test
-let superAdminSession = createAuthSessionInDb(devDbStaff);
+let superAdminSession = await createAuthSessionInDb(devDbStaff);
 let superReq = {
   headers: { authorization: `Bearer ${superAdminSession.token}` },
   params: { storeId: 'EG-022' }
@@ -634,26 +636,26 @@ let superReq = {
 let superRes = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(d) { this.data = d; return this; } };
 let superNext = false;
 
-requireStoreAccess(superReq, superRes, () => { superNext = true; });
+await requireStoreAccess(superReq, superRes, () => { superNext = true; });
 assert(superNext === true, 'Master Developer/Super Admin permits cross-store access for monitoring');
 
 // 3. SQLite Multi-Tenant Data Isolation Tests
-clearAllOrdersInDb();
+await clearAllOrdersInDb();
 const orderStore21 = { order_id: 'order-eg21-001', intake_code: 'A21', status: 'in_queue', store_id: 'EG-021', customer_name: 'Store 21 Customer' };
 const orderStore22 = { order_id: 'order-eg22-001', intake_code: 'B22', status: 'in_queue', store_id: 'EG-022', customer_name: 'Store 22 Customer' };
 
-upsertSingleOrderInDb(orderStore21, 'EG-021');
-upsertSingleOrderInDb(orderStore22, 'EG-022');
+await upsertSingleOrderInDb(orderStore21, 'EG-021');
+await upsertSingleOrderInDb(orderStore22, 'EG-022');
 
-const store21Orders = getAllOrdersFromDb('EG-021');
+const store21Orders = await getAllOrdersFromDb('EG-021');
 assert(store21Orders.length === 1, 'Store EG-021 query returns exactly 1 order');
 assert(store21Orders[0].order_id === 'order-eg21-001', 'Store EG-021 query isolates matching store order');
 
-const store22Orders = getAllOrdersFromDb('EG-022');
+const store22Orders = await getAllOrdersFromDb('EG-022');
 assert(store22Orders.length === 1, 'Store EG-022 query returns exactly 1 order');
 assert(store22Orders[0].order_id === 'order-eg22-001', 'Store EG-022 query isolates matching store order');
 
-const allMultiOrders = getAllOrdersFromDb('*');
+const allMultiOrders = await getAllOrdersFromDb('*');
 assert(allMultiOrders.length === 2, 'Super Admin query (*) returns all multi-tenant orders across network');
 
 // 4. Dynamic Store Form & Order Payload Injection Tests
@@ -691,27 +693,27 @@ assert(`/engrave/${getCleanStoreAlias(sampleStoreGI)}` === '/engrave/EG-021', 'S
 assert(`/engrave/${getCleanStoreAlias(sampleStorePIM)}` === '/engrave/EG-022', 'Super Admin & Developer can visit PIM PWA Landing Page via /engrave/EG-022');
 
 // 6. Multi-Tenancy Daily Reset Queue ID Generation Tests
-clearAllOrdersInDb();
-const emptyStore21Next = getNextQueueNumberFromDb('EG-021');
+await clearAllOrdersInDb();
+const emptyStore21Next = await getNextQueueNumberFromDb('EG-021');
 assert(emptyStore21Next === '0001', 'First order for store EG-021 on empty day starts at 0001');
 
 const todayStr = new Date().toISOString();
-upsertSingleOrderInDb({ order_id: 'ord-today-1', system_queue_number: '0001', status: 'in_queue', store_id: 'EG-021', created_at: todayStr }, 'EG-021');
-const nextStore21Order = getNextQueueNumberFromDb('EG-021');
+await upsertSingleOrderInDb({ order_id: 'ord-today-1', system_queue_number: '0001', status: 'in_queue', store_id: 'EG-021', created_at: todayStr }, 'EG-021');
+const nextStore21Order = await getNextQueueNumberFromDb('EG-021');
 assert(nextStore21Order === '0002', 'Next order for store EG-021 on same day increments to 0002');
 
 // Cross-store isolation test: Store EG-022 should still start at 0001
-const nextStore22Order = getNextQueueNumberFromDb('EG-022');
+const nextStore22Order = await getNextQueueNumberFromDb('EG-022');
 assert(nextStore22Order === '0001', 'Store EG-022 starts at 0001 independently of Store EG-021');
 
 // Yesterday date reset test: Previous day order does not affect today's reset
 const yesterdayStr = new Date(Date.now() - 86400000).toISOString();
-upsertSingleOrderInDb({ order_id: 'ord-yesterday-1', system_queue_number: '0099', status: 'in_queue', store_id: 'EG-023', created_at: yesterdayStr }, 'EG-023');
-const todayStore23Next = getNextQueueNumberFromDb('EG-023');
+await upsertSingleOrderInDb({ order_id: 'ord-yesterday-1', system_queue_number: '0099', status: 'in_queue', store_id: 'EG-023', created_at: yesterdayStr }, 'EG-023');
+const todayStore23Next = await getNextQueueNumberFromDb('EG-023');
 assert(todayStore23Next === '0001', 'Yesterday order on EG-023 does not affect today starting at 0001');
 
 // 7. Customer A and Customer B Simultaneous Submission & Out-of-Order Confirmation Test
-clearAllOrdersInDb();
+await clearAllOrdersInDb();
 queueStore.resetDatabase();
 
 const orderA = {
@@ -754,8 +756,8 @@ assert(queueStore.getOrderById('ord-cust-A').system_queue_number === '0002', 'Cu
 
 // Store Name vs Store ID Alias Matching Test:
 // Ensure getNextQueueNumberFromDb with Store Name 'Grand Indonesia' recognizes 'EG-021' orders
-upsertSingleOrderInDb({ order_id: 'ord-alias-1', system_queue_number: '0001', status: 'in_queue', store_id: 'EG-021', store_name: 'Grand Indonesia', created_at: todayStr }, 'EG-021');
-const nextViaAlias = getNextQueueNumberFromDb('Grand Indonesia');
+await upsertSingleOrderInDb({ order_id: 'ord-alias-1', system_queue_number: '0001', status: 'in_queue', store_id: 'EG-021', store_name: 'Grand Indonesia', created_at: todayStr }, 'EG-021');
+const nextViaAlias = await getNextQueueNumberFromDb('Grand Indonesia');
 assert(nextViaAlias === '0002', 'getNextQueueNumberFromDb correctly matches store name Grand Indonesia to EG-021 order and increments to 0002');
 
 // Cross-Store Intake Lookup Blocking Test:
@@ -793,9 +795,9 @@ let cleanDigits = phonePim.replace(/\D/g, '');
 if (cleanDigits.startsWith('0')) cleanDigits = '62' + cleanDigits.slice(1);
 assert(cleanDigits === '6281755667788', 'Phone digits cleaned for WhatsApp wa.me link');
 
-clearAllOrdersInDb();
-deleteAuthSessionToken(egSession.token);
-deleteAuthSessionToken(superAdminSession.token);
+await clearAllOrdersInDb();
+await deleteAuthSessionToken(egSession.token);
+await deleteAuthSessionToken(superAdminSession.token);
 
 console.log('\n========================================');
 console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
