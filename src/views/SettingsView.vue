@@ -417,14 +417,14 @@
 
           <form @submit.prevent="saveProductForm" class="modal-form-content">
             
-            <!-- 2 Image Upload Boxes: Product Image (Step 1) & Product Engraved (Step 2) (Figma 351:441) -->
-            <div class="two-images-upload-grid">
+            <!-- Image Containers: Product Image (width 235px) & Product Engraved (width 464px) (Figma 351:441) -->
+            <div class="product-modal-images-row">
               
-              <!-- Box 1: Product Image (Step 1 Thumbnail) -->
-              <div class="image-upload-column">
-                <label class="image-box-heading">Product Image</label>
+              <!-- Column 1: Product Image Box (Figma 350:383) -->
+              <div class="product-image-box">
+                <span class="modal-section-label">Product Image</span>
                 <div 
-                  class="upload-dropzone-box" 
+                  class="figma-upload-dropzone" 
                   :class="{ 'has-image': !!productForm.image }"
                   @click="triggerProductImageUpload"
                   @dragover.prevent
@@ -439,199 +439,155 @@
                   />
 
                   <template v-if="productForm.image">
-                    <img :src="productForm.image" alt="Product Thumbnail" class="uploaded-preview-img" />
+                    <img :src="productForm.image" alt="Product Thumbnail" class="figma-preview-img" />
                     <div class="upload-overlay-actions" @click.stop>
                       <button type="button" class="btn-overlay-action" @click="triggerProductImageUpload">Change</button>
                       <button type="button" class="btn-overlay-action btn-remove" @click="productForm.image = ''">Remove</button>
                     </div>
                   </template>
                   <template v-else>
-                    <div class="upload-icon-circle">
-                      <svg class="upload-svg-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <div class="upload-icon-circle-figma">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                         <circle cx="8.5" cy="8.5" r="1.5"></circle>
                         <polyline points="21 15 16 10 5 21"></polyline>
                       </svg>
                     </div>
-                    <span class="upload-prompt-text">Click to upload image</span>
-                    <span class="upload-format-hint">Portrait 4:5 (e.g. 1200×1500px PNG)</span>
+                    <span class="upload-title-bold">Click to upload image</span>
+                    <span class="upload-format-sub">PNG, JPG up to 5MB</span>
                   </template>
                 </div>
               </div>
 
-              <!-- Box 2: Product Engraved (Step 2 Engraving Space) -->
-              <div class="image-upload-column">
-                <label class="image-box-heading">Product Engraved</label>
-                <div 
-                  class="upload-dropzone-box" 
-                  :class="{ 'has-image': !!productForm.engravedImage }"
-                  @click="triggerEngravedImageUpload"
-                  @dragover.prevent
-                  @drop.prevent="handleEngravedImageDrop"
-                >
-                  <input 
-                    ref="engravedImageInputRef" 
-                    type="file" 
-                    accept="image/png, image/jpeg, image/webp" 
-                    class="hidden-file-input" 
-                    @change="onEngravedImageFileSelected" 
-                  />
-
-                  <template v-if="productForm.engravedImage">
-                    <img :src="productForm.engravedImage" alt="Product Engraved Space" class="uploaded-preview-img" />
-                    <div class="upload-overlay-actions" @click.stop>
-                      <button type="button" class="btn-overlay-action" @click="triggerEngravedImageUpload">Change</button>
-                      <button type="button" class="btn-overlay-action btn-remove" @click="productForm.engravedImage = ''">Remove</button>
-                    </div>
-                  </template>
-                  <template v-else>
-                    <div class="upload-icon-circle">
-                      <svg class="upload-svg-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                      </svg>
-                    </div>
-                    <span class="upload-prompt-text">Click to upload image</span>
-                    <span class="upload-format-hint">Portrait 4:5 (e.g. 1200×1500px PNG)</span>
-                  </template>
-                </div>
-              </div>
-
-            </div>
-
-            <!-- Interactive Engraving Placement Setting Tool -->
-            <div class="placement-config-section">
-              <div class="placement-config-header">
-                <div class="placement-config-title-group">
-                  <span class="placement-config-title">Laser Engraving Text Placement</span>
-                  <span class="placement-config-desc">Click or drag the text target on the tumbler preview to set exact engraving position</span>
-                </div>
-                <!-- Interactive Orientation Preview Toggle -->
-                <div class="placement-preview-toggles">
-                  <button 
-                    type="button"
-                    class="placement-toggle-pill"
-                    :class="{ 'is-active': adminPreviewOrientation === 'Horizontal' }"
-                    @click="adminPreviewOrientation = 'Horizontal'"
-                  >
-                    Horizontal
-                  </button>
-                  <button 
-                    type="button"
-                    class="placement-toggle-pill"
-                    :class="{ 'is-active': adminPreviewOrientation === 'Vertical' }"
-                    @click="adminPreviewOrientation = 'Vertical'"
-                  >
-                    Vertical
-                  </button>
-                </div>
-              </div>
-
-              <div class="placement-interactive-workbench">
-                <!-- Interactive Visual Bottle Canvas -->
-                <div 
-                  class="interactive-bottle-canvas"
-                  ref="placementCanvasRef"
-                  @mousedown="startPlacementDrag"
-                  @touchstart.passive="startPlacementTouch"
-                  @click="handlePlacementCanvasClick"
-                >
-                  <img 
-                    :src="productForm.engravedImage || productForm.image || productStep2" 
-                    alt="Bottle Engraving Zone" 
-                    class="interactive-bottle-img" 
-                  />
-
-                  <!-- Draggable / Clickable Text Target Marker -->
+              <!-- Column 2: Product Engraved Box with Integrated Placement Tool (Figma 351:427) -->
+              <div class="product-engraved-box">
+                <span class="modal-section-label">Product Engraved</span>
+                
+                <div class="engraved-content-split">
+                  <!-- Left: Engraved Preview / Dropzone with Interactive Text Placement Pin -->
                   <div 
-                    class="interactive-text-pin"
-                    :class="{ 'is-vertical': adminPreviewOrientation === 'Vertical', 'is-dragging': isDraggingPlacement }"
-                    :style="{
-                      top: `${productForm.textTop}%`,
-                      left: `${productForm.textLeft}%`,
-                      fontSize: `${productForm.textSize}px`
-                    }"
+                    class="figma-upload-dropzone engraved-dropzone" 
+                    :class="{ 'has-image': !!productForm.engravedImage }"
+                    ref="placementCanvasRef"
+                    @click="!productForm.engravedImage ? triggerEngravedImageUpload() : handlePlacementCanvasClick($event)"
+                    @mousedown="productForm.engravedImage && startPlacementDrag($event)"
+                    @touchstart.passive="productForm.engravedImage && startPlacementTouch($event)"
+                    @dragover.prevent
+                    @drop.prevent="handleEngravedImageDrop"
                   >
-                    <span class="pin-label">TEXT</span>
+                    <input 
+                      ref="engravedImageInputRef" 
+                      type="file" 
+                      accept="image/png, image/jpeg, image/webp" 
+                      class="hidden-file-input" 
+                      @change="onEngravedImageFileSelected" 
+                    />
+
+                    <template v-if="productForm.engravedImage">
+                      <img :src="productForm.engravedImage" alt="Product Engraved Space" class="figma-preview-img engraved-target-img" />
+                      
+                      <!-- Draggable & Clickable Laser Text Marker Pin -->
+                      <div 
+                        class="interactive-text-pin"
+                        :class="{ 'is-vertical': adminPreviewOrientation === 'Vertical', 'is-dragging': isDraggingPlacement }"
+                        :style="{
+                          top: `${productForm.textTop}%`,
+                          left: `${productForm.textLeft}%`,
+                          fontSize: `${productForm.textSize}px`
+                        }"
+                        @click.stop
+                      >
+                        <span class="pin-label">TEXT</span>
+                      </div>
+
+                      <div class="upload-overlay-actions" @click.stop>
+                        <button type="button" class="btn-overlay-action" @click="triggerEngravedImageUpload">Change</button>
+                        <button type="button" class="btn-overlay-action btn-remove" @click="productForm.engravedImage = ''">Remove</button>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div class="upload-icon-circle-figma">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                          <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                      </div>
+                      <span class="upload-title-bold">Click to upload image</span>
+                      <span class="upload-format-sub">PNG, JPG up to 5MB</span>
+                    </template>
+                  </div>
+
+                  <!-- Right: Controls for Text Placement (Disabled if no engraved image uploaded) -->
+                  <div class="engraved-controls-column" :class="{ 'is-disabled': !productForm.engravedImage }">
+                    <!-- Orientation Tabs (Figma 451:414) -->
+                    <div class="orientation-tabs-pill">
+                      <button 
+                        type="button" 
+                        class="orientation-tab-btn"
+                        :class="{ 'is-active': adminPreviewOrientation === 'Horizontal' }"
+                        @click="adminPreviewOrientation = 'Horizontal'"
+                      >
+                        Horizontal
+                      </button>
+                      <button 
+                        type="button" 
+                        class="orientation-tab-btn"
+                        :class="{ 'is-active': adminPreviewOrientation === 'Vertical' }"
+                        @click="adminPreviewOrientation = 'Vertical'"
+                      >
+                        Vertical
+                      </button>
+                    </div>
+
+                    <!-- Vertical Position (Y) (Figma 452:443) -->
+                    <div class="engraved-slider-item">
+                      <span class="slider-figma-label">Vertical Position (Y)</span>
+                      <input 
+                        type="range" 
+                        min="15" 
+                        max="85" 
+                        step="1"
+                        v-model.number="productForm.textTop" 
+                        class="figma-sleek-slider" 
+                      />
+                    </div>
+
+                    <!-- Horizontal Position (X) (Figma 452:444) -->
+                    <div class="engraved-slider-item">
+                      <span class="slider-figma-label">Horizontal Position (X)</span>
+                      <input 
+                        type="range" 
+                        min="20" 
+                        max="80" 
+                        step="1"
+                        v-model.number="productForm.textLeft" 
+                        class="figma-sleek-slider" 
+                      />
+                    </div>
+
+                    <!-- Preview Text Size (Figma 452:451) -->
+                    <div class="engraved-slider-item">
+                      <span class="slider-figma-label">Preview Text Size</span>
+                      <input 
+                        type="range" 
+                        min="8" 
+                        max="18" 
+                        step="1"
+                        v-model.number="productForm.textSize" 
+                        class="figma-sleek-slider" 
+                      />
+                    </div>
+
+                    <!-- Interactive Guide Hint (Figma 452:437) -->
+                    <p class="engraved-placement-hint">
+                      Click or drag the text target on the tumbler preview to set exact engraving position.
+                    </p>
                   </div>
                 </div>
 
-                <!-- Sliders & Precise Controls -->
-                <div class="placement-sliders-panel">
-                  <!-- Vertical Y% Slider -->
-                  <div class="placement-slider-group">
-                    <div class="slider-label-row">
-                      <label>Vertical Position (Y)</label>
-                      <span class="slider-val-badge">{{ productForm.textTop }}%</span>
-                    </div>
-                    <input 
-                      type="range" 
-                      min="15" 
-                      max="85" 
-                      step="1"
-                      v-model.number="productForm.textTop" 
-                      class="placement-range-slider" 
-                    />
-                    <div class="slider-hints-row">
-                      <span>Top (15%)</span>
-                      <span>Middle (50%)</span>
-                      <span>Bottom (85%)</span>
-                    </div>
-                  </div>
-
-                  <!-- Horizontal X% Slider -->
-                  <div class="placement-slider-group">
-                    <div class="slider-label-row">
-                      <label>Horizontal Position (X)</label>
-                      <span class="slider-val-badge">{{ productForm.textLeft }}%</span>
-                    </div>
-                    <input 
-                      type="range" 
-                      min="20" 
-                      max="80" 
-                      step="1"
-                      v-model.number="productForm.textLeft" 
-                      class="placement-range-slider" 
-                    />
-                    <div class="slider-hints-row">
-                      <span>Left (20%)</span>
-                      <span>Center (50%)</span>
-                      <span>Right (80%)</span>
-                    </div>
-                  </div>
-
-                  <!-- Text Size Slider -->
-                  <div class="placement-slider-group">
-                    <div class="slider-label-row">
-                      <label>Preview Text Size</label>
-                      <span class="slider-val-badge">{{ productForm.textSize }}px</span>
-                    </div>
-                    <input 
-                      type="range" 
-                      min="8" 
-                      max="18" 
-                      step="1"
-                      v-model.number="productForm.textSize" 
-                      class="placement-range-slider" 
-                    />
-                    <div class="slider-hints-row">
-                      <span>Small (8px)</span>
-                      <span>Standard (12px)</span>
-                      <span>Large (18px)</span>
-                    </div>
-                  </div>
-
-                  <!-- Reset Coordinates CTA -->
-                  <button 
-                    type="button" 
-                    class="reset-placement-btn" 
-                    @click="productForm.textTop = 48; productForm.textLeft = 50; productForm.textSize = 12"
-                  >
-                    ↺ Reset to Center (48% / 50%)
-                  </button>
-                </div>
               </div>
+
             </div>
 
             <!-- Product Name Underline Input (Figma 350:397) -->
@@ -648,7 +604,7 @@
             <!-- Parameters 3-Column Configuration Row (Figma 350:401 & 377:2346) -->
             <div class="params-three-col-row">
               
-              <!-- Available Size -->
+              <!-- Available Size (Figma 350:404) -->
               <div class="param-column">
                 <label class="param-col-title">Available Size</label>
                 <div class="param-pills-wrap">
@@ -663,6 +619,7 @@
                       class="figma-option-pill"
                       :class="{ 
                         'is-selected': (productForm.availableSizes || []).includes(sizeOpt),
+                        'is-unselected': !(productForm.availableSizes || []).includes(sizeOpt),
                         'is-editing-mode': isEditingSizes
                       }"
                       @click="isEditingSizes ? deleteSizePreset(sizeOpt) : toggleSizeOption(sizeOpt)"
@@ -734,7 +691,7 @@
                 </div>
               </div>
 
-              <!-- Orientation -->
+              <!-- Orientation (Figma 377:2336) -->
               <div class="param-column">
                 <label class="param-col-title">Orientation</label>
                 <div class="param-pills-wrap">
@@ -743,7 +700,10 @@
                     :key="posOpt"
                     type="button" 
                     class="figma-option-pill"
-                    :class="{ 'is-selected': (productForm.availablePositions || []).includes(posOpt) }"
+                    :class="{ 
+                      'is-selected': (productForm.availablePositions || []).includes(posOpt),
+                      'is-unselected': !(productForm.availablePositions || []).includes(posOpt)
+                    }"
                     @click="togglePositionOption(posOpt)"
                   >
                     {{ posOpt }}
@@ -751,13 +711,13 @@
                 </div>
               </div>
 
-              <!-- Appear in app -->
+              <!-- Shows in app (Figma 377:2354 & 452:425) -->
               <div class="param-column">
-                <label class="param-col-title">Appear in app</label>
-                <div class="segmented-status-container">
+                <label class="param-col-title">Shows in app</label>
+                <div class="figma-segmented-status-wrap">
                   <button 
                     type="button" 
-                    class="status-segment-btn"
+                    class="figma-status-segment-btn"
                     :class="{ 'is-active': productForm.isActive }"
                     @click="productForm.isActive = true"
                   >
@@ -765,7 +725,7 @@
                   </button>
                   <button 
                     type="button" 
-                    class="status-segment-btn"
+                    class="figma-status-segment-btn"
                     :class="{ 'is-active': !productForm.isActive }"
                     @click="productForm.isActive = false"
                   >
@@ -791,13 +751,13 @@
                 class="btn-figma-save"
                 :disabled="isSavingProduct"
               >
-                <span v-if="!isSavingProduct">{{ isEditMode ? 'Save Changes' : 'Add Product' }}</span>
+                <span v-if="!isSavingProduct">Save</span>
                 <span v-else class="btn-spinner-inline">
                   <svg class="spinner-svg" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Saving to server...
+                  Saving...
                 </span>
               </button>
             </div>
@@ -2824,12 +2784,12 @@ async function deleteStaff(user) {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
-/* Product Modal (Figma 350:353) - Fully Responsive for Larger Screens / iPad / Tablet / Mobile */
+/* Product Modal (Figma 350:353) - Exact Pixel-Perfect & Fully Responsive */
 .product-modal-card {
   background: #FFFFFF;
-  border-radius: 16px;
+  border-radius: 8px;
   width: 100%;
-  max-width: min(94vw, 840px);
+  max-width: min(94vw, 763px);
   max-height: min(92vh, 92dvh);
   display: flex;
   flex-direction: column;
@@ -2837,33 +2797,20 @@ async function deleteStaff(user) {
   overflow: hidden;
   position: relative;
   box-sizing: border-box;
-  transition: max-width 0.2s ease;
-}
-
-@media (min-width: 1200px) {
-  .product-modal-card {
-    max-width: 960px;
-  }
-}
-
-@media (min-width: 1600px) {
-  .product-modal-card {
-    max-width: 1080px;
-  }
 }
 
 .modal-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: clamp(14px, 1.8vw, 20px) clamp(16px, 2.2vw, 24px);
+  padding: 20px 24px;
   border-bottom: 1px solid #E5E7EB;
   flex-shrink: 0;
   background: #FFFFFF;
 }
 
 .modal-title-bold {
-  font-size: clamp(14px, 1.2vw, 16px);
+  font-size: 15px;
   font-weight: 700;
   color: #111827;
   margin: 0;
@@ -2872,13 +2819,16 @@ async function deleteStaff(user) {
 .modal-close-icon-btn {
   background: transparent;
   border: none;
-  font-size: 20px;
+  font-size: 24px;
   color: #9CA3AF;
   cursor: pointer;
   line-height: 1;
-  padding: 4px;
-  border-radius: 6px;
+  padding: 0;
+  border-radius: 4px;
   transition: color 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-close-icon-btn:hover {
@@ -2886,10 +2836,10 @@ async function deleteStaff(user) {
 }
 
 .modal-form-content {
-  padding: clamp(14px, 2vw, 24px);
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: clamp(12px, 1.6vw, 18px);
+  gap: 24px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -2908,61 +2858,114 @@ async function deleteStaff(user) {
   background: #F3F4F6;
 }
 
-.two-images-upload-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: clamp(10px, 1.5vw, 16px);
+/* 2-Column Images & Controls Grid (Figma 351:441) */
+.product-modal-images-row {
+  display: flex;
+  gap: 16px;
   width: 100%;
+  align-items: stretch;
 }
 
-.image-upload-column {
+.product-image-box {
+  width: 235px;
+  flex-shrink: 0;
+  background: #FAFAFA;
+  border-radius: 8px;
+  padding: 16px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
+  height: 300px;
 }
 
-.image-box-heading {
-  font-size: clamp(12px, 1.1vw, 14px);
-  font-weight: 700;
+.product-engraved-box {
+  flex: 1;
+  min-width: 0;
+  background: #FAFAFA;
+  border-radius: 8px;
+  padding: 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 300px;
+}
+
+.modal-section-label {
+  font-size: 14px;
+  font-weight: 500;
   color: #000000;
+  text-transform: capitalize;
+  line-height: 15px;
 }
 
-.upload-dropzone-box {
+.figma-upload-dropzone {
   border: 2px dashed #E2E8F0;
-  border-radius: 14px;
-  height: clamp(160px, 24vh, 260px);
-  min-height: 140px;
+  border-radius: 16px;
+  flex: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #FAFCFF;
+  background: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
-  padding: 10px;
   box-sizing: border-box;
+  padding: 8px;
 }
 
-.upload-dropzone-box:hover {
+.figma-upload-dropzone:hover {
   border-color: #94A3B8;
   background: #F1F5F9;
 }
 
-.upload-dropzone-box.has-image {
+.figma-upload-dropzone.has-image {
   border-style: solid;
   border-color: #E2E8F0;
   background: #FFFFFF;
+}
+
+.upload-icon-circle-figma {
+  background: #F1F5F9;
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.upload-title-bold {
+  font-size: 12px;
+  font-weight: 700;
+  color: #000000;
+  text-align: center;
+  line-height: 18px;
+}
+
+.upload-format-sub {
+  font-size: 10px;
+  color: #000000;
+  line-height: 15px;
+  margin-top: 2px;
+  opacity: 0.8;
 }
 
 .hidden-file-input {
   display: none;
 }
 
-.uploaded-preview-img {
+.figma-preview-img {
   max-width: 100%;
   max-height: 100%;
+  width: auto;
+  height: 100%;
   object-fit: contain;
 }
 
@@ -2977,6 +2980,7 @@ async function deleteStaff(user) {
   padding: 4px 8px;
   border-radius: 6px;
   backdrop-filter: blur(4px);
+  z-index: 20;
 }
 
 .btn-overlay-action {
@@ -2998,131 +3002,127 @@ async function deleteStaff(user) {
   color: #F87171;
 }
 
-.upload-icon-circle {
-  background: #F1F5F9;
-  border-radius: 10px;
-  width: clamp(32px, 4vw, 40px);
-  height: clamp(32px, 4vw, 40px);
+/* Engraved Split Section inside Product Engraved Box */
+.engraved-content-split {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 6px;
-}
-
-.upload-prompt-text {
-  font-size: clamp(11px, 1vw, 12px);
-  font-weight: 700;
-  color: #64748B;
-  text-align: center;
-}
-
-.upload-format-hint {
-  font-size: 10px;
-  color: #94A3B8;
-  margin-top: 2px;
-}
-
-/* Interactive Placement Tool Workbench */
-.placement-config-section {
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.placement-config-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.placement-config-title-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.placement-config-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #0F172A;
-}
-
-.placement-config-desc {
-  font-size: 11px;
-  color: #64748B;
-}
-
-.placement-preview-toggles {
-  display: flex;
-  gap: 6px;
-}
-
-.placement-toggle-pill {
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid #CBD5E1;
-  background: #FFFFFF;
-  font-size: 11px;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.placement-toggle-pill.is-active {
-  background: #000000;
-  color: #FFFFFF;
-  border-color: #000000;
-}
-
-.placement-interactive-workbench {
-  display: grid;
-  grid-template-columns: 170px 1fr;
   gap: 16px;
-  align-items: center;
-}
-
-@media (max-width: 520px) {
-  .placement-interactive-workbench {
-    grid-template-columns: 1fr;
-  }
-}
-
-.interactive-bottle-canvas {
-  position: relative;
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  max-width: 170px;
-  aspect-ratio: 4 / 5;
-  background: #FFFFFF;
-  border: 1px solid #CBD5E1;
-  border-radius: 10px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+}
+
+.engraved-dropzone {
+  width: 203px;
+  flex-shrink: 0;
+  height: 100%;
   cursor: crosshair;
   user-select: none;
   touch-action: none;
-  margin: 0 auto;
 }
 
-.interactive-bottle-img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: 100%;
-  object-fit: contain;
+.engraved-controls-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: opacity 0.2s ease;
+}
+
+.engraved-controls-column.is-disabled {
+  opacity: 0.45;
   pointer-events: none;
 }
 
+/* Orientation Tabs Pill (Figma 451:414) */
+.orientation-tabs-pill {
+  border: 0.5px solid #000000;
+  border-radius: 8px;
+  padding: 4px;
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #FFFFFF;
+}
+
+.orientation-tab-btn {
+  flex: 1;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #000000;
+}
+
+.orientation-tab-btn.is-active {
+  background: #000000;
+  color: #FFFFFF;
+}
+
+/* Sliders for Engraving Placement */
+.engraved-slider-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.slider-figma-label {
+  font-size: 8px;
+  font-weight: 500;
+  color: #000000;
+  line-height: 12px;
+}
+
+.figma-sleek-slider {
+  width: 100%;
+  height: 3px;
+  background: #D9D9D9;
+  accent-color: #000000;
+  cursor: pointer;
+  outline: none;
+  border-radius: 2px;
+  border: none;
+  -webkit-appearance: none;
+}
+
+.figma-sleek-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 4px;
+  height: 9px;
+  background: #000000;
+  cursor: pointer;
+  border-radius: 1px;
+}
+
+.figma-sleek-slider::-moz-range-thumb {
+  width: 4px;
+  height: 9px;
+  background: #000000;
+  cursor: pointer;
+  border: none;
+  border-radius: 1px;
+}
+
+.engraved-placement-hint {
+  font-size: 10px;
+  color: #000000;
+  line-height: 15px;
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Interactive Text Target Pin */
 .interactive-text-pin {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -3143,6 +3143,7 @@ async function deleteStaff(user) {
   pointer-events: auto;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  z-index: 10;
 }
 
 .interactive-text-pin.is-vertical {
@@ -3155,84 +3156,18 @@ async function deleteStaff(user) {
   border-color: #60A5FA;
 }
 
-.placement-sliders-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.placement-slider-group {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.slider-label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 11px;
-  font-weight: 600;
-  color: #334155;
-}
-
-.slider-val-badge {
-  background: #E2E8F0;
-  color: #0F172A;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.placement-range-slider {
-  width: 100%;
-  height: 5px;
-  border-radius: 3px;
-  background: #E2E8F0;
-  outline: none;
-  accent-color: #000000;
-  cursor: pointer;
-}
-
-.slider-hints-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 9px;
-  color: #94A3B8;
-}
-
-.reset-placement-btn {
-  background: transparent;
-  border: 1px dashed #CBD5E1;
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  margin-top: 2px;
-  text-align: center;
-}
-
-.reset-placement-btn:hover {
-  background: #F1F5F9;
-  color: #0F172A;
-  border-color: #94A3B8;
-}
-
+/* Product Name Input */
 .product-name-input-block {
   width: 100%;
-  padding-top: 2px;
+  padding-top: 0;
 }
 
 .product-name-underline-input {
   width: 100%;
   border: none;
   border-bottom: 1px solid #000000;
-  padding: 10px 0;
-  font-size: clamp(13px, 1.1vw, 14px);
+  padding-bottom: 16px;
+  font-size: 14px;
   color: #000000;
   outline: none;
   font-family: inherit;
@@ -3243,90 +3178,48 @@ async function deleteStaff(user) {
   color: #ABABAB;
 }
 
-.select-dropdown-wrapper {
-  position: relative;
-  width: 100%;
-  display: flex;
-  align-items: center;
-}
-
-.product-name-underline-select {
-  width: 100%;
-  border: none;
-  border-bottom: 1px solid #000000;
-  padding: 10px 24px 10px 0;
-  font-size: clamp(13px, 1.1vw, 14px);
-  font-weight: 500;
-  color: #000000;
-  outline: none;
-  font-family: inherit;
-  box-sizing: border-box;
-  background: transparent;
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-  border-radius: 0;
-}
-
-.product-name-underline-select:focus {
-  border-bottom-width: 1.5px;
-}
-
-.select-chevron-icon {
-  position: absolute;
-  right: 0;
-  pointer-events: none;
-  color: #000000;
-}
-
+/* Parameters Row */
 .params-three-col-row {
-  display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr;
-  gap: clamp(14px, 2vw, 24px);
+  display: flex;
   align-items: flex-start;
-  padding-top: 4px;
+  justify-content: space-between;
+  gap: 24px;
   width: 100%;
 }
 
 .param-column {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
   align-items: flex-start;
-  justify-content: flex-start;
 }
 
 .param-col-title {
-  font-size: clamp(12.5px, 1.05vw, 14px);
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 400;
   color: #000000;
   margin: 0;
-  line-height: 1.2;
-  min-height: 18px;
-  display: flex;
-  align-items: center;
+  line-height: normal;
   white-space: nowrap;
 }
 
 .param-pills-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
-  min-height: 38px;
 }
 
 .figma-option-pill {
-  height: 38px;
-  border: 1px solid #000000;
+  border: 0.5px solid #000000;
   border-radius: 8px;
-  padding: 0 clamp(10px, 1vw, 14px);
-  font-size: clamp(12px, 1vw, 13.5px);
+  padding: 8px 12px;
+  font-size: 14px;
   font-family: inherit;
   background: #FFFFFF;
   color: #000000;
   cursor: pointer;
-  opacity: 0.45;
+  opacity: 1;
   transition: all 0.15s ease;
   white-space: nowrap;
   display: inline-flex;
@@ -3335,10 +3228,13 @@ async function deleteStaff(user) {
   box-sizing: border-box;
 }
 
+.figma-option-pill.is-unselected {
+  opacity: 0.45;
+}
+
 .figma-option-pill.is-selected {
   opacity: 1;
-  border-width: 1.5px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .preset-pill-item {
@@ -3476,66 +3372,57 @@ async function deleteStaff(user) {
   color: #000000;
 }
 
-.segmented-status-container {
-  background: #F5F5F5;
+/* Shows in app Segmented Control (Figma 452:425) */
+.figma-segmented-status-wrap {
+  border: 0.5px solid #000000;
   border-radius: 8px;
-  padding: 3px;
+  padding: 4px;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  height: 38px;
-  width: fit-content;
+  gap: 0;
   box-sizing: border-box;
+  background: #FFFFFF;
 }
 
-.status-segment-btn {
+.figma-status-segment-btn {
   height: 32px;
-  padding: 0 clamp(12px, 1.1vw, 16px);
-  min-width: 70px;
-  border-radius: 6px;
+  width: 96px;
+  border-radius: 8px;
   border: none;
-  font-size: clamp(12px, 1vw, 13.5px);
-  font-weight: 500;
-  background: transparent;
-  color: #000000;
+  font-size: 14px;
+  font-weight: 400;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.15s ease;
-  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  color: #000000;
 }
 
-.status-segment-btn.is-active {
+.figma-status-segment-btn.is-active {
   background: #000000;
   color: #FFFFFF;
-  font-weight: 600;
 }
 
-@media (max-width: 720px) {
-  .params-three-col-row {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-}
-
+/* Bottom Actions */
 .modal-bottom-actions-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  padding-top: 8px;
   flex-shrink: 0;
 }
 
 .btn-figma-cancel {
   flex: 1;
-  height: clamp(42px, 5vh, 48px);
+  height: 48px;
   border: 1px solid #000000;
   background: #FFFFFF;
   border-radius: 8px;
-  font-size: clamp(13px, 1.1vw, 14px);
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 400;
   color: #000000;
   cursor: pointer;
   transition: background-color 0.15s ease;
@@ -3547,12 +3434,12 @@ async function deleteStaff(user) {
 
 .btn-figma-save {
   flex: 1;
-  height: clamp(42px, 5vh, 48px);
+  height: 48px;
   border: none;
   background: #000000;
   border-radius: 8px;
-  font-size: clamp(13px, 1.1vw, 14px);
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 400;
   color: #FFFFFF;
   cursor: pointer;
   transition: opacity 0.15s ease;
@@ -3562,19 +3449,36 @@ async function deleteStaff(user) {
   opacity: 0.85;
 }
 
-@media (max-width: 580px) {
-  .two-images-upload-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
+/* Responsive Overrides */
+@media (max-width: 768px) {
+  .product-modal-images-row {
+    flex-direction: column;
+  }
+  
+  .product-image-box,
+  .product-engraved-box {
+    width: 100%;
+    height: auto;
+    min-height: 280px;
   }
 
-  .upload-dropzone-box {
-    height: 135px;
+  .engraved-content-split {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .engraved-dropzone {
+    width: 100%;
+    height: 200px;
+  }
+
+  .engraved-controls-column {
+    gap: 12px;
   }
 
   .params-three-col-row {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    flex-direction: column;
+    gap: 16px;
   }
 }
 
