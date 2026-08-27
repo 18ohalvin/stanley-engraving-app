@@ -506,43 +506,84 @@
               <div class="param-column">
                 <label class="param-col-title">Available Size</label>
                 <div class="param-pills-wrap">
-                  <button 
+                  <!-- Size Preset Pills -->
+                  <div 
                     v-for="sizeOpt in ALL_SIZE_OPTIONS" 
                     :key="sizeOpt"
-                    type="button" 
-                    class="figma-option-pill"
-                    :class="{ 'is-selected': (productForm.availableSizes || []).includes(sizeOpt) }"
-                    @click="toggleSizeOption(sizeOpt)"
+                    class="preset-pill-item"
                   >
-                    {{ sizeOpt }}
-                  </button>
-
-                  <!-- Custom Oz Input / Button -->
-                  <div v-if="showCustomSizeInput" class="custom-size-input-wrapper">
-                    <input 
-                      ref="customSizeInputRef"
-                      v-model="customSizeValue" 
-                      type="text" 
-                      class="custom-size-input" 
-                      placeholder="e.g. 64"
-                      maxlength="10"
-                      @keydown.enter.prevent="submitCustomSize"
-                      @keydown.esc="cancelCustomSize"
-                    />
-                    <button type="button" class="btn-custom-size-add" @click="submitCustomSize">Add</button>
-                    <button type="button" class="btn-custom-size-cancel" @click="cancelCustomSize">✕</button>
+                    <button 
+                      type="button" 
+                      class="figma-option-pill"
+                      :class="{ 
+                        'is-selected': (productForm.availableSizes || []).includes(sizeOpt),
+                        'is-editing-mode': isEditingSizes
+                      }"
+                      @click="isEditingSizes ? deleteSizePreset(sizeOpt) : toggleSizeOption(sizeOpt)"
+                    >
+                      {{ sizeOpt }}
+                      <!-- Removable icon on every preset in edit mode -->
+                      <span 
+                        v-if="isEditingSizes" 
+                        class="pill-remove-btn"
+                        title="Delete preset"
+                        @click.stop="deleteSizePreset(sizeOpt)"
+                      >
+                        ✕
+                      </span>
+                    </button>
                   </div>
+
+                  <!-- Add Button / Input (Visible when in Edit Mode) -->
+                  <template v-if="isEditingSizes">
+                    <div v-if="showCustomSizeInput" class="custom-size-input-wrapper">
+                      <input 
+                        ref="customSizeInputRef"
+                        v-model="customSizeValue" 
+                        type="text" 
+                        class="custom-size-input" 
+                        placeholder="e.g. 64"
+                        maxlength="10"
+                        @keydown.enter.prevent="submitCustomSize"
+                        @keydown.esc="cancelCustomSize"
+                      />
+                      <button type="button" class="btn-custom-size-add" @click="submitCustomSize">Add</button>
+                      <button type="button" class="btn-custom-size-cancel" @click="cancelCustomSize">✕</button>
+                    </div>
+                    <button 
+                      v-else
+                      type="button" 
+                      class="figma-option-pill btn-add-custom-size"
+                      @click="openCustomSizeInput"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                      Add
+                    </button>
+                  </template>
+
+                  <!-- Edit / Done Button in the last order -->
                   <button 
-                    v-else
                     type="button" 
-                    class="figma-option-pill btn-add-custom-size"
-                    @click="openCustomSizeInput"
+                    class="figma-option-pill btn-edit-presets"
+                    :class="{ 'is-done-active': isEditingSizes }"
+                    @click="toggleEditSizesMode"
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    Custom Oz
+                    <template v-if="!isEditingSizes">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                      Edit
+                    </template>
+                    <template v-else>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      Done
+                    </template>
                   </button>
                 </div>
               </div>
@@ -808,13 +849,36 @@ const activeTab = ref('product');
 const searchQuery = ref('');
 
 // Constants for available options (12oz, 14oz, 16oz, 20oz, 24oz, 30oz, 36oz, 40oz, 48oz + Custom)
-const STANDARD_SIZE_OPTIONS = ['12 Oz', '14 Oz', '16 Oz', '20 Oz', '24 Oz', '30 Oz', '36 Oz', '40 Oz', '48 Oz'];
-const customSizeOptions = ref([]);
+const DEFAULT_SIZE_PRESETS = ['12 Oz', '14 Oz', '16 Oz', '20 Oz', '24 Oz', '30 Oz', '36 Oz', '40 Oz', '48 Oz'];
+const sizePresets = ref([...DEFAULT_SIZE_PRESETS]);
+const isEditingSizes = ref(false);
+
+function loadSizePresets() {
+  try {
+    const saved = localStorage.getItem('stanley_size_presets');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        sizePresets.value = parsed;
+        return;
+      }
+    }
+  } catch (e) {}
+  sizePresets.value = [...DEFAULT_SIZE_PRESETS];
+}
+
+function persistSizePresets() {
+  try {
+    localStorage.setItem('stanley_size_presets', JSON.stringify(sizePresets.value));
+  } catch (e) {}
+}
 
 const ALL_SIZE_OPTIONS = computed(() => {
-  const custom = Array.isArray(customSizeOptions.value) ? customSizeOptions.value : [];
+  const presets = Array.isArray(sizePresets.value) && sizePresets.value.length > 0
+    ? sizePresets.value
+    : DEFAULT_SIZE_PRESETS;
   const fromForm = Array.isArray(productForm.value.availableSizes) ? productForm.value.availableSizes : [];
-  return [...new Set([...STANDARD_SIZE_OPTIONS, ...custom, ...fromForm])];
+  return [...new Set([...presets, ...fromForm])];
 });
 
 const ALL_POSITION_OPTIONS = ['Vertical', 'Horizontal'];
@@ -979,6 +1043,7 @@ onMounted(async () => {
     
     await loadStoreLocations();
     await loadStaffAccounts();
+    loadSizePresets();
 
     if (typeof EventSource !== 'undefined') {
       try {
@@ -1171,6 +1236,7 @@ function toggleProductActive(product) {
 // =========================================================================
 function openAddProductModal() {
   isEditMode.value = false;
+  isEditingSizes.value = false;
   cancelCustomSize();
   productForm.value = {
     id: '',
@@ -1188,6 +1254,7 @@ function openAddProductModal() {
 
 function openEditProductModal(product) {
   isEditMode.value = true;
+  isEditingSizes.value = false;
   cancelCustomSize();
   productForm.value = {
     id: product.id,
@@ -1205,6 +1272,7 @@ function openEditProductModal(product) {
 
 function closeProductModal() {
   showProductModal.value = false;
+  isEditingSizes.value = false;
   cancelCustomSize();
 }
 
@@ -1273,6 +1341,7 @@ function handleEngravedImageDrop(e) {
 
 // Option Toggles in Modal
 function toggleSizeOption(size) {
+  if (isEditingSizes.value) return;
   const idx = productForm.value.availableSizes.indexOf(size);
   if (idx > -1) {
     if (productForm.value.availableSizes.length > 1) {
@@ -1280,6 +1349,25 @@ function toggleSizeOption(size) {
     }
   } else {
     productForm.value.availableSizes.push(size);
+  }
+}
+
+function toggleEditSizesMode() {
+  isEditingSizes.value = !isEditingSizes.value;
+  if (!isEditingSizes.value) {
+    cancelCustomSize();
+  }
+}
+
+function deleteSizePreset(sizeOpt) {
+  const idx = sizePresets.value.indexOf(sizeOpt);
+  if (idx > -1) {
+    sizePresets.value.splice(idx, 1);
+    persistSizePresets();
+  }
+  const formIdx = (productForm.value.availableSizes || []).indexOf(sizeOpt);
+  if (formIdx > -1) {
+    productForm.value.availableSizes.splice(formIdx, 1);
   }
 }
 
@@ -1315,8 +1403,9 @@ function submitCustomSize() {
     formatted = `${raw} Oz`;
   }
 
-  if (!customSizeOptions.value.includes(formatted)) {
-    customSizeOptions.value.push(formatted);
+  if (!sizePresets.value.includes(formatted)) {
+    sizePresets.value.push(formatted);
+    persistSizePresets();
   }
   if (!productForm.value.availableSizes.includes(formatted)) {
     productForm.value.availableSizes.push(formatted);
@@ -2666,6 +2755,71 @@ async function deleteStaff(user) {
   opacity: 1;
   border-width: 1.5px;
   font-weight: 600;
+}
+
+.preset-pill-item {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.pill-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background-color: #EF4444;
+  color: #FFFFFF;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 6px;
+  line-height: 1;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.pill-remove-btn:hover {
+  transform: scale(1.2);
+  background-color: #DC2626;
+}
+
+.figma-option-pill.is-editing-mode {
+  border-style: dashed;
+  cursor: default;
+}
+
+.figma-option-pill.is-editing-mode:hover {
+  border-color: #EF4444;
+  background-color: #FEF2F2;
+}
+
+.btn-edit-presets {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+  color: #475569;
+  opacity: 0.9;
+  font-weight: 600;
+}
+
+.btn-edit-presets:hover {
+  opacity: 1;
+  background: #E2E8F0;
+  color: #0F172A;
+  border-color: #94A3B8;
+}
+
+.btn-edit-presets.is-done-active {
+  background: #000000;
+  color: #FFFFFF;
+  border-color: #000000;
+  opacity: 1;
+}
+
+.btn-edit-presets.is-done-active:hover {
+  background: #1E293B;
+  border-color: #1E293B;
 }
 
 .btn-add-custom-size {
