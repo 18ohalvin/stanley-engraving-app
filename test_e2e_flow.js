@@ -467,11 +467,17 @@ const newProd = {
   name: 'The IceFlow™ Flip Straw Tumbler',
   availableSizes: ['20 Oz', '30 Oz', '40 Oz'],
   availablePositions: ['Vertical', 'Horizontal'],
+  textTop: 52,
+  textLeft: 50,
+  textSize: 14,
   isActive: true
 };
 settingsProducts.push(newProd);
 assert(settingsProducts.length === 1, 'New product added successfully to settings catalog');
 assert(settingsProducts[0].name === 'The IceFlow™ Flip Straw Tumbler', 'Product name is IceFlow');
+assert(settingsProducts[0].textTop === 52, 'Product custom vertical placement Y coordinate saved');
+assert(settingsProducts[0].textLeft === 50, 'Product custom horizontal placement X coordinate saved');
+assert(settingsProducts[0].textSize === 14, 'Product custom text size saved');
 assert(settingsProducts[0].isActive === true, 'Product is active in catalog');
 
 console.log('\n--- 8. Testing Analytics Category Target Thresholds & Presets ---');

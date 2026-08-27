@@ -19,7 +19,10 @@ export const CUP_MODELS = [
     sizes: ['40oz', '30oz', '20oz'],
     image: '/src/assets/images/product-step1.png',
     placementImage: '/src/assets/images/product-step2.png',
-    positions: ['Horizontal', 'Vertical']
+    positions: ['Horizontal', 'Vertical'],
+    textTop: 48,
+    textLeft: 50,
+    textSize: 12
   },
   {
     id: 'quencher-h20',
@@ -28,7 +31,10 @@ export const CUP_MODELS = [
     sizes: ['20 Oz', '30 Oz', '40 Oz'],
     image: '/src/assets/images/machine-cup-1.png',
     placementImage: '/src/assets/images/product-step2.png',
-    positions: ['Horizontal', 'Vertical']
+    positions: ['Horizontal', 'Vertical'],
+    textTop: 48,
+    textLeft: 50,
+    textSize: 12
   },
   {
     id: 'aerolight-transit',
@@ -37,7 +43,10 @@ export const CUP_MODELS = [
     sizes: ['16 Oz', '20 Oz'],
     image: '/src/assets/images/product-iceflow-fastflow.png',
     placementImage: '/src/assets/images/product-step2.png',
-    positions: ['Horizontal', 'Vertical']
+    positions: ['Horizontal', 'Vertical'],
+    textTop: 48,
+    textLeft: 50,
+    textSize: 12
   }
 ];
 
@@ -66,7 +75,10 @@ export function getCatalogCupModels() {
             sizes: sortOzSizes((p.availableSizes && p.availableSizes.length > 0) ? p.availableSizes : ['20 Oz', '30 Oz', '40 Oz']),
             image: p.image || '/src/assets/images/product-step1.png',
             placementImage: p.engravedImage || '/src/assets/images/product-step2.png',
-            positions: (p.availablePositions && p.availablePositions.length > 0) ? p.availablePositions : ['Horizontal', 'Vertical']
+            positions: (p.availablePositions && p.availablePositions.length > 0) ? p.availablePositions : ['Horizontal', 'Vertical'],
+            textTop: p.textTop !== undefined ? Number(p.textTop) : 48,
+            textLeft: p.textLeft !== undefined ? Number(p.textLeft) : 50,
+            textSize: p.textSize !== undefined ? Number(p.textSize) : 12
           }));
         }
       }

@@ -19,6 +19,7 @@
                 v-if="selectedPosition" 
                 class="placement-text-overlay"
                 :class="{ 'is-vertical': selectedPosition === 'Vertical' }"
+                :style="placementStyle"
               >
                 TEXT
               </div>
@@ -72,6 +73,17 @@ const currentModel = computed(() => {
 
 const availablePositions = computed(() => {
   return currentModel.value?.positions || ['Horizontal', 'Vertical'];
+});
+
+const placementStyle = computed(() => {
+  const top = currentModel.value?.textTop !== undefined ? currentModel.value.textTop : 48;
+  const left = currentModel.value?.textLeft !== undefined ? currentModel.value.textLeft : 50;
+  const fontSize = currentModel.value?.textSize ? `${currentModel.value.textSize}px` : '12px';
+  return {
+    top: `${top}%`,
+    left: `${left}%`,
+    fontSize
+  };
 });
 
 onMounted(async () => {

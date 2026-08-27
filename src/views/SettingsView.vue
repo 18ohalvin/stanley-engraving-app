@@ -488,6 +488,140 @@
 
             </div>
 
+            <!-- Interactive Engraving Placement Setting Tool -->
+            <div v-if="productForm.engravedImage || productForm.image" class="placement-config-section">
+              <div class="placement-config-header">
+                <div class="placement-config-title-group">
+                  <span class="placement-config-title">Laser Engraving Text Placement</span>
+                  <span class="placement-config-desc">Click or drag the text target on the tumbler preview to set exact engraving position</span>
+                </div>
+                <!-- Interactive Orientation Preview Toggle -->
+                <div class="placement-preview-toggles">
+                  <button 
+                    type="button"
+                    class="placement-toggle-pill"
+                    :class="{ 'is-active': adminPreviewOrientation === 'Horizontal' }"
+                    @click="adminPreviewOrientation = 'Horizontal'"
+                  >
+                    Horizontal
+                  </button>
+                  <button 
+                    type="button"
+                    class="placement-toggle-pill"
+                    :class="{ 'is-active': adminPreviewOrientation === 'Vertical' }"
+                    @click="adminPreviewOrientation = 'Vertical'"
+                  >
+                    Vertical
+                  </button>
+                </div>
+              </div>
+
+              <div class="placement-interactive-workbench">
+                <!-- Interactive Visual Bottle Canvas -->
+                <div 
+                  class="interactive-bottle-canvas"
+                  ref="placementCanvasRef"
+                  @mousedown="startPlacementDrag"
+                  @touchstart.passive="startPlacementTouch"
+                  @click="handlePlacementCanvasClick"
+                >
+                  <img 
+                    :src="productForm.engravedImage || productForm.image" 
+                    alt="Bottle Engraving Zone" 
+                    class="interactive-bottle-img" 
+                  />
+
+                  <!-- Draggable / Clickable Text Target Marker -->
+                  <div 
+                    class="interactive-text-pin"
+                    :class="{ 'is-vertical': adminPreviewOrientation === 'Vertical', 'is-dragging': isDraggingPlacement }"
+                    :style="{
+                      top: `${productForm.textTop}%`,
+                      left: `${productForm.textLeft}%`,
+                      fontSize: `${productForm.textSize}px`
+                    }"
+                  >
+                    <span class="pin-label">TEXT</span>
+                  </div>
+                </div>
+
+                <!-- Sliders & Precise Controls -->
+                <div class="placement-sliders-panel">
+                  <!-- Vertical Y% Slider -->
+                  <div class="placement-slider-group">
+                    <div class="slider-label-row">
+                      <label>Vertical Position (Y)</label>
+                      <span class="slider-val-badge">{{ productForm.textTop }}%</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="15" 
+                      max="85" 
+                      step="1"
+                      v-model.number="productForm.textTop" 
+                      class="placement-range-slider" 
+                    />
+                    <div class="slider-hints-row">
+                      <span>Top (15%)</span>
+                      <span>Middle (50%)</span>
+                      <span>Bottom (85%)</span>
+                    </div>
+                  </div>
+
+                  <!-- Horizontal X% Slider -->
+                  <div class="placement-slider-group">
+                    <div class="slider-label-row">
+                      <label>Horizontal Position (X)</label>
+                      <span class="slider-val-badge">{{ productForm.textLeft }}%</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="20" 
+                      max="80" 
+                      step="1"
+                      v-model.number="productForm.textLeft" 
+                      class="placement-range-slider" 
+                    />
+                    <div class="slider-hints-row">
+                      <span>Left (20%)</span>
+                      <span>Center (50%)</span>
+                      <span>Right (80%)</span>
+                    </div>
+                  </div>
+
+                  <!-- Text Size Slider -->
+                  <div class="placement-slider-group">
+                    <div class="slider-label-row">
+                      <label>Preview Text Size</label>
+                      <span class="slider-val-badge">{{ productForm.textSize }}px</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="8" 
+                      max="18" 
+                      step="1"
+                      v-model.number="productForm.textSize" 
+                      class="placement-range-slider" 
+                    />
+                    <div class="slider-hints-row">
+                      <span>Small (8px)</span>
+                      <span>Standard (12px)</span>
+                      <span>Large (18px)</span>
+                    </div>
+                  </div>
+
+                  <!-- Reset Coordinates CTA -->
+                  <button 
+                    type="button" 
+                    class="reset-placement-btn" 
+                    @click="productForm.textTop = 48; productForm.textLeft = 50; productForm.textSize = 12"
+                  >
+                    ↺ Reset to Center (48% / 50%)
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- Product Name Underline Input (Figma 350:397) -->
             <div class="product-name-input-block">
               <input 
@@ -1339,9 +1473,75 @@ function toggleProductActive(product) {
 // =========================================================================
 // PRODUCT MODAL HANDLERS (Figma 350:353)
 // =========================================================================
+const placementCanvasRef = ref(null);
+const adminPreviewOrientation = ref('Horizontal');
+const isDraggingPlacement = ref(false);
+
+function updatePlacementFromEvent(e) {
+  if (!placementCanvasRef.value) return;
+  const rect = placementCanvasRef.value.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  
+  let leftPercent = ((clientX - rect.left) / rect.width) * 100;
+  let topPercent = ((clientY - rect.top) / rect.height) * 100;
+  
+  // Clamp values within reasonable printable zone
+  leftPercent = Math.max(20, Math.min(80, Math.round(leftPercent)));
+  topPercent = Math.max(15, Math.min(85, Math.round(topPercent)));
+  
+  productForm.value.textLeft = leftPercent;
+  productForm.value.textTop = topPercent;
+}
+
+function handlePlacementCanvasClick(e) {
+  updatePlacementFromEvent(e);
+}
+
+function startPlacementDrag(e) {
+  isDraggingPlacement.value = true;
+  updatePlacementFromEvent(e);
+  
+  function onMove(moveEvent) {
+    if (isDraggingPlacement.value) {
+      updatePlacementFromEvent(moveEvent);
+    }
+  }
+  
+  function onUp() {
+    isDraggingPlacement.value = false;
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  }
+  
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
+function startPlacementTouch(e) {
+  isDraggingPlacement.value = true;
+  updatePlacementFromEvent(e);
+  
+  function onTouchMove(moveEvent) {
+    if (isDraggingPlacement.value) {
+      updatePlacementFromEvent(moveEvent);
+    }
+  }
+  
+  function onTouchEnd() {
+    isDraggingPlacement.value = false;
+    window.removeEventListener('touchmove', onTouchMove);
+    window.removeEventListener('touchend', onTouchEnd);
+  }
+  
+  window.addEventListener('touchmove', onTouchMove, { passive: true });
+  window.addEventListener('touchend', onTouchEnd);
+}
+
 function openAddProductModal() {
   isEditMode.value = false;
   isEditingSizes.value = false;
+  adminPreviewOrientation.value = 'Horizontal';
   cancelCustomSize();
   productForm.value = {
     id: '',
@@ -1352,6 +1552,9 @@ function openAddProductModal() {
     availablePositions: ['Vertical', 'Horizontal'],
     defaultDuration: '03:45',
     maxChars: 7,
+    textTop: 48,
+    textLeft: 50,
+    textSize: 12,
     isActive: true
   };
   showProductModal.value = true;
@@ -1360,6 +1563,7 @@ function openAddProductModal() {
 function openEditProductModal(product) {
   isEditMode.value = true;
   isEditingSizes.value = false;
+  adminPreviewOrientation.value = 'Horizontal';
   cancelCustomSize();
   productForm.value = {
     id: product.id,
@@ -1370,6 +1574,9 @@ function openEditProductModal(product) {
     availablePositions: [...(product.availablePositions || ['Vertical', 'Horizontal'])],
     defaultDuration: product.defaultDuration || '03:45',
     maxChars: product.maxChars || 7,
+    textTop: product.textTop !== undefined ? Number(product.textTop) : 48,
+    textLeft: product.textLeft !== undefined ? Number(product.textLeft) : 50,
+    textSize: product.textSize !== undefined ? Number(product.textSize) : 12,
     isActive: product.isActive !== false
   };
   showProductModal.value = true;
@@ -1549,6 +1756,9 @@ function saveProductForm() {
         engravedImage: fallbackEngraved,
         availableSizes: [...productForm.value.availableSizes],
         availablePositions: [...productForm.value.availablePositions],
+        textTop: productForm.value.textTop !== undefined ? Number(productForm.value.textTop) : 48,
+        textLeft: productForm.value.textLeft !== undefined ? Number(productForm.value.textLeft) : 50,
+        textSize: productForm.value.textSize !== undefined ? Number(productForm.value.textSize) : 12,
         isActive: productForm.value.isActive
       };
       persistProducts();
@@ -1562,6 +1772,9 @@ function saveProductForm() {
       engravedImage: fallbackEngraved,
       availableSizes: [...productForm.value.availableSizes],
       availablePositions: [...productForm.value.availablePositions],
+      textTop: productForm.value.textTop !== undefined ? Number(productForm.value.textTop) : 48,
+      textLeft: productForm.value.textLeft !== undefined ? Number(productForm.value.textLeft) : 50,
+      textSize: productForm.value.textSize !== undefined ? Number(productForm.value.textSize) : 12,
       defaultDuration: '03:45',
       maxChars: 7,
       isActive: productForm.value.isActive
@@ -2744,6 +2957,206 @@ async function deleteStaff(user) {
   font-size: 10px;
   color: #94A3B8;
   margin-top: 2px;
+}
+
+/* Interactive Placement Tool Workbench */
+.placement-config-section {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.placement-config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.placement-config-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.placement-config-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.placement-config-desc {
+  font-size: 11px;
+  color: #64748B;
+}
+
+.placement-preview-toggles {
+  display: flex;
+  gap: 6px;
+}
+
+.placement-toggle-pill {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #CBD5E1;
+  background: #FFFFFF;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.placement-toggle-pill.is-active {
+  background: #000000;
+  color: #FFFFFF;
+  border-color: #000000;
+}
+
+.placement-interactive-workbench {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+@media (max-width: 520px) {
+  .placement-interactive-workbench {
+    grid-template-columns: 1fr;
+  }
+}
+
+.interactive-bottle-canvas {
+  position: relative;
+  width: 100%;
+  max-width: 170px;
+  aspect-ratio: 4 / 5;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: crosshair;
+  user-select: none;
+  touch-action: none;
+  margin: 0 auto;
+}
+
+.interactive-bottle-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.interactive-text-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.75);
+  color: #FFFFFF;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px dashed #FFFFFF;
+  font-family: var(--font-brand);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  user-select: none;
+  white-space: nowrap;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.interactive-text-pin.is-vertical {
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.interactive-text-pin.is-dragging {
+  cursor: grabbing;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.4);
+  border-color: #60A5FA;
+}
+
+.placement-sliders-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.placement-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.slider-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.slider-val-badge {
+  background: #E2E8F0;
+  color: #0F172A;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.placement-range-slider {
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: #E2E8F0;
+  outline: none;
+  accent-color: #000000;
+  cursor: pointer;
+}
+
+.slider-hints-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #94A3B8;
+}
+
+.reset-placement-btn {
+  background: transparent;
+  border: 1px dashed #CBD5E1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: 2px;
+  text-align: center;
+}
+
+.reset-placement-btn:hover {
+  background: #F1F5F9;
+  color: #0F172A;
+  border-color: #94A3B8;
 }
 
 .product-name-input-block {
