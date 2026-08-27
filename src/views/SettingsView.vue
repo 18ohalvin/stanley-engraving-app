@@ -501,7 +501,7 @@
             </div>
 
             <!-- Interactive Engraving Placement Setting Tool -->
-            <div v-if="productForm.engravedImage || productForm.image" class="placement-config-section">
+            <div class="placement-config-section">
               <div class="placement-config-header">
                 <div class="placement-config-title-group">
                   <span class="placement-config-title">Laser Engraving Text Placement</span>
@@ -538,7 +538,7 @@
                   @click="handlePlacementCanvasClick"
                 >
                   <img 
-                    :src="productForm.engravedImage || productForm.image" 
+                    :src="productForm.engravedImage || productForm.image || productStep2" 
                     alt="Bottle Engraving Zone" 
                     class="interactive-bottle-img" 
                   />
