@@ -137,23 +137,27 @@ function goNext() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   flex: 1;
-  margin: auto 0;
+  margin-top: 64px;
+  margin-bottom: auto;
   min-height: 0;
 }
 
 .cup-container {
   position: relative;
   width: 100%;
-  max-width: 100%;
-  height: clamp(260px, 45vh, 420px);
+  max-width: 280px;
+  aspect-ratio: 4 / 5;
+  height: auto;
+  max-height: clamp(210px, 34vh, 320px);
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   min-height: 0;
+  margin: 0 auto;
 }
 
 .cup-image {
@@ -161,6 +165,7 @@ function goNext() {
   max-height: 100%;
   width: auto;
   height: 100%;
+  aspect-ratio: 4 / 5;
   object-fit: contain;
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.09));
 }
@@ -172,14 +177,14 @@ function goNext() {
   left: 50%;
   transform: translate(-50%, -50%);
   font-family: var(--font-brand);
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: #ffffff;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
   pointer-events: none;
   user-select: none;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
   white-space: nowrap;
 }

@@ -202,10 +202,11 @@ function goNext() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex: 1;
   width: 100%;
-  margin: auto 0;
+  margin-top: 64px;
+  margin-bottom: auto;
   min-height: 0;
 }
 
@@ -249,12 +250,15 @@ function goNext() {
 
 .product-image-wrap {
   width: 100%;
-  flex: 1;
-  height: clamp(210px, 34vh, 320px);
+  max-width: 280px;
+  aspect-ratio: 4 / 5;
+  height: auto;
+  max-height: clamp(210px, 34vh, 320px);
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 0;
+  margin: 0 auto;
 }
 
 .product-image {
@@ -262,6 +266,7 @@ function goNext() {
   max-height: 100%;
   width: auto;
   height: 100%;
+  aspect-ratio: 4 / 5;
   object-fit: contain;
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.08));
 }

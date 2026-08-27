@@ -442,7 +442,7 @@
                       </svg>
                     </div>
                     <span class="upload-prompt-text">Click to upload image</span>
-                    <span class="upload-format-hint">Portrait 1:2 (e.g. 800×1600px PNG)</span>
+                    <span class="upload-format-hint">Portrait 4:5 (e.g. 1200×1500px PNG)</span>
                   </template>
                 </div>
               </div>
@@ -481,7 +481,7 @@
                       </svg>
                     </div>
                     <span class="upload-prompt-text">Click to upload image</span>
-                    <span class="upload-format-hint">Portrait 1:2 (e.g. 800×1600px PNG)</span>
+                    <span class="upload-format-hint">Portrait 4:5 (e.g. 1200×1500px PNG)</span>
                   </template>
                 </div>
               </div>
