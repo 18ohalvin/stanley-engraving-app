@@ -130,8 +130,20 @@
             </button>
           </div>
 
-          <!-- Product Empty State when No Products Exist -->
-          <div v-if="filteredProducts.length === 0" class="empty-settings-card">
+          <!-- Product Loading Skeleton State (prevents flash of stale/mock data) -->
+          <div v-if="isLoadingProducts" class="product-cards-grid">
+            <div v-for="n in 3" :key="n" class="product-config-card is-skeleton">
+              <div class="skeleton-shimmer skeleton-thumb"></div>
+              <div class="skeleton-meta">
+                <div class="skeleton-shimmer skeleton-title"></div>
+                <div class="skeleton-shimmer skeleton-tags"></div>
+                <div class="skeleton-shimmer skeleton-btn"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Product Empty State when No Products Exist and Not Loading -->
+          <div v-else-if="filteredProducts.length === 0" class="empty-settings-card">
             <div class="empty-settings-container">
               <div class="empty-settings-icon-wrap">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -769,6 +781,7 @@
               <button 
                 type="button" 
                 class="btn-figma-cancel"
+                :disabled="isSavingProduct"
                 @click="closeProductModal"
               >
                 Cancel
@@ -776,8 +789,16 @@
               <button 
                 type="submit" 
                 class="btn-figma-save"
+                :disabled="isSavingProduct"
               >
-                Save
+                <span v-if="!isSavingProduct">{{ isEditMode ? 'Save Changes' : 'Add Product' }}</span>
+                <span v-else class="btn-spinner-inline">
+                  <svg class="spinner-svg" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving to server...
+                </span>
               </button>
             </div>
 
@@ -822,42 +843,21 @@
                   v-model="staffForm.name" 
                   type="text" 
                   class="product-name-underline-input" 
-                  placeholder="e.g. Ayu Dewi" 
-                  autocomplete="off"
-                  autocorrect="off"
-                  autocapitalize="off"
-                  spellcheck="false"
+                  placeholder="e.g. Budi Santoso" 
                   required 
                 />
               </div>
             </div>
 
+            <!-- Username & WhatsApp Row -->
             <div class="two-images-upload-grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
               <div class="product-name-input-block">
-                <label class="param-col-title" style="display:block; margin-bottom: 4px;">Store Location*</label>
-                <div class="select-dropdown-wrapper">
-                  <select 
-                    v-model="staffForm.store" 
-                    class="product-name-underline-select"
-                    required
-                  >
-                    <option value="" disabled>Select Store Location</option>
-                    <option v-for="loc in AVAILABLE_STORE_LOCATIONS" :key="loc" :value="loc">
-                      {{ loc }}
-                    </option>
-                  </select>
-                  <svg class="select-chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </div>
-              </div>
-              <div class="product-name-input-block">
-                <label class="param-col-title" style="display:block; margin-bottom: 4px;">WhatsApp Number*</label>
+                <label class="param-col-title" style="display:block; margin-bottom: 4px;">Username (for login)*</label>
                 <input 
-                  v-model="staffForm.whatsapp" 
+                  v-model="staffForm.username" 
                   type="text" 
                   class="product-name-underline-input" 
-                  placeholder="e.g. 082909012901" 
+                  placeholder="e.g. budi.s" 
                   autocomplete="off"
                   autocorrect="off"
                   autocapitalize="off"
@@ -865,27 +865,47 @@
                   required 
                 />
               </div>
+              <div class="product-name-input-block">
+                <label class="param-col-title" style="display:block; margin-bottom: 4px;">WhatsApp Number</label>
+                <input 
+                  v-model="staffForm.whatsapp" 
+                  type="tel" 
+                  class="product-name-underline-input" 
+                  placeholder="+62 812-xxxx-xxxx" 
+                />
+              </div>
             </div>
 
-            <!-- Security Login PIN Input Row -->
-            <div class="product-name-input-block" style="margin-top: 2px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <label class="param-col-title" style="margin: 0;">Security Login PIN{{ isEditStaffMode ? '' : '*' }}</label>
-                <span style="font-size: 11px; color: #71717A; font-weight: 500;">{{ isEditStaffMode ? 'Leave blank to keep current PIN' : '4–6 digit PIN for staff login' }}</span>
-              </div>
-              <div style="position: relative; display: flex; align-items: center;">
-                <input
-                  v-model="staffForm.pin"
-                  :type="showStaffPin ? 'text' : 'password'"
+            <!-- PIN Code Row -->
+            <div class="two-images-upload-grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="product-name-input-block">
+                <label class="param-col-title" style="display:block; margin-bottom: 4px;">Assigned Store Location</label>
+                <select 
+                  v-model="staffForm.store" 
                   class="product-name-underline-input"
-                  :placeholder="isEditStaffMode ? 'Leave blank to keep current PIN' : 'e.g. 1913'"
+                  style="cursor: pointer; background: transparent;"
+                >
+                  <option value="">HQ Central / Unassigned</option>
+                  <option v-for="loc in AVAILABLE_STORE_LOCATIONS" :key="loc" :value="loc">
+                    {{ loc }}
+                  </option>
+                </select>
+              </div>
+              <div class="product-name-input-block" style="position: relative;">
+                <label class="param-col-title" style="display:block; margin-bottom: 4px;">
+                  PIN Code {{ isEditStaffMode ? '(Leave blank to keep current)' : '*' }}
+                </label>
+                <input 
+                  v-model="staffForm.pin" 
+                  :type="showStaffPin ? 'text' : 'password'" 
+                  class="product-name-underline-input" 
+                  placeholder="4-digit PIN (e.g. 1913)" 
                   maxlength="6"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
                   spellcheck="false"
                   :required="!isEditStaffMode"
-                  style="padding-right: 48px; letter-spacing: 2px; font-weight: 600;"
                 />
                 <button 
                   type="button" 
@@ -947,6 +967,7 @@
               <button 
                 type="button" 
                 class="btn-figma-cancel"
+                :disabled="isSavingStaff"
                 @click="closeStaffModal"
               >
                 Cancel
@@ -954,8 +975,16 @@
               <button 
                 type="submit" 
                 class="btn-figma-save"
+                :disabled="isSavingStaff"
               >
-                Save
+                <span v-if="!isSavingStaff">{{ isEditStaffMode ? 'Save Account' : 'Add Staff' }}</span>
+                <span v-else class="btn-spinner-inline">
+                  <svg class="spinner-svg" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving to database...
+                </span>
               </button>
             </div>
 
@@ -964,6 +993,14 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- FLOATING TOAST NOTIFICATION -->
+    <transition name="toast-pop">
+      <div v-if="toastVisible" class="toast-notification" :class="{ 'toast-error': toastType === 'error' }">
+        <div class="toast-icon">{{ toastType === 'error' ? '✕' : '✓' }}</div>
+        <span class="toast-text">{{ toastMessage }}</span>
+      </div>
+    </transition>
 
   </div>
 </template>
@@ -1092,6 +1129,27 @@ async function loadStoreLocations() {
   } catch (e) {}
 }
 
+// Loading and Toast Feedback State
+const isLoadingProducts = ref(true);
+const isLoadingStaff = ref(true);
+const isSavingProduct = ref(false);
+const isSavingStaff = ref(false);
+
+const toastMessage = ref('');
+const toastVisible = ref(false);
+const toastType = ref('success');
+let toastTimer = null;
+
+function triggerToast(msg, type = 'success') {
+  if (toastTimer) clearTimeout(toastTimer);
+  toastMessage.value = msg;
+  toastType.value = type;
+  toastVisible.value = true;
+  toastTimer = setTimeout(() => {
+    toastVisible.value = false;
+  }, 3500);
+}
+
 // Modals State
 const showProductModal = ref(false);
 const isEditMode = ref(false);
@@ -1111,6 +1169,9 @@ const productForm = ref({
   availablePositions: ['Vertical', 'Horizontal'],
   defaultDuration: '03:45',
   maxChars: 7,
+  textTop: 48,
+  textLeft: 50,
+  textSize: 12,
   isActive: true
 });
 
@@ -1128,32 +1189,8 @@ const staffForm = ref({
   status: 'Active'
 });
 
-// Master Product Catalog - Pre-seeded with Stanley Cup Models
-const defaultProducts = [
-  {
-    id: 'prod-quencher-40',
-    name: 'Quencher H2.O FlowState 40 Oz',
-    image: productStep1,
-    engravedImage: productStep2,
-    availableSizes: ['20 Oz', '30 Oz', '40 Oz'],
-    availablePositions: ['Vertical', 'Horizontal'],
-    defaultDuration: '03:45',
-    maxChars: 7,
-    isActive: true
-  },
-  {
-    id: 'prod-iceflow-30',
-    name: 'IceFlow Flip Straw 30 Oz',
-    image: productIceflow,
-    engravedImage: productStep2,
-    availableSizes: ['16 Oz', '30 Oz'],
-    availablePositions: ['Vertical', 'Horizontal'],
-    defaultDuration: '03:30',
-    maxChars: 7,
-    isActive: true
-  }
-];
-const products = ref([...defaultProducts]);
+// Master Product Catalog - Initialized empty to prevent flash of mock data
+const products = ref([]);
 
 // Master Developer Access Account (Protected Super Admin)
 const DEVELOPER_ACCOUNT = {
@@ -1193,7 +1230,10 @@ async function loadStaffAccounts() {
         return;
       }
     }
-  } catch (e) {}
+  } catch (e) {
+  } finally {
+    isLoadingStaff.value = false;
+  }
 
   const savedStaff = localStorage.getItem('stanley_staff_users');
   if (savedStaff) {
@@ -1214,22 +1254,28 @@ async function loadProducts() {
     const res = await fetch('/api/products', { headers });
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         products.value = data;
         localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data));
         return;
       }
     }
-  } catch (e) {}
+  } catch (e) {
+  } finally {
+    isLoadingProducts.value = false;
+  }
 
-  const saved = localStorage.getItem('stanley_product_catalog_order');
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        products.value = parsed;
-      }
-    } catch (e) {}
+  // Fallback to localStorage only if products are still empty
+  if (products.value.length === 0) {
+    const saved = localStorage.getItem('stanley_product_catalog_order');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          products.value = parsed;
+        }
+      } catch (e) {}
+    }
   }
 }
 
@@ -1740,18 +1786,36 @@ function togglePositionOption(pos) {
 }
 
 // Save Product Form (Add or Edit)
-function saveProductForm() {
-  if (!productForm.value.name.trim()) return;
+async function saveProductForm() {
+  if (!productForm.value.name.trim() || isSavingProduct.value) return;
 
+  isSavingProduct.value = true;
   const fallbackImage = productForm.value.image || '/src/assets/images/machine-cup-1.png';
   const fallbackEngraved = productForm.value.engravedImage || '/src/assets/images/product-step2.png';
+  const productName = productForm.value.name.trim();
 
-  if (isEditMode.value) {
-    const idx = products.value.findIndex(p => p.id === productForm.value.id);
-    if (idx > -1) {
-      products.value[idx] = {
-        ...products.value[idx],
-        name: productForm.value.name.trim(),
+  try {
+    if (isEditMode.value) {
+      const idx = products.value.findIndex(p => p.id === productForm.value.id);
+      if (idx > -1) {
+        products.value[idx] = {
+          ...products.value[idx],
+          name: productName,
+          image: fallbackImage,
+          engravedImage: fallbackEngraved,
+          availableSizes: [...productForm.value.availableSizes],
+          availablePositions: [...productForm.value.availablePositions],
+          textTop: productForm.value.textTop !== undefined ? Number(productForm.value.textTop) : 48,
+          textLeft: productForm.value.textLeft !== undefined ? Number(productForm.value.textLeft) : 50,
+          textSize: productForm.value.textSize !== undefined ? Number(productForm.value.textSize) : 12,
+          isActive: productForm.value.isActive
+        };
+      }
+    } else {
+      const newProd = {
+        id: `prod-${Date.now()}`,
+        name: productName,
+        modelKey: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         image: fallbackImage,
         engravedImage: fallbackEngraved,
         availableSizes: [...productForm.value.availableSizes],
@@ -1759,31 +1823,22 @@ function saveProductForm() {
         textTop: productForm.value.textTop !== undefined ? Number(productForm.value.textTop) : 48,
         textLeft: productForm.value.textLeft !== undefined ? Number(productForm.value.textLeft) : 50,
         textSize: productForm.value.textSize !== undefined ? Number(productForm.value.textSize) : 12,
+        defaultDuration: '03:45',
+        maxChars: 7,
         isActive: productForm.value.isActive
       };
-      persistProducts();
+      products.value.push(newProd);
     }
-  } else {
-    const newProd = {
-      id: `prod-${Date.now()}`,
-      name: productForm.value.name.trim(),
-      modelKey: productForm.value.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      image: fallbackImage,
-      engravedImage: fallbackEngraved,
-      availableSizes: [...productForm.value.availableSizes],
-      availablePositions: [...productForm.value.availablePositions],
-      textTop: productForm.value.textTop !== undefined ? Number(productForm.value.textTop) : 48,
-      textLeft: productForm.value.textLeft !== undefined ? Number(productForm.value.textLeft) : 50,
-      textSize: productForm.value.textSize !== undefined ? Number(productForm.value.textSize) : 12,
-      defaultDuration: '03:45',
-      maxChars: 7,
-      isActive: productForm.value.isActive
-    };
-    products.value.push(newProd);
-    persistProducts();
-  }
 
-  showProductModal.value = false;
+    await persistProducts();
+    triggerToast(isEditMode.value ? `✓ "${productName}" updated and synced to database` : `✓ "${productName}" added and synced to database`);
+    showProductModal.value = false;
+  } catch (err) {
+    console.error('Failed to save product:', err);
+    triggerToast('Failed to save product to server. Please try again.', 'error');
+  } finally {
+    isSavingProduct.value = false;
+  }
 }
 
 // Staff handlers
@@ -1830,50 +1885,52 @@ function closeStaffModal() {
 }
 
 async function saveStaffForm() {
-  if (!staffForm.value.name.trim() || !staffForm.value.staffId.trim()) return;
+  if (!staffForm.value.name.trim() || !staffForm.value.staffId.trim() || isSavingStaff.value) return;
 
+  isSavingStaff.value = true;
   const cleanPin = (staffForm.value.pin || '').trim();
+  const staffName = staffForm.value.name.trim();
   let targetUser = null;
 
-  if (isEditStaffMode.value) {
-    const idx = staffUsers.value.findIndex(u => u.id === staffForm.value.id);
-    if (idx > -1) {
-      staffUsers.value[idx] = {
-        ...staffUsers.value[idx],
+  try {
+    if (isEditStaffMode.value) {
+      const idx = staffUsers.value.findIndex(u => u.id === staffForm.value.id);
+      if (idx > -1) {
+        staffUsers.value[idx] = {
+          ...staffUsers.value[idx],
+          staffId: staffForm.value.staffId.trim().toUpperCase(),
+          idCode: staffForm.value.staffId.trim().toUpperCase(),
+          name: staffName,
+          username: staffForm.value.username.trim() || staffName,
+          whatsapp: staffForm.value.whatsapp.trim(),
+          pin: cleanPin,
+          role: staffForm.value.role,
+          store: (staffForm.value.store || '').trim(),
+          status: staffForm.value.status
+        };
+        targetUser = staffUsers.value[idx];
+        persistStaffUsers();
+      }
+    } else {
+      const newUser = {
+        id: `usr-${Date.now()}`,
         staffId: staffForm.value.staffId.trim().toUpperCase(),
         idCode: staffForm.value.staffId.trim().toUpperCase(),
-        name: staffForm.value.name.trim(),
-        username: staffForm.value.username.trim() || staffForm.value.name.trim(),
+        name: staffName,
+        username: staffForm.value.username.trim() || staffName,
         whatsapp: staffForm.value.whatsapp.trim(),
-        pin: cleanPin,
+        pin: cleanPin || '1234',
         role: staffForm.value.role,
         store: (staffForm.value.store || '').trim(),
         status: staffForm.value.status
       };
-      targetUser = staffUsers.value[idx];
+      staffUsers.value.push(newUser);
+      targetUser = newUser;
       persistStaffUsers();
     }
-  } else {
-    const newUser = {
-      id: `usr-${Date.now()}`,
-      staffId: staffForm.value.staffId.trim().toUpperCase(),
-      idCode: staffForm.value.staffId.trim().toUpperCase(),
-      name: staffForm.value.name.trim(),
-      username: staffForm.value.username.trim() || staffForm.value.name.trim(),
-      whatsapp: staffForm.value.whatsapp.trim(),
-      pin: cleanPin || '1234',
-      role: staffForm.value.role,
-      store: (staffForm.value.store || '').trim(),
-      status: staffForm.value.status
-    };
-    staffUsers.value.push(newUser);
-    targetUser = newUser;
-    persistStaffUsers();
-  }
 
-  // Sync to SQLite backend database
-  if (targetUser) {
-    try {
+    // Sync to SQLite backend database
+    if (targetUser) {
       const token = localStorage.getItem('stanley_staff_token');
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -1891,12 +1948,16 @@ async function saveStaffForm() {
           localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
         }
       }
-    } catch (e) {
-      console.warn('Failed to sync staff user to SQLite backend:', e);
     }
-  }
 
-  showStaffModal.value = false;
+    triggerToast(isEditStaffMode.value ? `✓ Staff "${staffName}" updated successfully` : `✓ Staff "${staffName}" added successfully`);
+    showStaffModal.value = false;
+  } catch (e) {
+    console.error('Failed to sync staff user to backend:', e);
+    triggerToast('Failed to save staff account to server. Please try again.', 'error');
+  } finally {
+    isSavingStaff.value = false;
+  }
 }
 
 async function deleteStaff(user) {
@@ -1907,29 +1968,31 @@ async function deleteStaff(user) {
   if (!confirmDelete) return;
   const idx = staffUsers.value.findIndex(u => u.id === user.id);
   if (idx > -1) {
+    const deletedName = user.name;
     staffUsers.value.splice(idx, 1);
     persistStaffUsers();
-  }
 
-  try {
-    const token = localStorage.getItem('stanley_staff_token');
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const token = localStorage.getItem('stanley_staff_token');
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`/api/staff/${user.id || user.staffId}`, {
-      method: 'DELETE',
-      headers
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && Array.isArray(data.staff)) {
-        const withoutDev = data.staff.filter(u => u && u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
-        staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
-        localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
+      const res = await fetch(`/api/staff/${user.id || user.staffId}`, {
+        method: 'DELETE',
+        headers
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.staff)) {
+          const withoutDev = data.staff.filter(u => u && u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+          staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+          localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
+        }
       }
+      triggerToast(`✓ Staff "${deletedName}" removed.`);
+    } catch (e) {
+      console.warn('Failed to delete staff user on server:', e);
     }
-  } catch (e) {
-    console.warn('Failed to delete staff user on SQLite server:', e);
   }
 }
 </script>
@@ -3638,5 +3701,130 @@ async function deleteStaff(user) {
     padding-bottom: 6px;
     -webkit-overflow-scrolling: touch;
   }
+}
+
+/* Inline Button Spinner */
+.btn-spinner-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner-svg {
+  animation: spin 0.8s linear infinite;
+  width: 15px;
+  height: 15px;
+}
+
+.spinner-svg .opacity-25 {
+  opacity: 0.25;
+}
+
+.spinner-svg .opacity-75 {
+  opacity: 0.75;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Skeleton Loading Shimmer for Product Grid */
+.product-config-card.is-skeleton {
+  pointer-events: none;
+  border-color: #E2E8F0;
+  background: #FFFFFF;
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+.skeleton-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  margin-bottom: 12px;
+}
+
+.skeleton-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-title {
+  width: 70%;
+  height: 16px;
+}
+
+.skeleton-tags {
+  width: 90%;
+  height: 24px;
+}
+
+.skeleton-btn {
+  width: 100%;
+  height: 36px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Floating Toast Notification */
+.toast-notification {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  background: #18181B;
+  color: #FFFFFF;
+  padding: 12px 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 9999;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.toast-notification.toast-error {
+  background: #7F1D1D;
+  border-color: #991B1B;
+}
+
+.toast-icon {
+  width: 22px;
+  height: 22px;
+  background: #10B981;
+  color: #FFFFFF;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.toast-notification.toast-error .toast-icon {
+  background: #EF4444;
+}
+
+.toast-pop-enter-active,
+.toast-pop-leave-active {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-pop-enter-from,
+.toast-pop-leave-to {
+  opacity: 0;
+  transform: translateY(16px) scale(0.95);
 }
 </style>
