@@ -148,7 +148,7 @@ function goNext() {
   position: relative;
   width: 100%;
   max-width: 100%;
-  height: clamp(240px, 42vh, 390px);
+  height: clamp(260px, 45vh, 420px);
   display: flex;
   align-items: center;
   justify-content: center;

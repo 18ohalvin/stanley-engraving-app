@@ -250,7 +250,7 @@ function goNext() {
 .product-image-wrap {
   width: 100%;
   flex: 1;
-  height: clamp(190px, 30vh, 290px);
+  height: clamp(210px, 34vh, 320px);
   display: flex;
   align-items: center;
   justify-content: center;

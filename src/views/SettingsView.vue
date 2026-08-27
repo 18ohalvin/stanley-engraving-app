@@ -442,7 +442,7 @@
                       </svg>
                     </div>
                     <span class="upload-prompt-text">Click to upload image</span>
-                    <span class="upload-format-hint">PNG, JPG up to 5MB</span>
+                    <span class="upload-format-hint">Portrait 1:2 (e.g. 800×1600px PNG)</span>
                   </template>
                 </div>
               </div>
@@ -481,7 +481,7 @@
                       </svg>
                     </div>
                     <span class="upload-prompt-text">Click to upload image</span>
-                    <span class="upload-format-hint">PNG, JPG up to 5MB</span>
+                    <span class="upload-format-hint">Portrait 1:2 (e.g. 800×1600px PNG)</span>
                   </template>
                 </div>
               </div>
@@ -2654,8 +2654,8 @@ async function deleteStaff(user) {
 .upload-dropzone-box {
   border: 2px dashed #E2E8F0;
   border-radius: 14px;
-  height: clamp(140px, 20vh, 230px);
-  min-height: 120px;
+  height: clamp(160px, 24vh, 260px);
+  min-height: 140px;
   display: flex;
   flex-direction: column;
   align-items: center;
