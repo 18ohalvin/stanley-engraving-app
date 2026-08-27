@@ -268,19 +268,21 @@ function goNext() {
 
 .product-name {
   font-family: var(--font-brand);
-  font-size: 12px;
-  font-weight: 400;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--color-black);
   text-align: center;
-  line-height: 16px;
+  line-height: 18px;
   margin-top: 16px;
+  letter-spacing: -0.01em;
 }
 
 .size-toggles {
   display: flex;
   gap: 8px;
   justify-content: center;
-  margin-top: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
 }
 
 .size-btn {
