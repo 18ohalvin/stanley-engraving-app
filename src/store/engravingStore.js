@@ -41,6 +41,16 @@ export const CUP_MODELS = [
   }
 ];
 
+export function sortOzSizes(sizesArray) {
+  if (!Array.isArray(sizesArray)) return [];
+  return [...sizesArray].sort((a, b) => {
+    const numA = parseFloat(String(a).match(/(\d+(?:\.\d+)?)/)?.[1] || 0);
+    const numB = parseFloat(String(b).match(/(\d+(?:\.\d+)?)/)?.[1] || 0);
+    if (numA !== numB) return numA - numB;
+    return String(a).localeCompare(String(b));
+  });
+}
+
 export function getCatalogCupModels() {
   try {
     const saved = localStorage.getItem('stanley_product_catalog_order');
@@ -53,7 +63,7 @@ export function getCatalogCupModels() {
             id: p.id || p.modelKey || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
             name: p.name,
             shortName: p.name.replace(/™|®/g, '').split(' ').slice(0, 2).join(' '),
-            sizes: (p.availableSizes && p.availableSizes.length > 0) ? p.availableSizes : ['20 Oz', '30 Oz', '40 Oz'],
+            sizes: sortOzSizes((p.availableSizes && p.availableSizes.length > 0) ? p.availableSizes : ['20 Oz', '30 Oz', '40 Oz']),
             image: p.image || '/src/assets/images/product-step1.png',
             placementImage: p.engravedImage || '/src/assets/images/product-step2.png',
             positions: (p.availablePositions && p.availablePositions.length > 0) ? p.availablePositions : ['Horizontal', 'Vertical']
@@ -64,7 +74,7 @@ export function getCatalogCupModels() {
   } catch (e) {
     console.error('Error reading catalog cup models:', e);
   }
-  return CUP_MODELS;
+  return CUP_MODELS.map(m => ({ ...m, sizes: sortOzSizes(m.sizes) }));
 }
 
 export async function fetchCatalogCupModels() {

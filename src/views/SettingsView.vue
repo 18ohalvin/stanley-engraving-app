@@ -850,7 +850,18 @@ const searchQuery = ref('');
 
 // Constants for available options (12oz, 14oz, 16oz, 20oz, 24oz, 30oz, 36oz, 40oz, 48oz + Custom)
 const DEFAULT_SIZE_PRESETS = ['12 Oz', '14 Oz', '16 Oz', '20 Oz', '24 Oz', '30 Oz', '36 Oz', '40 Oz', '48 Oz'];
-const sizePresets = ref([...DEFAULT_SIZE_PRESETS]);
+
+function sortOzSizes(sizesArray) {
+  if (!Array.isArray(sizesArray)) return [];
+  return [...sizesArray].sort((a, b) => {
+    const numA = parseFloat(String(a).match(/(\d+(?:\.\d+)?)/)?.[1] || 0);
+    const numB = parseFloat(String(b).match(/(\d+(?:\.\d+)?)/)?.[1] || 0);
+    if (numA !== numB) return numA - numB;
+    return String(a).localeCompare(String(b));
+  });
+}
+
+const sizePresets = ref(sortOzSizes([...DEFAULT_SIZE_PRESETS]));
 const isEditingSizes = ref(false);
 
 async function loadSizePresets() {
@@ -862,8 +873,8 @@ async function loadSizePresets() {
       const data = await res.json();
       const val = data && data.value !== undefined ? data.value : data;
       if (Array.isArray(val) && val.length > 0) {
-        sizePresets.value = val;
-        localStorage.setItem('stanley_size_presets', JSON.stringify(val));
+        sizePresets.value = sortOzSizes(val);
+        localStorage.setItem('stanley_size_presets', JSON.stringify(sizePresets.value));
         return;
       }
     }
@@ -874,15 +885,16 @@ async function loadSizePresets() {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        sizePresets.value = parsed;
+        sizePresets.value = sortOzSizes(parsed);
         return;
       }
     }
   } catch (e) {}
-  sizePresets.value = [...DEFAULT_SIZE_PRESETS];
+  sizePresets.value = sortOzSizes([...DEFAULT_SIZE_PRESETS]);
 }
 
 async function persistSizePresets() {
+  sizePresets.value = sortOzSizes(sizePresets.value);
   try {
     localStorage.setItem('stanley_size_presets', JSON.stringify(sizePresets.value));
     window.dispatchEvent(new Event('stanley_size_presets_updated'));
@@ -908,7 +920,7 @@ const ALL_SIZE_OPTIONS = computed(() => {
     ? sizePresets.value
     : DEFAULT_SIZE_PRESETS;
   const fromForm = Array.isArray(productForm.value.availableSizes) ? productForm.value.availableSizes : [];
-  return [...new Set([...presets, ...fromForm])];
+  return sortOzSizes([...new Set([...presets, ...fromForm])]);
 });
 
 const ALL_POSITION_OPTIONS = ['Vertical', 'Horizontal'];
@@ -1336,7 +1348,7 @@ function openAddProductModal() {
     name: '',
     image: '',
     engravedImage: '',
-    availableSizes: ['20 Oz', '30 Oz', '40 Oz'],
+    availableSizes: sortOzSizes(['20 Oz', '30 Oz', '40 Oz']),
     availablePositions: ['Vertical', 'Horizontal'],
     defaultDuration: '03:45',
     maxChars: 7,
@@ -1354,7 +1366,7 @@ function openEditProductModal(product) {
     name: product.name,
     image: product.image || '',
     engravedImage: product.engravedImage || '',
-    availableSizes: [...(product.availableSizes || ['20 Oz', '30 Oz', '40 Oz'])],
+    availableSizes: sortOzSizes([...(product.availableSizes || ['20 Oz', '30 Oz', '40 Oz'])]),
     availablePositions: [...(product.availablePositions || ['Vertical', 'Horizontal'])],
     defaultDuration: product.defaultDuration || '03:45',
     maxChars: product.maxChars || 7,
@@ -1442,6 +1454,7 @@ function toggleSizeOption(size) {
     }
   } else {
     productForm.value.availableSizes.push(size);
+    productForm.value.availableSizes = sortOzSizes(productForm.value.availableSizes);
   }
 }
 
@@ -1498,10 +1511,12 @@ function submitCustomSize() {
 
   if (!sizePresets.value.includes(formatted)) {
     sizePresets.value.push(formatted);
+    sizePresets.value = sortOzSizes(sizePresets.value);
     persistSizePresets();
   }
   if (!productForm.value.availableSizes.includes(formatted)) {
     productForm.value.availableSizes.push(formatted);
+    productForm.value.availableSizes = sortOzSizes(productForm.value.availableSizes);
   }
   cancelCustomSize();
 }
