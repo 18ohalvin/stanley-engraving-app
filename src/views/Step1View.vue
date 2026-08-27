@@ -63,11 +63,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import StepHeader from '../components/StepHeader.vue';
 import CTAButton from '../components/CTAButton.vue';
-import { useEngravingStore, CUP_MODELS, getCatalogCupModels } from '../store/engravingStore';
+import { useEngravingStore, CUP_MODELS, getCatalogCupModels, fetchCatalogCupModels } from '../store/engravingStore';
 
 const router = useRouter();
 const route = useRoute();
@@ -81,17 +81,55 @@ const selectedSize = computed(() => engravingStore.currentItem.size);
 // Requires size to be selected explicitly
 const isStepValid = computed(() => Boolean(engravingStore.currentItem.model && engravingStore.currentItem.size));
 
-onMounted(() => {
+let eventSource = null;
+
+async function syncCatalogModels() {
+  const models = await fetchCatalogCupModels();
+  if (Array.isArray(models) && models.length > 0) {
+    cupModels.value = models;
+    const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem.model);
+    if (idx !== -1) {
+      currentModelIndex.value = idx;
+    } else {
+      engravingStore.setModel(currentModel.value.name, currentModel.value.shortName);
+    }
+  }
+}
+
+onMounted(async () => {
   if (route.params.storeId) {
     engravingStore.setStoreId(route.params.storeId);
   }
-  cupModels.value = getCatalogCupModels();
-  const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem.model);
-  if (idx !== -1) {
-    currentModelIndex.value = idx;
-  } else {
-    engravingStore.setModel(currentModel.value.name, currentModel.value.shortName);
+  await syncCatalogModels();
+
+  if (typeof EventSource !== 'undefined') {
+    try {
+      eventSource = new EventSource('/api/events');
+      eventSource.addEventListener('products_updated', () => {
+        syncCatalogModels();
+      });
+      eventSource.addEventListener('settings_updated', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data && data.key === 'products') {
+            syncCatalogModels();
+          }
+        } catch (err) {}
+      });
+    } catch (e) {}
   }
+
+  window.addEventListener('stanley_products_updated', syncCatalogModels);
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'stanley_product_catalog_order') {
+      syncCatalogModels();
+    }
+  });
+});
+
+onUnmounted(() => {
+  if (eventSource) eventSource.close();
+  window.removeEventListener('stanley_products_updated', syncCatalogModels);
 });
 
 function selectSize(size) {

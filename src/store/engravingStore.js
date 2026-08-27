@@ -67,6 +67,23 @@ export function getCatalogCupModels() {
   return CUP_MODELS;
 }
 
+export async function fetchCatalogCupModels() {
+  try {
+    const res = await fetch('/api/products');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data));
+        window.dispatchEvent(new CustomEvent('stanley_products_updated', { detail: data }));
+        return getCatalogCupModels();
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to fetch product catalog from server:', e);
+  }
+  return getCatalogCupModels();
+}
+
 export const useEngravingStore = defineStore('engraving', {
   state: () => ({
     // Current draft item being configured

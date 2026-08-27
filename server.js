@@ -25,7 +25,9 @@ import {
   saveStoreInDb,
   deleteStoreFromDb,
   getSettingsFromDb,
-  saveSettingsInDb
+  saveSettingsInDb,
+  getAllProductsFromDb,
+  saveProductsInDb
 } from './src/server/db.js';
 
 import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
@@ -370,14 +372,37 @@ app.delete('/api/network/stores/:id', requireAdminAccess, (req, res) => {
   res.json({ success: true, stores: allStores });
 });
 
-// GET setting by key (Protected)
-app.get('/api/settings/:key', requireAuth, (req, res) => {
+// GET products catalog (Public for customer PWA & Admin settings)
+app.get('/api/products', (req, res) => {
+  try {
+    const products = getAllProductsFromDb();
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST save products catalog (Admin / Super Admin)
+app.post('/api/products', requireAdminAccess, (req, res) => {
+  try {
+    const products = Array.isArray(req.body) ? req.body : (req.body.products || []);
+    const saved = saveProductsInDb(products);
+    broadcast('products_updated', saved);
+    broadcast('settings_updated', { key: 'products', value: saved });
+    res.json({ success: true, products: saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET setting by key (Public for PWA / settings synchronization)
+app.get('/api/settings/:key', (req, res) => {
   const val = getSettingsFromDb(req.params.key);
   res.json({ key: req.params.key, value: val });
 });
 
-// POST save setting by key (Protected Super Admin)
-app.post('/api/settings/:key', requireSuperAdmin, (req, res) => {
+// POST save setting by key (Admin / Super Admin)
+app.post('/api/settings/:key', requireAdminAccess, (req, res) => {
   try {
     const val = req.body.value !== undefined ? req.body.value : req.body;
     const saved = saveSettingsInDb(req.params.key, val);

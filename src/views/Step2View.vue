@@ -53,18 +53,20 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import StepHeader from '../components/StepHeader.vue';
 import CTAButton from '../components/CTAButton.vue';
-import { useEngravingStore, CUP_MODELS, getCatalogCupModels } from '../store/engravingStore';
+import { useEngravingStore, CUP_MODELS, getCatalogCupModels, fetchCatalogCupModels } from '../store/engravingStore';
 
 const router = useRouter();
 const route = useRoute();
 const engravingStore = useEngravingStore();
 
+const modelsList = ref(getCatalogCupModels());
+
 const currentModel = computed(() => {
-  const models = getCatalogCupModels();
+  const models = modelsList.value.length > 0 ? modelsList.value : getCatalogCupModels();
   return models.find(m => m.name === engravingStore.currentItem.model) || models[0] || CUP_MODELS[0];
 });
 
@@ -72,9 +74,13 @@ const availablePositions = computed(() => {
   return currentModel.value?.positions || ['Horizontal', 'Vertical'];
 });
 
-onMounted(() => {
+onMounted(async () => {
   if (route.params.storeId) {
     engravingStore.setStoreId(route.params.storeId);
+  }
+  const fresh = await fetchCatalogCupModels();
+  if (Array.isArray(fresh) && fresh.length > 0) {
+    modelsList.value = fresh;
   }
   if (!engravingStore.currentItem.position || !availablePositions.value.includes(engravingStore.currentItem.position)) {
     engravingStore.setPosition(availablePositions.value[0] || 'Horizontal');

@@ -165,6 +165,18 @@ function seedDefaultMasterData() {
     }
   }
 
+  // Seed default product catalog in settings table if empty
+  const productCheck = db.prepare(`SELECT count(*) as count FROM settings WHERE key = 'products'`).get();
+  if (!productCheck || productCheck.count === 0) {
+    saveSettingsInDb('products', DEFAULT_PRODUCT_CATALOG);
+  }
+
+  // Seed default size presets in settings table if empty
+  const presetCheck = db.prepare(`SELECT count(*) as count FROM settings WHERE key = 'size_presets'`).get();
+  if (!presetCheck || presetCheck.count === 0) {
+    saveSettingsInDb('size_presets', ['12 Oz', '14 Oz', '16 Oz', '20 Oz', '24 Oz', '30 Oz', '36 Oz', '40 Oz', '48 Oz']);
+  }
+
   // Migrate legacy data from data/orders.json if orders table is empty
   const legacyOrdersFile = path.resolve(dataDir, 'orders.json');
   const countStmt = db.prepare(`SELECT count(*) as count FROM orders`).get();
@@ -811,6 +823,48 @@ export function saveSettingsInDb(key, value) {
     VALUES (?, ?, ?)
   `).run(key, valueJson, now);
   return getSettingsFromDb(key);
+}
+
+export const DEFAULT_PRODUCT_CATALOG = [
+  {
+    id: 'prod-quencher-40',
+    name: 'Quencher H2.O FlowState 40 Oz',
+    modelKey: 'quencher-h20-flowstate-40-oz',
+    image: '/src/assets/images/product-step1.png',
+    engravedImage: '/src/assets/images/product-step2.png',
+    availableSizes: ['20 Oz', '30 Oz', '40 Oz'],
+    availablePositions: ['Vertical', 'Horizontal'],
+    defaultDuration: '03:45',
+    maxChars: 7,
+    isActive: true
+  },
+  {
+    id: 'prod-iceflow-30',
+    name: 'IceFlow Flip Straw 30 Oz',
+    modelKey: 'iceflow-flip-straw-30-oz',
+    image: '/src/assets/images/product-iceflow-fastflow.png',
+    engravedImage: '/src/assets/images/product-step2.png',
+    availableSizes: ['16 Oz', '30 Oz'],
+    availablePositions: ['Vertical', 'Horizontal'],
+    defaultDuration: '03:30',
+    maxChars: 7,
+    isActive: true
+  }
+];
+
+export function getAllProductsFromDb() {
+  const saved = getSettingsFromDb('products');
+  if (Array.isArray(saved) && saved.length > 0) {
+    return saved;
+  }
+  return DEFAULT_PRODUCT_CATALOG;
+}
+
+export function saveProductsInDb(products) {
+  if (!Array.isArray(products)) {
+    throw new Error('Products must be an array.');
+  }
+  return saveSettingsInDb('products', products);
 }
 
 // Initialize database automatically

@@ -853,7 +853,22 @@ const DEFAULT_SIZE_PRESETS = ['12 Oz', '14 Oz', '16 Oz', '20 Oz', '24 Oz', '30 O
 const sizePresets = ref([...DEFAULT_SIZE_PRESETS]);
 const isEditingSizes = ref(false);
 
-function loadSizePresets() {
+async function loadSizePresets() {
+  const token = localStorage.getItem('stanley_staff_token');
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  try {
+    const res = await fetch('/api/settings/size_presets', { headers });
+    if (res.ok) {
+      const data = await res.json();
+      const val = data && data.value !== undefined ? data.value : data;
+      if (Array.isArray(val) && val.length > 0) {
+        sizePresets.value = val;
+        localStorage.setItem('stanley_size_presets', JSON.stringify(val));
+        return;
+      }
+    }
+  } catch (e) {}
+
   try {
     const saved = localStorage.getItem('stanley_size_presets');
     if (saved) {
@@ -867,10 +882,25 @@ function loadSizePresets() {
   sizePresets.value = [...DEFAULT_SIZE_PRESETS];
 }
 
-function persistSizePresets() {
+async function persistSizePresets() {
   try {
     localStorage.setItem('stanley_size_presets', JSON.stringify(sizePresets.value));
+    window.dispatchEvent(new Event('stanley_size_presets_updated'));
   } catch (e) {}
+
+  const token = localStorage.getItem('stanley_staff_token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    await fetch('/api/settings/size_presets', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ value: sizePresets.value })
+    });
+  } catch (e) {
+    console.warn('Failed to sync size presets to server:', e);
+  }
 }
 
 const ALL_SIZE_OPTIONS = computed(() => {
@@ -1031,23 +1061,63 @@ async function loadStaffAccounts() {
   }
 }
 
-onMounted(async () => {
+async function loadProducts() {
+  const token = localStorage.getItem('stanley_staff_token');
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
   try {
-    const saved = localStorage.getItem('stanley_product_catalog_order');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        products.value = parsed;
+    const res = await fetch('/api/products', { headers });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        products.value = data;
+        localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data));
+        return;
       }
     }
-    
+  } catch (e) {}
+
+  const saved = localStorage.getItem('stanley_product_catalog_order');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        products.value = parsed;
+      }
+    } catch (e) {}
+  }
+}
+
+onMounted(async () => {
+  try {
+    await loadProducts();
     await loadStoreLocations();
     await loadStaffAccounts();
-    loadSizePresets();
+    await loadSizePresets();
 
     if (typeof EventSource !== 'undefined') {
       try {
         eventSource = new EventSource('/api/events');
+        eventSource.addEventListener('products_updated', (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (Array.isArray(data) && data.length > 0) {
+              products.value = data;
+              localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data));
+            }
+          } catch (err) {}
+        });
+        eventSource.addEventListener('settings_updated', (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data && data.key === 'products' && Array.isArray(data.value) && data.value.length > 0) {
+              products.value = data.value;
+              localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data.value));
+            } else if (data && data.key === 'size_presets' && Array.isArray(data.value) && data.value.length > 0) {
+              sizePresets.value = data.value;
+              localStorage.setItem('stanley_size_presets', JSON.stringify(data.value));
+            }
+          } catch (err) {}
+        });
         eventSource.addEventListener('staff_updated', (e) => {
           try {
             const data = JSON.parse(e.data);
@@ -1074,8 +1144,12 @@ onMounted(async () => {
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('stanley_staff_updated', handleStorageUpdate);
     window.addEventListener('stanley_stores_updated', handleStorageUpdate);
+    window.addEventListener('stanley_products_updated', handleStorageUpdate);
+    window.addEventListener('stanley_size_presets_updated', handleStorageUpdate);
 
     pollInterval = setInterval(() => {
+      loadProducts();
+      loadSizePresets();
       loadStaffAccounts();
       loadStoreLocations();
     }, 3000);
@@ -1090,18 +1164,37 @@ onUnmounted(() => {
   window.removeEventListener('storage', handleStorageUpdate);
   window.removeEventListener('stanley_staff_updated', handleStorageUpdate);
   window.removeEventListener('stanley_stores_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_products_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_size_presets_updated', handleStorageUpdate);
 });
 
 function handleStorageUpdate() {
+  loadProducts();
+  loadSizePresets();
   loadStaffAccounts();
   loadStoreLocations();
 }
 
-function persistProducts() {
+async function persistProducts() {
   try {
     localStorage.setItem('stanley_product_catalog_order', JSON.stringify(products.value));
+    window.dispatchEvent(new Event('stanley_products_updated'));
   } catch (e) {
     console.error('Failed to persist product order:', e);
+  }
+
+  const token = localStorage.getItem('stanley_staff_token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    await fetch('/api/products', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(products.value)
+    });
+  } catch (e) {
+    console.warn('Failed to sync products to SQLite server:', e);
   }
 }
 
