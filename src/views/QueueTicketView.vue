@@ -128,6 +128,10 @@
               <span class="spec-value">{{ order.customer_name }}</span>
             </div>
             <div class="spec-row">
+              <span class="spec-label">Store Location :</span>
+              <span class="spec-value">{{ storeDisplayName }}</span>
+            </div>
+            <div class="spec-row">
               <span class="spec-label">Booking Time :</span>
               <span class="spec-value">{{ order.booking_time }}</span>
             </div>
@@ -189,7 +193,7 @@ import CTAButton from '../components/CTAButton.vue';
 import OrderDetailsModal from '../components/OrderDetailsModal.vue';
 import CancelOrderModal from '../components/CancelOrderModal.vue';
 import { useQueueStore } from '../store/queueStore';
-import { getStorePhone } from '../utils/storeResolver.js';
+import { getStorePhone, getCanonicalStore } from '../utils/storeResolver.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -205,8 +209,18 @@ const showCancelModal = ref(false);
 const isNotFound = ref(false);
 let pollInterval = null;
 
+const storeDisplayName = computed(() => {
+  if (!order.value) return 'Stanley Store';
+  const s = order.value.store_name || order.value.store_id || order.value.store_code || route.params.storeId;
+  const canonical = getCanonicalStore(s);
+  if (canonical && canonical.name) {
+    return canonical.name;
+  }
+  return s || 'Stanley Store';
+});
+
 const storePhone = computed(() => {
-  const s = order.value ? (order.value.store_id || order.value.store_code || order.value.store_name) : null;
+  const s = order.value ? (order.value.store_id || order.value.store_code || order.value.store_name) : (route.params.storeId || null);
   return getStorePhone(s);
 });
 

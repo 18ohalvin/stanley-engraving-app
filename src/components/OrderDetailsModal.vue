@@ -24,6 +24,10 @@
                 <span class="label">Phone:</span>
                 <span class="value">{{ order.phone }}</span>
               </div>
+              <div v-if="storeName" class="info-row">
+                <span class="label">Store Location:</span>
+                <span class="value">{{ storeName }}</span>
+              </div>
               <div class="info-row">
                 <span class="label">Status:</span>
                 <span class="status-badge" :class="order.status">{{ formatStatus(order.status) }}</span>
@@ -59,7 +63,10 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue';
+import { getCanonicalStore } from '../utils/storeResolver.js';
+
+const props = defineProps({
   isOpen: {
     type: Boolean,
     default: false
@@ -71,6 +78,14 @@ defineProps({
 });
 
 defineEmits(['close']);
+
+const storeName = computed(() => {
+  if (!props.order) return '';
+  const s = props.order.store_name || props.order.store_id || props.order.store_code;
+  const canonical = getCanonicalStore(s);
+  if (canonical && canonical.name) return canonical.name;
+  return s || '';
+});
 
 function formatStatus(status) {
   switch (status) {

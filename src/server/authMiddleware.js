@@ -1,4 +1,4 @@
-import { verifyAuthSessionToken } from './db.js';
+import { verifyAuthSessionToken, isSameStore } from './db.js';
 
 /**
  * Express middleware to enforce valid Staff Auth Session Token
@@ -29,20 +29,36 @@ export async function requireAuth(req, res, next) {
   }
 
   req.staffSession = session;
-  next();
+  if (typeof next === 'function') {
+    return next();
+  }
 }
 
 /**
  * Express middleware to enforce Super Admin or Master Developer role
  */
 export async function requireSuperAdmin(req, res, next) {
-  await requireAuth(req, res, () => {
-    if (req.staffSession && (req.staffSession.role === 'Super Admin' || req.staffSession.isDeveloper)) {
-      return next();
+  if (!req.staffSession) {
+    const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
+    let token = null;
+    if (authHeader) {
+      token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
     }
-    return res.status(403).json({ 
-      error: 'Access denied. Master Developer or Super Admin role required.' 
-    });
+    if (token) {
+      req.staffSession = await verifyAuthSessionToken(token);
+    }
+  }
+
+  const session = req.staffSession;
+  if (!session) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+
+  if (session.role === 'Super Admin' || session.isDeveloper) {
+    return next();
+  }
+  return res.status(403).json({ 
+    error: 'Access denied. Master Developer or Super Admin role required.' 
   });
 }
 
@@ -50,32 +66,39 @@ export async function requireSuperAdmin(req, res, next) {
  * Express middleware to enforce strict multi-tenant store access control
  */
 export async function requireStoreAccess(req, res, next) {
-  await requireAuth(req, res, () => {
-    const session = req.staffSession;
-    if (!session) {
-      return res.status(401).json({ error: 'Authentication required.' });
+  if (!req.staffSession) {
+    const authHeader = req.headers['authorization'] || req.headers['x-staff-token'];
+    let token = null;
+    if (authHeader) {
+      token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
     }
-
-    // Super Admin & Master Developer accounts have network-wide access
-    if (session.isDeveloper || session.role === 'Super Admin' || session.storeId === '*' || session.storeId === 'HQ Central') {
-      return next();
+    if (token) {
+      req.staffSession = await verifyAuthSessionToken(token);
     }
+  }
 
-    const requestedStoreId = req.params.storeId || req.params.store_id || req.params.storeCode || req.query.storeId || req.query.store;
+  const session = req.staffSession;
+  if (!session) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
 
-    if (!requestedStoreId) {
-      return next();
-    }
+  // Super Admin & Master Developer accounts have network-wide access
+  if (session.isDeveloper || session.role === 'Super Admin' || session.storeId === '*' || session.storeId === 'HQ Central') {
+    return next();
+  }
 
-    const sessionStore = (session.storeId || '').trim().toLowerCase();
-    const targetStore = String(requestedStoreId).trim().toLowerCase();
+  const requestedStoreId = req.params.storeId || req.params.store_id || req.params.storeCode || req.query.storeId || req.query.store;
 
-    if (sessionStore !== targetStore) {
-      return res.status(403).json({
-        error: `Access denied: Staff assigned to store "${session.storeId}" cannot access store "${requestedStoreId}".`
-      });
-    }
+  if (!requestedStoreId) {
+    return next();
+  }
 
-    next();
-  });
+  const match = await isSameStore(session.storeId, requestedStoreId);
+  if (!match) {
+    return res.status(403).json({
+      error: `Access denied: Staff assigned to store "${session.storeId}" cannot access store "${requestedStoreId}".`
+    });
+  }
+
+  next();
 }

@@ -15,7 +15,8 @@ import {
   clearAllOrdersInDb,
   getAllStoresFromDb,
   saveStoreInDb,
-  deleteStoreFromDb
+  deleteStoreFromDb,
+  getOrderByIdFromDb
 } from './src/server/db.js';
 import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
 import bcrypt from 'bcryptjs';
@@ -895,31 +896,52 @@ assert(lookupResPim.order.customer_name === 'David Beckham', 'Lookup returns mat
 const lookupResPimName = await queueStore.lookupIntakeOrder('P9K', 'Stanley Pondok Indah Mall');
 assert(lookupResPimName.success === true, 'Intake code P9K recognized when queried by store name');
 
-// 2. Submit order for custom independent store 'Bali Kiosk' (code 'BALI01')
-const orderBali = {
-  order_id: '130826-K7M',
-  intake_code: 'K7M',
+// 3. Test Singapore Store SG-001 (User reported: queue.stanley1913.sg/engrave/SG-001 -> ticket 310826-3R5 -> engraver/SG-001)
+const orderSingapore = {
+  order_id: '310826-3R5',
+  intake_code: '3R5',
   short_code: null,
   system_queue_number: null,
-  customer_name: 'Wayan Bali',
-  phone: '+62819876543',
-  store_id: 'BALI01',
-  store_code: 'BALI01',
-  store_name: 'Bali Kiosk Store',
+  customer_name: 'Singapore Customer',
+  phone: '+6581234567',
+  email: 'sg.customer@example.com',
+  store_id: 'SG001',
+  store_code: 'SG001',
+  store_name: 'Stanley Singapore Store',
   status: 'pending_dropoff',
-  items: [{ text: 'BALI', model: 'Quencher', size: '40 Oz' }]
+  items: [{ text: 'SINGAPORE', model: 'Quencher', size: '40 Oz' }]
 };
-queueStore.addOrder(orderBali);
-await upsertSingleOrderInDb(orderBali);
+queueStore.addOrder(orderSingapore);
+await upsertSingleOrderInDb(orderSingapore);
 
-const lookupResBali = await queueStore.lookupIntakeOrder('K7M', 'BALI01');
-assert(lookupResBali.success === true, 'Intake code K7M recognized by independent custom store BALI01');
-assert(lookupResBali.order.customer_name === 'Wayan Bali', 'Lookup returns matching customer name Wayan Bali');
+// Test Direct DB Lookup by 3-digit Code with Store Alias 'SG-001'
+const dbLookupCode = await getOrderByIdFromDb('3R5', 'SG-001');
+assert(dbLookupCode !== null, 'Direct SQLite DB lookup for 3R5 at store SG-001 finds order');
+assert(dbLookupCode.order_id === '310826-3R5', 'DB lookup matches order_id 310826-3R5');
 
-// Confirm intake
-const confirmResBali = await queueStore.confirmOrderIntake('130826-K7M', 'BALI01');
-assert(confirmResBali.success === true, 'Cup intake confirmed for Bali Kiosk');
-assert(confirmResBali.order.status === 'in_queue', 'Order status transitioned to in_queue');
+// Test Direct DB Lookup by Full Order ID with Store Alias 'SG-001'
+const dbLookupFullId = await getOrderByIdFromDb('310826-3R5', 'SG-001');
+assert(dbLookupFullId !== null, 'Direct SQLite DB lookup for full ID 310826-3R5 at store SG-001 finds order');
+
+// Test Engraver Dashboard Lookup via QueueStore
+const lookupResSG = await queueStore.lookupIntakeOrder('3R5', 'SG-001');
+assert(lookupResSG.success === true, 'Unique code 3R5 recognized by Engraver Dashboard at SG-001');
+assert(lookupResSG.order.customer_name === 'Singapore Customer', 'Lookup returns Singapore Customer details');
+
+// Test requireStoreAccess with SG-001 for SG001 staff session
+const sgStaff = { id: 'usr-sg', staffId: 'SG-ENG01', name: 'SG Engraver', role: 'Staff Store', store: 'SG001' };
+const sgSession = await createAuthSessionInDb(sgStaff);
+let sgReq = { headers: { authorization: `Bearer ${sgSession.token}` }, params: { storeId: 'SG-001' } };
+let sgRes = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(d) { this.data = d; return this; } };
+let sgNext = false;
+await requireStoreAccess(sgReq, sgRes, () => { sgNext = true; });
+assert(sgNext === true, 'requireStoreAccess allows SG001 staff to access SG-001 endpoint via alias matching');
+await deleteAuthSessionToken(sgSession.token);
+
+// Confirm intake for Singapore store
+const confirmResSG = await queueStore.confirmOrderIntake('310826-3R5', 'SG-001');
+assert(confirmResSG.success === true, 'Cup intake confirmed for Singapore Store');
+assert(confirmResSG.order.status === 'in_queue', 'Singapore order status transitioned to in_queue');
 
 await clearAllOrdersInDb();
 await deleteAuthSessionToken(egSession.token);

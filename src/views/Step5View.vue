@@ -231,7 +231,12 @@ async function submitOrder() {
   try {
     const order = await engravingStore.submitOrder();
     if (order && order.order_id) {
-      router.push(`/queue/${order.order_id}`);
+      const storeParam = route.params.storeId || order.store_code || order.store_id;
+      if (storeParam) {
+        router.push(`/queue/${encodeURIComponent(storeParam)}/${order.order_id}`);
+      } else {
+        router.push(`/queue/${order.order_id}`);
+      }
     }
   } catch (err) {
     console.error('Error submitting order:', err);
