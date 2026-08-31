@@ -985,6 +985,27 @@ function getOrderOperatingHour(order) {
   return 10;
 }
 
+// Helper to extract YYYY-MM-DD date string from an order
+function getOrderDateStr(order) {
+  if (!order) return '';
+  const raw = order.created_at || order.intake_at || order.ready_at;
+  if (!raw) return '';
+  if (typeof raw === 'string') {
+    const match = raw.match(/^\d{4}-\d{2}-\d{2}/);
+    if (match) return match[0];
+  }
+  try {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  } catch (e) {}
+  return '';
+}
+
 // ----------------------------------------------------
 // 100% REAL DATABASE METRIC COMPUTATIONS FROM QUEUE STORE
 // ----------------------------------------------------
@@ -992,7 +1013,9 @@ function getOrderOperatingHour(order) {
 // 1. Total Engravings: Real count of cups engraved/completed in the database
 const realCompletedOrders = computed(() => {
   const orders = queueStore.orders || [];
-  return orders.filter(o => o.status === 'ready_for_pickup' || o.status === 'completed');
+  const completed = orders.filter(o => o.status === 'ready_for_pickup' || o.status === 'completed');
+  if (!selectedDate.value) return completed; // All Time
+  return completed.filter(o => getOrderDateStr(o) === selectedDate.value);
 });
 
 const realTotalEngravings = computed(() => {
@@ -1002,7 +1025,9 @@ const realTotalEngravings = computed(() => {
 // 2. Total Orders (Cups): Real count of all valid cups ordered in the system
 const realValidOrders = computed(() => {
   const orders = queueStore.orders || [];
-  return orders.filter(o => o.status !== 'cancelled');
+  const valid = orders.filter(o => o.status !== 'cancelled');
+  if (!selectedDate.value) return valid; // All Time
+  return valid.filter(o => getOrderDateStr(o) === selectedDate.value);
 });
 
 const realTotalOrdersCups = computed(() => {
@@ -1633,9 +1658,12 @@ function selectCalendarDate(dateStr) {
 function applyPreset(presetId) {
   tempActivePreset.value = presetId;
   if (presetId === 'today') {
-    tempSelectedDate.value = '2025-05-20';
+    const today = new Date().toISOString().split('T')[0];
+    tempSelectedDate.value = today;
   } else if (presetId === 'yesterday') {
-    tempSelectedDate.value = '2025-05-19';
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    tempSelectedDate.value = d.toISOString().split('T')[0];
   } else if (presetId === 'alltime') {
     tempSelectedDate.value = '';
   }
