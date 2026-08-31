@@ -423,6 +423,7 @@
 
 <script setup>
 import logoBlack from '../assets/images/logo-black.png';
+import stationReadyCup from '../assets/images/station-ready-cup.png';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';
@@ -514,7 +515,9 @@ function handleStorageUpdate() {
 }
 
 function getItemImage(item) {
-  if (!item) return '/src/assets/images/product-step1.png';
+  if (!item) return stationReadyCup;
+  if (item.placementImage && !item.placementImage.includes('product-step2.png')) return item.placementImage;
+  if (item.image && !item.image.includes('product-step2.png')) return item.image;
   if (item.placementImage) return item.placementImage;
   if (item.image) return item.image;
 
@@ -526,7 +529,7 @@ function getItemImage(item) {
   );
 
   if (found) {
-    return found.placementImage || found.image || '/src/assets/images/product-step1.png';
+    return found.image || found.placementImage || stationReadyCup;
   }
 
   // Fallback to default CUP_MODELS
@@ -536,10 +539,10 @@ function getItemImage(item) {
   );
 
   if (fallback) {
-    return fallback.placementImage || fallback.image || '/src/assets/images/product-step1.png';
+    return fallback.image || fallback.placementImage || stationReadyCup;
   }
 
-  return '/src/assets/images/product-step1.png';
+  return stationReadyCup;
 }
 
 function getItemPlacementStyle(item) {

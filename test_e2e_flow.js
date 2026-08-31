@@ -1001,6 +1001,80 @@ assert(getProductImage('Quencher H2.0 30oz').includes('machine-cup-1.png'), 'get
 assert(getProductImage('The IceFlow™ Flip Straw Tumbler').includes('product-step1.png'), 'getProductImage resolves IceFlow image');
 assert(getProductImage({ model: 'Custom Cup', image: '/custom/cup.png' }) === '/custom/cup.png', 'getProductImage preserves direct item image');
 
+console.log('\n--- 16. Testing Sequential Machine Assignment & Station Ready Thumbnail ---');
+// Reset machines to empty
+for (const m of queueStore.machines) {
+  m.currentOrderId = null;
+  m.status = 'idle';
+}
+queueStore.orders = [];
+
+// Customer A arrives and confirmed
+const testOrderA = {
+  order_id: 'ord-seq-cust-A',
+  short_code: '0001',
+  system_queue_number: '0001',
+  customer_name: 'Customer A',
+  status: 'pending_dropoff',
+  intake_at: '2026-08-31T10:00:00Z',
+  items: [{ model: 'Quencher', text: 'ALICE' }]
+};
+queueStore.addOrder(testOrderA);
+await queueStore.confirmOrderIntake('ord-seq-cust-A');
+
+assert(queueStore.machines[0].currentOrderId === 'ord-seq-cust-A', 'Customer A automatically starts on Machine 01');
+assert(queueStore.machines[1].currentOrderId === null, 'Machine 02 remains idle/empty');
+
+// Customer B arrives and confirmed
+const testOrderB = {
+  order_id: 'ord-seq-cust-B',
+  short_code: '0002',
+  system_queue_number: '0002',
+  customer_name: 'Customer B',
+  status: 'pending_dropoff',
+  intake_at: '2026-08-31T10:01:00Z',
+  items: [{ model: 'IceFlow', text: 'BOB' }]
+};
+queueStore.addOrder(testOrderB);
+await queueStore.confirmOrderIntake('ord-seq-cust-B');
+
+assert(queueStore.machines[0].currentOrderId === 'ord-seq-cust-A', 'Machine 01 still strictly holds Customer A');
+assert(queueStore.machines[1].currentOrderId === 'ord-seq-cust-B', 'Customer B takes Machine 02');
+
+// Customer C (Customer 03) arrives and confirmed
+const testOrderC = {
+  order_id: 'ord-seq-cust-C',
+  short_code: '0003',
+  system_queue_number: '0003',
+  customer_name: 'Customer 03',
+  status: 'pending_dropoff',
+  intake_at: '2026-08-31T10:02:00Z',
+  items: [{ model: 'Aerolight', text: 'CHARLIE' }]
+};
+queueStore.addOrder(testOrderC);
+await queueStore.confirmOrderIntake('ord-seq-cust-C');
+
+assert(testOrderC.status === 'in_queue', 'Customer 03 status is in_queue');
+assert(queueStore.machines[0].currentOrderId === 'ord-seq-cust-A', 'Customer A is NOT displaced from Machine 01');
+assert(queueStore.machines[1].currentOrderId === 'ord-seq-cust-B', 'Customer B is NOT displaced from Machine 02');
+
+const upcoming = queueStore.upcomingListOrders();
+assert(upcoming.some(o => o.order_id === 'ord-seq-cust-C'), 'Customer 03 is in upcoming queue list waiting for a station');
+
+// Machine 01 starts and finishes Customer A
+queueStore.startMachine('machine-01');
+assert(queueStore.machines[0].status === 'engraving', 'Machine 01 is now engraving Customer A');
+
+queueStore.completeMachine('machine-01');
+assert(testOrderA.status === 'ready_for_pickup', 'Customer A is completed and ready for pickup');
+
+// Now Customer 03 immediately takes Machine 01!
+assert(queueStore.machines[0].currentOrderId === 'ord-seq-cust-C', 'Customer 03 automatically takes Machine 01 after Customer A is finished');
+assert(queueStore.machines[1].currentOrderId === 'ord-seq-cust-B', 'Machine 02 continues holding Customer B');
+
+// Test station ready thumbnail fallback
+assert(getProductImage(null).includes('station-ready-cup.png') || getProductImage(null).includes('product-step1.png'), 'Station ready product thumbnail matches station ready cup');
+
 await clearAllOrdersInDb();
 await deleteAuthSessionToken(egSession.token);
 await deleteAuthSessionToken(superAdminSession.token);

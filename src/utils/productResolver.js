@@ -1,9 +1,11 @@
 import { CUP_MODELS, getCatalogCupModels } from '../store/engravingStore.js';
 
+export const DEFAULT_STATION_READY_IMAGE = '/src/assets/images/station-ready-cup.png';
+
 /**
  * Resolves the accurate product tumbler image across all pages, dashboards, modals, and tickets.
  */
-export function getProductImage(itemOrName, fallback = '/src/assets/images/product-step1.png') {
+export function getProductImage(itemOrName, fallback = DEFAULT_STATION_READY_IMAGE) {
   if (!itemOrName) return fallback;
 
   // If passed an item object with direct image/placementImage properties

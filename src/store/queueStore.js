@@ -32,7 +32,7 @@ export const useQueueStore = defineStore('queue', {
         currentOrderId: null,
         currentItemIndex: 0,
         timerSeconds: 0,
-        image: '/src/assets/images/product-step1.png'
+        image: '/src/assets/images/station-ready-cup.png'
       },
       {
         id: 'machine-02',
@@ -42,7 +42,7 @@ export const useQueueStore = defineStore('queue', {
         currentOrderId: null,
         currentItemIndex: 0,
         timerSeconds: 0,
-        image: '/src/assets/images/product-step1.png'
+        image: '/src/assets/images/station-ready-cup.png'
       }
     ];
 
@@ -521,17 +521,6 @@ export const useQueueStore = defineStore('queue', {
       order.intake_at = new Date().toISOString();
       
       saveStoredOrders(this.orders);
-      
-      // If there's an idle machine, load this order into it immediately
-      const idleActiveMachine = this.machines.find(m => m.isActive !== false && (!m.currentOrderId || m.status === 'idle'));
-      if (idleActiveMachine && idleActiveMachine.status !== 'engraving') {
-        idleActiveMachine.currentOrderId = order.order_id;
-        idleActiveMachine.currentItemIndex = 0;
-        idleActiveMachine.status = 'idle';
-        idleActiveMachine.timerSeconds = 0;
-        this.saveMachinesState();
-      }
-
       this.autoAssignMachines();
 
       return {
@@ -547,7 +536,7 @@ export const useQueueStore = defineStore('queue', {
      * 1. Validate existing machine assignments against actual active orders.
      * 2. Release orders from disabled/inactive machines immediately back to the queue pool.
      * 3. Clean up stale/completed/cancelled order IDs.
-     * 4. Pull top pending orders into any active idle machines.
+     * 4. Pull top pending orders into any active idle machines (Machine 01 first for oldest Customer A, then Machine 02 for Customer B, Customer 03 waits).
      */
     autoAssignMachines() {
       // Step 1: Clean up invalid/completed orders OR orders on INACTIVE machines
@@ -599,7 +588,7 @@ export const useQueueStore = defineStore('queue', {
           return numA - numB;
         });
 
-      // Step 4: Auto-assign into idle ACTIVE machines only (oldest customer first)
+      // Step 4: Auto-assign into idle ACTIVE machines only (Machine 01 gets Customer A, Machine 02 gets Customer B, Customer 03 waits)
       for (const machine of this.machines) {
         if (machine.isActive !== false && !machine.currentOrderId && availablePending.length > 0) {
           const nextOrder = availablePending.shift();
@@ -616,13 +605,20 @@ export const useQueueStore = defineStore('queue', {
     assignOrderToMachine(orderId, machineId = null) {
       let targetMachine = null;
       if (machineId) {
-        targetMachine = this.machines.find(m => m.id === machineId && m.isActive !== false);
+        targetMachine = this.machines.find(m => m.id === machineId && m.isActive !== false && m.status !== 'engraving');
       }
       if (!targetMachine) {
-        targetMachine = this.machines.find(m => m.isActive !== false && m.status !== 'engraving') || this.machines.find(m => m.isActive !== false);
+        // Priority 1: First active machine that is completely free (no order assigned)
+        targetMachine = this.machines.find(m => m.isActive !== false && !m.currentOrderId);
       }
+      if (!targetMachine) {
+        // Priority 2: First active machine that is idle (not actively engraving)
+        targetMachine = this.machines.find(m => m.isActive !== false && m.status !== 'engraving');
+      }
+      if (!targetMachine) return false;
+
       const order = this.orders.find(o => o.order_id === orderId || o.short_code === orderId);
-      if (!targetMachine || !order) return false;
+      if (!order) return false;
 
       targetMachine.currentOrderId = order.order_id;
       targetMachine.currentItemIndex = 0;
