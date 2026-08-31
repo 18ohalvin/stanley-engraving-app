@@ -67,7 +67,7 @@
               <div class="product-visualizer-container">
                 <div class="product-image-wrap">
                   <img 
-                    :src="getItemImage(getCurrentItem(machine))" 
+                    :src="getWorkspaceEngraveImage(getCurrentItem(machine))" 
                     :alt="getCurrentItem(machine)?.model || 'Stanley Tumbler'" 
                     class="product-tumbler-img" 
                   />
@@ -430,6 +430,7 @@ import { useQueueStore } from '../store/queueStore.js';
 import { getAnalyticsSummary, getWhatsAppLogs } from '../utils/analyticsService.js';
 import { getCanonicalStore } from '../utils/storeResolver.js';
 import { CUP_MODELS, getCatalogCupModels, fetchCatalogCupModels } from '../store/engravingStore.js';
+import { getProductImage, getEngraveProductImage } from '../utils/productResolver.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -514,35 +515,14 @@ function handleStorageUpdate() {
   queueStore.refreshFromStorage();
 }
 
+function getWorkspaceEngraveImage(item) {
+  if (!item) return stationReadyCup;
+  return getEngraveProductImage(item);
+}
+
 function getItemImage(item) {
   if (!item) return stationReadyCup;
-  if (item.placementImage && !item.placementImage.includes('product-step2.png')) return item.placementImage;
-  if (item.image && !item.image.includes('product-step2.png')) return item.image;
-  if (item.placementImage) return item.placementImage;
-  if (item.image) return item.image;
-
-  // Lookup in catalog by model name / shortName
-  const catalog = getCatalogCupModels();
-  const found = catalog.find(m => 
-    (item.model && (m.name === item.model || m.id === item.model || m.name.toLowerCase().includes(item.model.toLowerCase()) || item.model.toLowerCase().includes(m.name.toLowerCase()))) ||
-    (item.shortName && (m.shortName === item.shortName || m.name.toLowerCase().includes(item.shortName.toLowerCase())))
-  );
-
-  if (found) {
-    return found.image || found.placementImage || stationReadyCup;
-  }
-
-  // Fallback to default CUP_MODELS
-  const fallback = CUP_MODELS.find(m => 
-    (item.model && (m.name.toLowerCase().includes(item.model.toLowerCase()) || item.model.toLowerCase().includes(m.name.toLowerCase()))) ||
-    (item.shortName && m.shortName.toLowerCase().includes(item.shortName.toLowerCase()))
-  );
-
-  if (fallback) {
-    return fallback.image || fallback.placementImage || stationReadyCup;
-  }
-
-  return stationReadyCup;
+  return getProductImage(item);
 }
 
 function getItemPlacementStyle(item) {

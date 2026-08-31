@@ -994,12 +994,17 @@ assert(queueStore.machines[0].currentItemIndex === 1, 'Machine 01 item index upd
 const currentItemCup2 = m1Assigned.items[queueStore.machines[0].currentItemIndex];
 assert(currentItemCup2.image.includes('machine-cup-1.png'), 'Cup 2 in Machine 01 displays real Quencher image');
 
-// Test central getProductImage resolver across all views
-const { getProductImage } = await import('./src/utils/productResolver.js');
+// Test central getProductImage and getEngraveProductImage resolver across all views
+const { getProductImage, getEngraveProductImage } = await import('./src/utils/productResolver.js');
 assert(getProductImage('The Aerolight™ Transit Bottle').includes('product-iceflow-fastflow.png'), 'getProductImage resolves Aerolight image');
 assert(getProductImage('Quencher H2.0 30oz').includes('machine-cup-1.png'), 'getProductImage resolves Quencher image');
 assert(getProductImage('The IceFlow™ Flip Straw Tumbler').includes('product-step1.png'), 'getProductImage resolves IceFlow image');
 assert(getProductImage({ model: 'Custom Cup', image: '/custom/cup.png' }) === '/custom/cup.png', 'getProductImage preserves direct item image');
+
+// Test engrave product image mode for machine laser workspace
+assert(getEngraveProductImage('The Aerolight™ Transit Bottle').includes('product-step2.png'), 'getEngraveProductImage resolves laser canvas image product-step2.png');
+assert(getEngraveProductImage({ model: 'IceFlow', placementImage: '/custom/laser-canvas.png' }) === '/custom/laser-canvas.png', 'getEngraveProductImage preserves custom placementImage');
+assert(getEngraveProductImage(null).includes('station-ready-cup.png') || getEngraveProductImage(null).includes('product-step1.png'), 'getEngraveProductImage returns station ready cup for idle state');
 
 console.log('\n--- 16. Testing Sequential Machine Assignment & Station Ready Thumbnail ---');
 // Reset machines to empty

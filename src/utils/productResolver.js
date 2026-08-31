@@ -1,9 +1,66 @@
 import { CUP_MODELS, getCatalogCupModels } from '../store/engravingStore.js';
 
 export const DEFAULT_STATION_READY_IMAGE = '/src/assets/images/station-ready-cup.png';
+export const DEFAULT_ENGRAVED_IMAGE = '/src/assets/images/product-step2.png';
 
 /**
- * Resolves the accurate product tumbler image across all pages, dashboards, modals, and tickets.
+ * Resolves the engrave product image mode (the laser canvas cup) for the main workspace in the engraver dashboard.
+ */
+export function getEngraveProductImage(itemOrName, fallback = DEFAULT_ENGRAVED_IMAGE) {
+  if (!itemOrName) return DEFAULT_STATION_READY_IMAGE;
+
+  if (typeof itemOrName === 'object') {
+    if (itemOrName.placementImage && itemOrName.placementImage !== DEFAULT_STATION_READY_IMAGE) {
+      return itemOrName.placementImage;
+    }
+    if (itemOrName.engravedImage && itemOrName.engravedImage !== DEFAULT_STATION_READY_IMAGE) {
+      return itemOrName.engravedImage;
+    }
+  }
+
+  const nameStr = typeof itemOrName === 'object'
+    ? (itemOrName.model || itemOrName.shortName || itemOrName.name || '')
+    : String(itemOrName);
+
+  if (!nameStr || !nameStr.trim()) return fallback;
+  const clean = nameStr.trim().toLowerCase();
+
+  // 1. Check current dynamic catalog in Settings / LocalStorage / Server
+  try {
+    const catalog = getCatalogCupModels();
+    const matchedCatalog = catalog.find(m => 
+      (m.name && m.name.toLowerCase() === clean) ||
+      (m.shortName && m.shortName.toLowerCase() === clean) ||
+      (m.id && m.id.toLowerCase() === clean) ||
+      (m.name && m.name.toLowerCase().includes(clean)) ||
+      (clean.includes(m.name ? m.name.toLowerCase() : '')) ||
+      (m.shortName && clean.includes(m.shortName.toLowerCase()))
+    );
+
+    if (matchedCatalog) {
+      return matchedCatalog.placementImage || matchedCatalog.engravedImage || matchedCatalog.image || fallback;
+    }
+  } catch (e) {}
+
+  // 2. Check default built-in CUP_MODELS
+  const matchedBuiltIn = CUP_MODELS.find(m => 
+    m.name.toLowerCase() === clean ||
+    m.shortName.toLowerCase() === clean ||
+    m.id.toLowerCase() === clean ||
+    m.name.toLowerCase().includes(clean) ||
+    clean.includes(m.name.toLowerCase()) ||
+    clean.includes(m.shortName.toLowerCase())
+  );
+
+  if (matchedBuiltIn) {
+    return matchedBuiltIn.placementImage || matchedBuiltIn.engravedImage || fallback;
+  }
+
+  return fallback;
+}
+
+/**
+ * Resolves the accurate product tumbler image (catalog photo) across all pages, dashboards, modals, and tickets.
  */
 export function getProductImage(itemOrName, fallback = DEFAULT_STATION_READY_IMAGE) {
   if (!itemOrName) return fallback;
