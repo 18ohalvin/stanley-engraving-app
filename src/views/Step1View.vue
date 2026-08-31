@@ -87,11 +87,29 @@ async function syncCatalogModels() {
   const models = await fetchCatalogCupModels();
   if (Array.isArray(models) && models.length > 0) {
     cupModels.value = models;
-    const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem.model);
-    if (idx !== -1) {
-      currentModelIndex.value = idx;
-    } else {
-      engravingStore.setModel(currentModel.value.name, currentModel.value.shortName);
+
+    // If editing a specific item from cart, preserve that selected model
+    if (engravingStore.editingIndex !== null && engravingStore.currentItem.model) {
+      const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem.model);
+      if (idx !== -1) {
+        currentModelIndex.value = idx;
+        return;
+      }
+    }
+
+    // If user has actively selected a model during this session and it exists in the catalog, keep it
+    if (engravingStore.currentItem.model) {
+      const idx = cupModels.value.findIndex(m => m.name === engravingStore.currentItem.model);
+      if (idx !== -1) {
+        currentModelIndex.value = idx;
+        return;
+      }
+    }
+
+    // Strictly default to Index 0 (Product #1 in SettingsView order)
+    currentModelIndex.value = 0;
+    if (cupModels.value[0]) {
+      engravingStore.setModel(cupModels.value[0].name, cupModels.value[0].shortName);
     }
   }
 }

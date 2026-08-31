@@ -847,6 +847,26 @@ assert(fetchedByCodeA.customer_name === 'Customer Alice', 'Lookup by intake code
 const fetchedByCodeB = queueStore.getOrderById('B2Y');
 assert(fetchedByCodeB.customer_name === 'Customer Bob', 'Lookup by intake code B2Y returns Bob, not Alice');
 
+console.log('\n--- 13. Testing Product Catalog Display Order Alignment with SettingsView ---');
+const { mapProductsToCupModels } = await import('./src/store/engravingStore.js');
+
+const customCatalogSettings = [
+  { id: 'p2', name: 'Product Second in DB', modelKey: 'second', availableSizes: ['20 Oz'], isActive: true },
+  { id: 'p1', name: 'Product First in DB', modelKey: 'first', availableSizes: ['30 Oz'], isActive: true },
+  { id: 'p3', name: 'Product Third Inactive', modelKey: 'third', availableSizes: ['40 Oz'], isActive: false }
+];
+
+const mappedOrder = mapProductsToCupModels(customCatalogSettings);
+assert(mappedOrder.length === 2, 'Maps only active products');
+assert(mappedOrder[0].name === 'Product Second in DB', 'Product #1 in Step 1 strictly matches #1 in SettingsView');
+assert(mappedOrder[1].name === 'Product First in DB', 'Product #2 in Step 1 strictly matches #2 in SettingsView');
+
+// Simulate Drag & Drop reorder swap in SettingsView
+const reordered = [customCatalogSettings[1], customCatalogSettings[0]];
+const remappedOrder = mapProductsToCupModels(reordered);
+assert(remappedOrder[0].name === 'Product First in DB', 'After Settings drag-reorder, Step 1 #1 updates to Product First in DB');
+assert(remappedOrder[1].name === 'Product Second in DB', 'After Settings drag-reorder, Step 1 #2 updates to Product Second in DB');
+
 await clearAllOrdersInDb();
 await deleteAuthSessionToken(egSession.token);
 await deleteAuthSessionToken(superAdminSession.token);

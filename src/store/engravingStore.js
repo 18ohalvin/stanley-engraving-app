@@ -60,27 +60,31 @@ export function sortOzSizes(sizesArray) {
   });
 }
 
+export function mapProductsToCupModels(productsList) {
+  if (!Array.isArray(productsList) || productsList.length === 0) return [];
+  const active = productsList.filter(p => p && p.isActive !== false);
+  return active.map(p => ({
+    id: p.id || p.modelKey || (p.name ? p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'prod'),
+    name: p.name,
+    shortName: p.name ? p.name.replace(/™|®/g, '').split(' ').slice(0, 2).join(' ') : '',
+    sizes: sortOzSizes((p.availableSizes && p.availableSizes.length > 0) ? p.availableSizes : ['20 Oz', '30 Oz', '40 Oz']),
+    image: p.image || '/src/assets/images/product-step1.png',
+    placementImage: p.engravedImage || '/src/assets/images/product-step2.png',
+    positions: (p.availablePositions && p.availablePositions.length > 0) ? p.availablePositions : ['Horizontal', 'Vertical'],
+    textTop: p.textTop !== undefined ? Number(p.textTop) : 48,
+    textLeft: p.textLeft !== undefined ? Number(p.textLeft) : 50,
+    textSize: p.textSize !== undefined ? Number(p.textSize) : 12
+  }));
+}
+
 export function getCatalogCupModels() {
   try {
     const saved = localStorage.getItem('stanley_product_catalog_order');
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const active = parsed.filter(p => p.isActive !== false);
-        if (active.length > 0) {
-          return active.map(p => ({
-            id: p.id || p.modelKey || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-            name: p.name,
-            shortName: p.name.replace(/™|®/g, '').split(' ').slice(0, 2).join(' '),
-            sizes: sortOzSizes((p.availableSizes && p.availableSizes.length > 0) ? p.availableSizes : ['20 Oz', '30 Oz', '40 Oz']),
-            image: p.image || '/src/assets/images/product-step1.png',
-            placementImage: p.engravedImage || '/src/assets/images/product-step2.png',
-            positions: (p.availablePositions && p.availablePositions.length > 0) ? p.availablePositions : ['Horizontal', 'Vertical'],
-            textTop: p.textTop !== undefined ? Number(p.textTop) : 48,
-            textLeft: p.textLeft !== undefined ? Number(p.textLeft) : 50,
-            textSize: p.textSize !== undefined ? Number(p.textSize) : 12
-          }));
-        }
+        const mapped = mapProductsToCupModels(parsed);
+        if (mapped.length > 0) return mapped;
       }
     }
   } catch (e) {
@@ -97,7 +101,8 @@ export async function fetchCatalogCupModels() {
       if (Array.isArray(data) && data.length > 0) {
         localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data));
         window.dispatchEvent(new CustomEvent('stanley_products_updated', { detail: data }));
-        return getCatalogCupModels();
+        const mapped = mapProductsToCupModels(data);
+        if (mapped.length > 0) return mapped;
       }
     }
   } catch (e) {
@@ -107,32 +112,35 @@ export async function fetchCatalogCupModels() {
 }
 
 export const useEngravingStore = defineStore('engraving', {
-  state: () => ({
-    // Current draft item being configured
-    currentItem: {
-      model: 'The IceFlow™ Flip Straw Tumbler',
-      shortName: 'IceFlow',
-      size: '',
-      position: 'Horizontal',
-      text: '',
-      font: 'Helvetica Bold',
-      fontId: 'lato',
-      fontClass: 'font-engraving-lato'
-    },
-    // Final cart items list
-    items: [],
-    // Index if editing an existing item from cart
-    editingIndex: null,
-    // Customer information
-    customer: {
-      name: '',
-      countryCode: '+62',
-      phone: '',
-      email: ''
-    },
-    // Dynamically selected storeId from route URL /engrave/:storeId
-    selectedStoreId: ''
-  }),
+  state: () => {
+    const firstModel = getCatalogCupModels()[0] || CUP_MODELS[0];
+    return {
+      // Current draft item being configured
+      currentItem: {
+        model: firstModel ? firstModel.name : 'The IceFlow™ Flip Straw Tumbler',
+        shortName: firstModel ? firstModel.shortName : 'IceFlow',
+        size: '',
+        position: 'Horizontal',
+        text: '',
+        font: 'Helvetica Bold',
+        fontId: 'lato',
+        fontClass: 'font-engraving-lato'
+      },
+      // Final cart items list
+      items: [],
+      // Index if editing an existing item from cart
+      editingIndex: null,
+      // Target Store ID
+      selectedStoreId: '',
+      // Customer metadata
+      customer: {
+        name: '',
+        countryCode: '+62',
+        phone: '',
+        email: ''
+      }
+    };
+  },
 
   getters: {
     hasProfanity: (state) => containsProfanity(state.currentItem.text),
@@ -238,9 +246,10 @@ export const useEngravingStore = defineStore('engraving', {
     },
 
     resetDraft() {
+      const firstModel = getCatalogCupModels()[0] || CUP_MODELS[0];
       this.currentItem = {
-        model: 'The IceFlow™ Flip Straw Tumbler',
-        shortName: 'IceFlow',
+        model: firstModel ? firstModel.name : 'The IceFlow™ Flip Straw Tumbler',
+        shortName: firstModel ? firstModel.shortName : 'IceFlow',
         size: '',
         position: 'Horizontal',
         text: '',
