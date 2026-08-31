@@ -86,6 +86,8 @@ export function clearAllClientStorage() {
       localStorage.removeItem('stanley_custom_stores');
       localStorage.removeItem('stanley_machines_state');
       localStorage.removeItem('stanley_product_catalog_order');
+      localStorage.removeItem('stanley_category_targets');
+      localStorage.removeItem('stanley_size_presets');
       window.dispatchEvent(new Event('stanley_orders_updated'));
       broadcastSyncMessage('orders_updated', []);
     }

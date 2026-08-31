@@ -403,9 +403,6 @@
           </div>
 
           <div class="modal-footer">
-            <button class="reset-db-btn" @click="handleResetDatabase">
-              Reset Dummy Data
-            </button>
             <button class="modal-close-btn" @click="showAnalyticsModal = false">
               Close Dashboard
             </button>
@@ -626,15 +623,6 @@ function handleConfirmIntakeModal() {
   }
 }
 
-function handleResetDatabase() {
-  queueStore.resetDatabase();
-  showAnalyticsModal.value = false;
-  intakeFeedback.value = 'Database reset with fresh dummy data.';
-  intakeError.value = false;
-  setTimeout(() => {
-    intakeFeedback.value = '';
-  }, 3500);
-}
 
 /**
  * Load Upcoming Order into Workspace Station
@@ -1771,19 +1759,8 @@ function handleDoneNotify(machine) {
 
 .modal-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-}
-
-.reset-db-btn {
-  background-color: #FEE2E2;
-  color: #DC2626;
-  border: 1px solid #FECACA;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .modal-close-btn {

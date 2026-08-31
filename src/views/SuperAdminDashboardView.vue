@@ -859,13 +859,15 @@ const categoryTargets = ref({ ...defaultCategoryTargets });
 const tempCategoryTargets = ref({ ...defaultCategoryTargets });
 const activeTargetPreset = ref('standard');
 
-function loadCategoryTargets() {
+async function loadCategoryTargets() {
   try {
-    const saved = localStorage.getItem('stanley_category_targets');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed && typeof parsed === 'object') {
-        categoryTargets.value = { ...defaultCategoryTargets, ...parsed };
+    const token = localStorage.getItem('stanley_staff_token');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const res = await fetch('/api/settings/category_targets', { headers });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.value && typeof data.value === 'object') {
+        categoryTargets.value = { ...defaultCategoryTargets, ...data.value };
         return;
       }
     }
@@ -906,10 +908,19 @@ function applyTargetPreset(preset) {
   }
 }
 
-function saveCategoryTargets() {
+async function saveCategoryTargets() {
   categoryTargets.value = { ...tempCategoryTargets.value };
   try {
-    localStorage.setItem('stanley_category_targets', JSON.stringify(categoryTargets.value));
+    const token = localStorage.getItem('stanley_staff_token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+    await fetch('/api/settings/category_targets', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ value: categoryTargets.value })
+    });
     window.dispatchEvent(new Event('stanley_targets_updated'));
   } catch (e) {}
   showTargetModal.value = false;
@@ -1484,16 +1495,9 @@ const topProductDurations = computed(() => {
 });
 
 const topStores = computed(() => {
-  let storesList = [];
-  try {
-    const saved = localStorage.getItem('stanley_custom_stores');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        storesList = parsed;
-      }
-    }
-  } catch (e) {}
+  const storesList = allStoreLocations.value && allStoreLocations.value.length > 0
+    ? allStoreLocations.value
+    : [];
 
   if (storesList.length === 0 && (!realValidOrders.value || realValidOrders.value.length === 0)) {
     return [];
@@ -1660,30 +1664,6 @@ function handleLogout() {
     localStorage.removeItem('stanley_is_developer');
   } catch (e) {}
   router.push('/login');
-}
-
-async function handleResetDatabase() {
-  if (!confirm('Are you sure you want to reset all database records (orders, analytics, stores)? Staff login accounts and Super Admin permissions will be preserved.')) {
-    return;
-  }
-
-  try {
-    const token = localStorage.getItem('stanley_staff_token');
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    await fetch('/api/reset', {
-      method: 'POST',
-      headers
-    });
-  } catch (e) {}
-
-  clearAllClientStorage();
-  clearAnalyticsLogs();
-  await queueStore.refreshFromStorage();
-  alert('✓ All system database data has been completely reset to 0.');
 }
 
 let pollInterval = null;
