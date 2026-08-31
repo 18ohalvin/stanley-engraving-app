@@ -782,7 +782,7 @@
     <!-- ADD / EDIT STAFF MODAL -->
     <Teleport to="body">
       <div v-if="showStaffModal" class="modal-backdrop" @click="closeStaffModal">
-        <div class="product-modal-card fade-in" @click.stop>
+        <div class="product-modal-card staff-modal-card fade-in" @click.stop>
           
           <div class="modal-header-row">
             <h3 class="modal-title-bold">{{ isEditStaffMode ? 'Edit Staff User' : 'Add New Staff' }}</h3>
@@ -793,9 +793,10 @@
 
           <form @submit.prevent="saveStaffForm" class="modal-form-content" autocomplete="off">
             
-            <div class="two-images-upload-grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+            <!-- Row 1: Staff ID & Full Name -->
+            <div class="staff-modal-two-col">
               <div class="product-name-input-block">
-                <label class="param-col-title" style="display:block; margin-bottom: 4px;">Staff ID*</label>
+                <label class="param-col-title" style="display:block; margin-bottom: 6px;">Staff ID*</label>
                 <input 
                   v-model="staffForm.staffId" 
                   type="text" 
@@ -809,7 +810,7 @@
                 />
               </div>
               <div class="product-name-input-block">
-                <label class="param-col-title" style="display:block; margin-bottom: 4px;">Full Name*</label>
+                <label class="param-col-title" style="display:block; margin-bottom: 6px;">Full Name*</label>
                 <input 
                   v-model="staffForm.name" 
                   type="text" 
@@ -820,10 +821,10 @@
               </div>
             </div>
 
-            <!-- Username & WhatsApp Row -->
-            <div class="two-images-upload-grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+            <!-- Row 2: Username & WhatsApp Number -->
+            <div class="staff-modal-two-col">
               <div class="product-name-input-block">
-                <label class="param-col-title" style="display:block; margin-bottom: 4px;">Username (for login)*</label>
+                <label class="param-col-title" style="display:block; margin-bottom: 6px;">Username (for login)*</label>
                 <input 
                   v-model="staffForm.username" 
                   type="text" 
@@ -837,7 +838,7 @@
                 />
               </div>
               <div class="product-name-input-block">
-                <label class="param-col-title" style="display:block; margin-bottom: 4px;">WhatsApp Number</label>
+                <label class="param-col-title" style="display:block; margin-bottom: 6px;">WhatsApp Number</label>
                 <input 
                   v-model="staffForm.whatsapp" 
                   type="tel" 
@@ -847,52 +848,61 @@
               </div>
             </div>
 
-            <!-- PIN Code Row -->
-            <div class="two-images-upload-grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
-              <div class="product-name-input-block">
-                <label class="param-col-title" style="display:block; margin-bottom: 4px;">Assigned Store Location</label>
-                <select 
-                  v-model="staffForm.store" 
-                  class="product-name-underline-input"
-                  style="cursor: pointer; background: transparent;"
-                >
-                  <option value="">HQ Central / Unassigned</option>
-                  <option v-for="loc in AVAILABLE_STORE_LOCATIONS" :key="loc" :value="loc">
-                    {{ loc }}
-                  </option>
-                </select>
+            <!-- Row 3: Assigned Store Location & PIN Code -->
+            <div class="staff-modal-two-col">
+              <div class="product-name-input-block custom-select-block">
+                <label class="param-col-title" style="display:block; margin-bottom: 6px;">Assigned Store Location</label>
+                <div class="select-underline-wrap">
+                  <select 
+                    v-model="staffForm.store" 
+                    class="product-name-underline-input staff-select-input"
+                  >
+                    <option value="">HQ Central / Unassigned</option>
+                    <option v-for="loc in AVAILABLE_STORE_LOCATIONS" :key="loc" :value="loc">
+                      {{ loc }}
+                    </option>
+                  </select>
+                  <div class="select-chevron-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
+                </div>
               </div>
-              <div class="product-name-input-block" style="position: relative;">
-                <label class="param-col-title" style="display:block; margin-bottom: 4px;">
+
+              <div class="product-name-input-block pin-input-block">
+                <label class="param-col-title" style="display:block; margin-bottom: 6px;">
                   PIN Code {{ isEditStaffMode ? '(Leave blank to keep current)' : '*' }}
                 </label>
-                <input 
-                  v-model="staffForm.pin" 
-                  :type="showStaffPin ? 'text' : 'password'" 
-                  class="product-name-underline-input" 
-                  placeholder="4-digit PIN (e.g. 1913)" 
-                  maxlength="6"
-                  autocomplete="new-password"
-                  autocorrect="off"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  :required="!isEditStaffMode"
-                />
-                <button 
-                  type="button" 
-                  @click="showStaffPin = !showStaffPin" 
-                  style="position: absolute; right: 0; background: none; border: none; cursor: pointer; color: #52525B; font-size: 11.5px; font-weight: 600; padding: 4px 6px;"
-                  :title="showStaffPin ? 'Hide PIN' : 'Show PIN'"
-                >
-                  {{ showStaffPin ? 'HIDE' : 'SHOW' }}
-                </button>
+                <div class="pin-input-wrap">
+                  <input 
+                    v-model="staffForm.pin" 
+                    :type="showStaffPin ? 'text' : 'password'" 
+                    class="product-name-underline-input" 
+                    placeholder="4-digit PIN (e.g. 1913)" 
+                    maxlength="6"
+                    autocomplete="new-password"
+                    autocorrect="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    :required="!isEditStaffMode"
+                  />
+                  <button 
+                    type="button" 
+                    class="btn-pin-toggle"
+                    @click="showStaffPin = !showStaffPin" 
+                    :title="showStaffPin ? 'Hide PIN' : 'Show PIN'"
+                  >
+                    {{ showStaffPin ? 'HIDE' : 'SHOW' }}
+                  </button>
+                </div>
               </div>
             </div>
 
-            <!-- Parameters 2-Column Configuration Row (Role & Status) -->
-            <div class="params-three-col-row" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <!-- Parameters Row (Role & Status following latest button design) -->
+            <div class="params-three-col-row staff-params-row">
               
-              <!-- Role -->
+              <!-- Role Option Pills -->
               <div class="param-column">
                 <label class="param-col-title">Role</label>
                 <div class="param-pills-wrap">
@@ -901,7 +911,10 @@
                     :key="roleOpt"
                     type="button" 
                     class="figma-option-pill"
-                    :class="{ 'is-selected': staffForm.role === roleOpt }"
+                    :class="{ 
+                      'is-selected': staffForm.role === roleOpt,
+                      'is-unselected': staffForm.role !== roleOpt
+                    }"
                     @click="staffForm.role = roleOpt"
                   >
                     {{ roleOpt }}
@@ -909,13 +922,13 @@
                 </div>
               </div>
 
-              <!-- Status -->
+              <!-- Shows in app / Account Status Segmented Toggle -->
               <div class="param-column">
-                <label class="param-col-title">Status</label>
-                <div class="segmented-status-container">
+                <label class="param-col-title">Account Status</label>
+                <div class="figma-segmented-status-wrap">
                   <button 
                     type="button" 
-                    class="status-segment-btn"
+                    class="figma-status-segment-btn"
                     :class="{ 'is-active': staffForm.status === 'Active' }"
                     @click="staffForm.status = 'Active'"
                   >
@@ -923,7 +936,7 @@
                   </button>
                   <button 
                     type="button" 
-                    class="status-segment-btn"
+                    class="figma-status-segment-btn"
                     :class="{ 'is-active': staffForm.status === 'Inactive' }"
                     @click="staffForm.status = 'Inactive'"
                   >
@@ -934,7 +947,8 @@
 
             </div>
 
-            <div class="modal-bottom-actions-row">
+            <!-- Bottom Actions -->
+            <div class="modal-bottom-actions-row" style="margin-top: 8px;">
               <button 
                 type="button" 
                 class="btn-figma-cancel"
@@ -3555,85 +3569,90 @@ async function deleteStaff(user) {
   }
 }
 
-/* Staff Modal Form */
-.modal-headline {
-  font-size: 18px;
-  font-weight: 700;
-  color: #111827;
-  margin: 0;
+/* Staff Modal Specific Styles */
+.staff-modal-card {
+  max-width: 680px;
+  width: 92%;
+  box-sizing: border-box;
 }
 
-.modal-subheadline {
-  font-size: 13px;
-  color: #6B7280;
-  margin: 4px 0 0 0;
-}
-
-.modal-close-x {
-  background: transparent;
-  border: none;
-  font-size: 18px;
-  color: #9CA3AF;
-  cursor: pointer;
-  padding: 4px 8px;
-}
-
-.param-edit-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.form-input {
-  height: 40px;
-  border: 1px solid #D1D5DB;
-  border-radius: 6px;
-  padding: 0 12px;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.form-input:focus {
-  border-color: #111827;
-}
-
-.form-row-two {
+.staff-modal-two-col {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 20px;
+  width: 100%;
 }
 
-.modal-footer-actions {
+.custom-select-block {
+  position: relative;
+}
+
+.select-underline-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.staff-select-input {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 28px;
+  background: transparent;
+}
+
+.select-chevron-icon {
+  position: absolute;
+  right: 0;
+  bottom: 16px;
+  pointer-events: none;
+  color: #52525B;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 8px;
 }
 
-.btn-secondary {
-  height: 40px;
-  padding: 0 16px;
-  background: #FFFFFF;
-  border: 1px solid #D1D5DB;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
+.pin-input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.btn-pin-toggle {
+  position: absolute;
+  right: 0;
+  bottom: 12px;
+  background: none;
+  border: none;
   cursor: pointer;
+  color: #52525B;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.btn-pin-toggle:hover {
+  color: #000000;
+}
+
+.staff-params-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  padding-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .staff-modal-two-col {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .staff-params-row {
+    flex-direction: column;
+    gap: 16px;
+  }
 }
 
 .btn-primary-black {
