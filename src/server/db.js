@@ -419,6 +419,7 @@ export async function upsertSingleOrderInDb(order, storeId) {
 export async function getOrderByIdFromDb(idOrCode, storeId) {
   if (!idOrCode) return null;
   const clean = String(idOrCode).replace('#', '').trim().toLowerCase();
+  if (!clean || clean === 'undefined' || clean === 'null') return null;
   const parts = clean.split('-');
   const subCode = parts[parts.length - 1];
   
@@ -427,24 +428,32 @@ export async function getOrderByIdFromDb(idOrCode, storeId) {
     const s = String(storeId).trim().toLowerCase();
     row = await dbAdapter.get(`
       SELECT * FROM orders 
-      WHERE (LOWER(order_id) = ? OR LOWER(short_code) = ? OR LOWER(intake_code) = ? OR LOWER(system_queue_number) = ? OR LOWER(order_id) LIKE ? OR LOWER(short_code) = ? OR LOWER(intake_code) = ?)
+      WHERE (
+        LOWER(order_id) = ? 
+        OR (short_code IS NOT NULL AND short_code != '' AND LOWER(short_code) = ?) 
+        OR (intake_code IS NOT NULL AND intake_code != '' AND LOWER(intake_code) = ?) 
+        OR (system_queue_number IS NOT NULL AND system_queue_number != '' AND LOWER(system_queue_number) = ?) 
+        OR (LENGTH(?) >= 3 AND short_code IS NOT NULL AND short_code != '' AND LOWER(short_code) = ?) 
+        OR (LENGTH(?) >= 3 AND intake_code IS NOT NULL AND intake_code != '' AND LOWER(intake_code) = ?)
+        OR (LENGTH(?) >= 4 AND LOWER(order_id) LIKE ?)
+      )
         AND (LOWER(store_id) = ? OR LOWER(store_code) = ? OR LOWER(store_name) = ?)
       ORDER BY created_at DESC LIMIT 1
-    `, [clean, clean, clean, clean, `%${clean}%`, subCode, subCode, s, s, s]);
+    `, [clean, clean, clean, clean, subCode, subCode, subCode, subCode, clean, `%${clean}%`, s, s, s]);
   }
 
   if (!row) {
     row = await dbAdapter.get(`
       SELECT * FROM orders 
       WHERE LOWER(order_id) = ? 
-         OR LOWER(short_code) = ? 
-         OR LOWER(intake_code) = ? 
-         OR LOWER(system_queue_number) = ? 
-         OR LOWER(order_id) LIKE ?
-         OR LOWER(short_code) = ?
-         OR LOWER(intake_code) = ?
+         OR (short_code IS NOT NULL AND short_code != '' AND LOWER(short_code) = ?) 
+         OR (intake_code IS NOT NULL AND intake_code != '' AND LOWER(intake_code) = ?) 
+         OR (system_queue_number IS NOT NULL AND system_queue_number != '' AND LOWER(system_queue_number) = ?) 
+         OR (LENGTH(?) >= 3 AND short_code IS NOT NULL AND short_code != '' AND LOWER(short_code) = ?) 
+         OR (LENGTH(?) >= 3 AND intake_code IS NOT NULL AND intake_code != '' AND LOWER(intake_code) = ?)
+         OR (LENGTH(?) >= 4 AND LOWER(order_id) LIKE ?)
       ORDER BY created_at DESC LIMIT 1
-    `, [clean, clean, clean, clean, `%${clean}%`, subCode, subCode]);
+    `, [clean, clean, clean, clean, subCode, subCode, subCode, subCode, clean, `%${clean}%`]);
   }
 
   if (!row) return null;

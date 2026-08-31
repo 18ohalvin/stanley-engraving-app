@@ -130,26 +130,34 @@ export const useQueueStore = defineStore('queue', {
     getOrderById: (state) => (orderIdOrCode) => {
       if (!orderIdOrCode) return null;
       const cleanCode = String(orderIdOrCode).replace('#', '').trim().toUpperCase();
+      if (!cleanCode || cleanCode === 'UNDEFINED' || cleanCode === 'NULL') return null;
       const parts = cleanCode.split('-');
       const subCode = parts[parts.length - 1];
 
       return state.orders.find(o => {
         if (!o) return false;
-        const oId = (o.order_id || '').toUpperCase();
-        const sCode = (o.short_code || '').toUpperCase();
-        const iCode = (o.intake_code || '').toUpperCase();
-        const qNum = (o.system_queue_number || '').toUpperCase();
+        const oId = (o.order_id || '').trim().toUpperCase();
+        const sCode = (o.short_code || '').trim().toUpperCase();
+        const iCode = (o.intake_code || '').trim().toUpperCase();
+        const qNum = (o.system_queue_number || '').trim().toUpperCase();
 
-        return oId === cleanCode || 
-               sCode === cleanCode || 
-               iCode === cleanCode || 
-               qNum === cleanCode || 
-               sCode === subCode ||
-               iCode === subCode ||
-               qNum === subCode ||
-               oId.endsWith(cleanCode) ||
-               cleanCode.endsWith(sCode) ||
-               cleanCode.endsWith(iCode);
+        // Exact matches
+        if (oId && oId === cleanCode) return true;
+        if (sCode && sCode === cleanCode) return true;
+        if (iCode && iCode === cleanCode) return true;
+        if (qNum && qNum === cleanCode) return true;
+
+        // Subcode matches (e.g. 130826-C4X matching C4X)
+        if (subCode && subCode.length >= 3) {
+          if (sCode && sCode === subCode) return true;
+          if (iCode && iCode === subCode) return true;
+          if (qNum && qNum === subCode) return true;
+        }
+
+        // Full ID suffix matches (e.g. searching C4X matching 130826-C4X)
+        if (oId && cleanCode.length >= 3 && oId.endsWith(`-${cleanCode}`)) return true;
+
+        return false;
       }) || null;
     },
 

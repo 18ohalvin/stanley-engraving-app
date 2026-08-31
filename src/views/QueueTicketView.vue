@@ -260,7 +260,10 @@ async function fetchOrder() {
   await queueStore.refreshFromStorage();
   const rawId = route.params.orderId || route.params.ticketId || route.params.code;
   const storeIdParam = route.params.storeId || route.query.storeId || route.query.store;
-  if (!rawId) return;
+  if (!rawId || rawId === 'undefined' || rawId === 'null') {
+    isNotFound.value = true;
+    return;
+  }
 
   const found = queueStore.getOrderById(rawId);
   if (found) {
@@ -282,10 +285,25 @@ async function fetchOrder() {
       if (res.ok) {
         const serverOrder = await res.json();
         if (serverOrder && (serverOrder.order_id || serverOrder.short_code || serverOrder.intake_code)) {
-          fallbackOrder.value = serverOrder;
-          isNotFound.value = false;
-          queueStore.upsertOrder(serverOrder);
-          return;
+          const matchOId = (serverOrder.order_id || '').trim().toUpperCase();
+          const matchSCode = (serverOrder.short_code || '').trim().toUpperCase();
+          const matchICode = (serverOrder.intake_code || '').trim().toUpperCase();
+          const matchQNum = (serverOrder.system_queue_number || '').trim().toUpperCase();
+          const reqUpper = cleanId.toUpperCase();
+          const parts = reqUpper.split('-');
+          const sub = parts[parts.length - 1];
+
+          const isMatch = (matchOId && (matchOId === reqUpper || matchOId.endsWith(`-${reqUpper}`))) ||
+                          (matchSCode && (matchSCode === reqUpper || (sub.length >= 3 && matchSCode === sub))) ||
+                          (matchICode && (matchICode === reqUpper || (sub.length >= 3 && matchICode === sub))) ||
+                          (matchQNum && (matchQNum === reqUpper || (sub.length >= 3 && matchQNum === sub)));
+
+          if (isMatch) {
+            fallbackOrder.value = serverOrder;
+            isNotFound.value = false;
+            queueStore.upsertOrder(serverOrder);
+            return;
+          }
         }
       }
     } catch (e) {}

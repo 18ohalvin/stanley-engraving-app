@@ -801,6 +801,52 @@ let cleanDigits = phonePim.replace(/\D/g, '');
 if (cleanDigits.startsWith('0')) cleanDigits = '62' + cleanDigits.slice(1);
 assert(cleanDigits === '6281755667788', 'Phone digits cleaned for WhatsApp wa.me link');
 
+console.log('\n--- 12. Testing Multi-Customer Concurrent Ticket Isolation & No Swapping ---');
+// Create Customer Alice
+const orderAlice = {
+  order_id: '130826-A1X',
+  intake_code: 'A1X',
+  short_code: null,
+  system_queue_number: null,
+  customer_name: 'Customer Alice',
+  phone: '+62811111111',
+  email: 'alice@example.com',
+  status: 'pending_dropoff',
+  items: [{ text: 'ALICE', model: 'IceFlow', size: '30 Oz' }]
+};
+
+// Create Customer Bob (submitted concurrently or right after)
+const orderBob = {
+  order_id: '130826-B2Y',
+  intake_code: 'B2Y',
+  short_code: null,
+  system_queue_number: null,
+  customer_name: 'Customer Bob',
+  phone: '+62822222222',
+  email: 'bob@example.com',
+  status: 'pending_dropoff',
+  items: [{ text: 'BOB', model: 'Quencher', size: '40 Oz' }]
+};
+
+queueStore.addOrder(orderAlice);
+queueStore.addOrder(orderBob);
+
+const fetchedA = queueStore.getOrderById('130826-A1X');
+assert(fetchedA !== null, 'Customer Alice ticket found by ID');
+assert(fetchedA.customer_name === 'Customer Alice', 'Customer Alice ticket strictly returns Alice details');
+assert(fetchedA.intake_code === 'A1X', 'Customer Alice ticket has intake code A1X');
+
+const fetchedB = queueStore.getOrderById('130826-B2Y');
+assert(fetchedB !== null, 'Customer Bob ticket found by ID');
+assert(fetchedB.customer_name === 'Customer Bob', 'Customer Bob ticket strictly returns Bob details');
+assert(fetchedB.intake_code === 'B2Y', 'Customer Bob ticket has intake code B2Y');
+
+const fetchedByCodeA = queueStore.getOrderById('A1X');
+assert(fetchedByCodeA.customer_name === 'Customer Alice', 'Lookup by intake code A1X returns Alice, not Bob');
+
+const fetchedByCodeB = queueStore.getOrderById('B2Y');
+assert(fetchedByCodeB.customer_name === 'Customer Bob', 'Lookup by intake code B2Y returns Bob, not Alice');
+
 await clearAllOrdersInDb();
 await deleteAuthSessionToken(egSession.token);
 await deleteAuthSessionToken(superAdminSession.token);
