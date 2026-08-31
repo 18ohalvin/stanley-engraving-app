@@ -300,6 +300,17 @@ app.post('/api/orders', requireAuth, async (req, res) => {
   }
 });
 
+// POST clear all test orders (Protected Admin/Super Admin)
+app.post('/api/orders/clear', requireAuth, async (req, res) => {
+  try {
+    await clearAllOrdersInDb();
+    broadcast('orders_updated', []);
+    res.json({ success: true, message: 'All orders cleared successfully', orders: [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST reset database (Protected Super Admin)
 app.post('/api/reset', requireSuperAdmin, async (req, res) => {
   try {

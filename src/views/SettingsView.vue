@@ -16,8 +16,19 @@
           <p class="store-location">SYSTEM CONFIGURATION</p>
         </div>
 
-        <!-- Right: Single Dashboard Action Button -->
+        <!-- Right: Header Action Buttons -->
         <div class="header-actions">
+          <button 
+            type="button" 
+            class="clear-orders-btn"
+            @click="clearTestOrders"
+            :disabled="isClearingOrders"
+            title="Clear all test orders from database and reset live queue to 0"
+          >
+            <svg v-if="isClearingOrders" class="spinner-inline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25" stroke="currentColor"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path></svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            <span>{{ isClearingOrders ? 'Clearing...' : 'Clear Test Orders' }}</span>
+          </button>
           <button 
             type="button" 
             class="dashboard-nav-btn"
@@ -972,8 +983,10 @@ import productStep2 from '../assets/images/product-step2.png';
 import productIceflow from '../assets/images/product-iceflow-fastflow.png';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { clearAllClientStorage } from '../utils/storage.js';
 
 const router = useRouter();
+const isClearingOrders = ref(false);
 
 // Active Navigation Tab: 'product' (default) or 'user'
 const activeTab = ref('product');
@@ -1108,6 +1121,38 @@ function triggerToast(msg, type = 'success') {
   toastTimer = setTimeout(() => {
     toastVisible.value = false;
   }, 3500);
+}
+
+// Clear all test orders and reset queue database to 0
+async function clearTestOrders() {
+  if (!confirm('Are you sure you want to clear all test orders and reset the queue to 0? This will wipe test queue data for store launch.')) {
+    return;
+  }
+  isClearingOrders.value = true;
+  try {
+    const token = localStorage.getItem('stanley_staff_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('/api/orders/clear', {
+      method: 'POST',
+      headers
+    });
+    if (res.ok) {
+      clearAllClientStorage();
+      triggerToast('All test orders cleared. Queue reset to 0.', 'success');
+      setTimeout(() => {
+        window.location.reload();
+      }, 900);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      triggerToast(err.error || 'Failed to clear orders from server', 'error');
+    }
+  } catch (e) {
+    triggerToast('Network error while clearing test orders', 'error');
+  } finally {
+    isClearingOrders.value = false;
+  }
 }
 
 // Modals State
@@ -2040,6 +2085,34 @@ async function deleteStaff(user) {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.clear-orders-btn {
+  background-color: #FFFFFF;
+  border: 1px solid #EF4444;
+  border-radius: 8px;
+  height: 40px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #DC2626;
+  transition: all 0.15s ease;
+}
+
+.clear-orders-btn:hover:not(:disabled) {
+  background-color: #FEF2F2;
+  border-color: #DC2626;
+}
+
+.clear-orders-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .dashboard-nav-btn {

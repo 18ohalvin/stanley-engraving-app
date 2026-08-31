@@ -71,6 +71,12 @@ async function seedDefaultMasterData() {
       'Active',
       new Date().toISOString()
     ]);
+  } else if (process.env.DEVELOPER_MASTER_PIN) {
+    await dbAdapter.run(`
+      UPDATE staff_users 
+      SET pin = ? 
+      WHERE (id = 'devsosco01' OR staff_id = 'devsosco01' OR username = 'devsosco01')
+    `, [bcrypt.hashSync(process.env.DEVELOPER_MASTER_PIN, 10)]);
   }
 
   // Seed default network stores if empty
