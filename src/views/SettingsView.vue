@@ -821,22 +821,8 @@
               </div>
             </div>
 
-            <!-- Row 2: Username & WhatsApp Number -->
+            <!-- Row 2: WhatsApp Number & Assigned Store Location -->
             <div class="staff-modal-two-col">
-              <div class="product-name-input-block">
-                <label class="param-col-title" style="display:block; margin-bottom: 6px;">Username (for login)*</label>
-                <input 
-                  v-model="staffForm.username" 
-                  type="text" 
-                  class="product-name-underline-input" 
-                  placeholder="e.g. budi.s" 
-                  autocomplete="off"
-                  autocorrect="off"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  required 
-                />
-              </div>
               <div class="product-name-input-block">
                 <label class="param-col-title" style="display:block; margin-bottom: 6px;">WhatsApp Number</label>
                 <input 
@@ -846,10 +832,7 @@
                   placeholder="+62 812-xxxx-xxxx" 
                 />
               </div>
-            </div>
 
-            <!-- Row 3: Assigned Store Location & PIN Code -->
-            <div class="staff-modal-two-col">
               <div class="product-name-input-block custom-select-block">
                 <label class="param-col-title" style="display:block; margin-bottom: 6px;">Assigned Store Location</label>
                 <div class="select-underline-wrap">
@@ -869,7 +852,10 @@
                   </div>
                 </div>
               </div>
+            </div>
 
+            <!-- Row 3: PIN Code -->
+            <div class="staff-modal-two-col">
               <div class="product-name-input-block pin-input-block">
                 <label class="param-col-title" style="display:block; margin-bottom: 6px;">
                   PIN Code {{ isEditStaffMode ? '(Leave blank to keep current)' : '*' }}
@@ -897,6 +883,7 @@
                   </button>
                 </div>
               </div>
+              <div></div>
             </div>
 
             <!-- Parameters Row (Role & Status following latest button design) -->
@@ -1912,15 +1899,16 @@ async function saveStaffForm() {
   let targetUser = null;
 
   try {
+    const staffId = staffForm.value.staffId.trim().toUpperCase();
     if (isEditStaffMode.value) {
       const idx = staffUsers.value.findIndex(u => u.id === staffForm.value.id);
       if (idx > -1) {
         staffUsers.value[idx] = {
           ...staffUsers.value[idx],
-          staffId: staffForm.value.staffId.trim().toUpperCase(),
-          idCode: staffForm.value.staffId.trim().toUpperCase(),
+          staffId,
+          idCode: staffId,
           name: staffName,
-          username: staffForm.value.username.trim() || staffName,
+          username: staffForm.value.username ? staffForm.value.username.trim() : (staffId || staffName),
           whatsapp: staffForm.value.whatsapp.trim(),
           pin: cleanPin,
           role: staffForm.value.role,
@@ -1933,10 +1921,10 @@ async function saveStaffForm() {
     } else {
       const newUser = {
         id: `usr-${Date.now()}`,
-        staffId: staffForm.value.staffId.trim().toUpperCase(),
-        idCode: staffForm.value.staffId.trim().toUpperCase(),
+        staffId,
+        idCode: staffId,
         name: staffName,
-        username: staffForm.value.username.trim() || staffName,
+        username: staffForm.value.username ? staffForm.value.username.trim() : (staffId || staffName),
         whatsapp: staffForm.value.whatsapp.trim(),
         pin: cleanPin || '1234',
         role: staffForm.value.role,
