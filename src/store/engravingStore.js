@@ -166,9 +166,14 @@ export const useEngravingStore = defineStore('engraving', {
       }
     },
 
-    setModel(modelName, shortName) {
+    setModel(modelName, shortName, image, placementImage, textTop, textLeft, textSize) {
       this.currentItem.model = modelName;
       this.currentItem.shortName = shortName || modelName;
+      if (image) this.currentItem.image = image;
+      if (placementImage) this.currentItem.placementImage = placementImage;
+      if (textTop !== undefined) this.currentItem.textTop = textTop;
+      if (textLeft !== undefined) this.currentItem.textLeft = textLeft;
+      if (textSize !== undefined) this.currentItem.textSize = textSize;
     },
 
     setSize(size) {
@@ -219,12 +224,24 @@ export const useEngravingStore = defineStore('engraving', {
         ? (rawText.toUpperCase() || 'STANLEY') 
         : (rawText || 'Stanley');
 
+      const allModels = getCatalogCupModels();
+      const matchedModel = allModels.find(m => 
+        m.name === this.currentItem.model || 
+        m.shortName === this.currentItem.shortName ||
+        m.id === this.currentItem.model
+      ) || allModels[0] || CUP_MODELS[0];
+
       const itemToSave = {
         id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         model: this.currentItem.model,
-        shortName: this.currentItem.shortName || 'IceFlow',
+        shortName: this.currentItem.shortName || (matchedModel ? matchedModel.shortName : 'IceFlow'),
         size: this.currentItem.size || '40oz',
         position: this.currentItem.position || 'Horizontal',
+        image: this.currentItem.image || (matchedModel ? (matchedModel.placementImage || matchedModel.image) : '/src/assets/images/product-step1.png'),
+        placementImage: this.currentItem.placementImage || (matchedModel ? (matchedModel.placementImage || matchedModel.image) : '/src/assets/images/product-step2.png'),
+        textTop: this.currentItem.textTop !== undefined ? this.currentItem.textTop : (matchedModel?.textTop ?? 48),
+        textLeft: this.currentItem.textLeft !== undefined ? this.currentItem.textLeft : (matchedModel?.textLeft ?? 50),
+        textSize: this.currentItem.textSize !== undefined ? this.currentItem.textSize : (matchedModel?.textSize ?? 12),
         text: finalText,
         font: this.currentItem.font || fontOption.name,
         fontId: this.currentItem.fontId || fontOption.id,
@@ -253,6 +270,11 @@ export const useEngravingStore = defineStore('engraving', {
         shortName: firstModel ? firstModel.shortName : 'IceFlow',
         size: '',
         position: 'Horizontal',
+        image: firstModel ? (firstModel.placementImage || firstModel.image) : '/src/assets/images/product-step1.png',
+        placementImage: firstModel ? (firstModel.placementImage || firstModel.image) : '/src/assets/images/product-step2.png',
+        textTop: firstModel?.textTop ?? 48,
+        textLeft: firstModel?.textLeft ?? 50,
+        textSize: firstModel?.textSize ?? 12,
         text: '',
         font: 'Helvetica Bold',
         fontId: 'lato',

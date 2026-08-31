@@ -152,14 +152,15 @@ onUnmounted(() => {
 
 function selectSize(size) {
   engravingStore.setSize(size);
-  engravingStore.setModel(currentModel.value.name, currentModel.value.shortName);
+  const m = currentModel.value;
+  engravingStore.setModel(m.name, m.shortName, m.image, m.placementImage, m.textTop, m.textLeft, m.textSize);
 }
 
 function updateModelSelection() {
-  const model = currentModel.value;
-  engravingStore.setModel(model.name, model.shortName);
+  const m = currentModel.value;
+  engravingStore.setModel(m.name, m.shortName, m.image, m.placementImage, m.textTop, m.textLeft, m.textSize);
   // Reset size if previously selected size is not in this model's size options
-  if (!model.sizes.includes(engravingStore.currentItem.size)) {
+  if (!m.sizes.includes(engravingStore.currentItem.size)) {
     engravingStore.setSize('');
   }
 }

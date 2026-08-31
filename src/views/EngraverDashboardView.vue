@@ -67,8 +67,8 @@
               <div class="product-visualizer-container">
                 <div class="product-image-wrap">
                   <img 
-                    :src="machine.image" 
-                    alt="Stanley Tumbler" 
+                    :src="getItemImage(getCurrentItem(machine))" 
+                    :alt="getCurrentItem(machine)?.model || 'Stanley Tumbler'" 
                     class="product-tumbler-img" 
                   />
                   
@@ -80,6 +80,7 @@
                       getItemFontClass(getCurrentItem(machine)),
                       { 'is-vertical': getCurrentItem(machine).position === 'Vertical' }
                     ]"
+                    :style="getItemPlacementStyle(getCurrentItem(machine))"
                   >
                     {{ getCurrentItem(machine).text }}
                   </div>
@@ -420,6 +421,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';
 import { getAnalyticsSummary, getWhatsAppLogs } from '../utils/analyticsService.js';
 import { getCanonicalStore } from '../utils/storeResolver.js';
+import { CUP_MODELS, getCatalogCupModels, fetchCatalogCupModels } from '../store/engravingStore.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -478,8 +480,9 @@ const nextAssignedQueueNumber = ref('');
 
 let timerInterval = null;
 
-onMounted(() => {
+onMounted(async () => {
   queueStore.refreshFromStorage();
+  await fetchCatalogCupModels();
 
   // 1-second count-up stopwatch timer for active laser machines
   timerInterval = setInterval(() => {
@@ -488,15 +491,75 @@ onMounted(() => {
 
   // Auto-sync across browser tabs (localStorage event listener)
   window.addEventListener('storage', handleStorageUpdate);
+  window.addEventListener('stanley_products_updated', () => {
+    fetchCatalogCupModels();
+  });
 });
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
   window.removeEventListener('storage', handleStorageUpdate);
+  window.removeEventListener('stanley_products_updated', () => {});
 });
 
 function handleStorageUpdate() {
   queueStore.refreshFromStorage();
+}
+
+function getItemImage(item) {
+  if (!item) return '/src/assets/images/product-step1.png';
+  if (item.placementImage) return item.placementImage;
+  if (item.image) return item.image;
+
+  // Lookup in catalog by model name / shortName
+  const catalog = getCatalogCupModels();
+  const found = catalog.find(m => 
+    (item.model && (m.name === item.model || m.id === item.model || m.name.toLowerCase().includes(item.model.toLowerCase()) || item.model.toLowerCase().includes(m.name.toLowerCase()))) ||
+    (item.shortName && (m.shortName === item.shortName || m.name.toLowerCase().includes(item.shortName.toLowerCase())))
+  );
+
+  if (found) {
+    return found.placementImage || found.image || '/src/assets/images/product-step1.png';
+  }
+
+  // Fallback to default CUP_MODELS
+  const fallback = CUP_MODELS.find(m => 
+    (item.model && (m.name.toLowerCase().includes(item.model.toLowerCase()) || item.model.toLowerCase().includes(m.name.toLowerCase()))) ||
+    (item.shortName && m.shortName.toLowerCase().includes(item.shortName.toLowerCase()))
+  );
+
+  if (fallback) {
+    return fallback.placementImage || fallback.image || '/src/assets/images/product-step1.png';
+  }
+
+  return '/src/assets/images/product-step1.png';
+}
+
+function getItemPlacementStyle(item) {
+  if (!item) return {};
+  const isVert = item.position === 'Vertical';
+  
+  let top = item.textTop !== undefined ? item.textTop : 48;
+  let left = item.textLeft !== undefined ? item.textLeft : 50;
+  let size = item.textSize !== undefined ? item.textSize : 14;
+
+  const catalog = getCatalogCupModels();
+  const matched = catalog.find(m => 
+    (item.model && (m.name === item.model || m.id === item.model)) ||
+    (item.shortName && m.shortName === item.shortName)
+  );
+  if (matched) {
+    if (matched.textTop !== undefined && item.textTop === undefined) top = matched.textTop;
+    if (matched.textLeft !== undefined && item.textLeft === undefined) left = matched.textLeft;
+    if (matched.textSize !== undefined && item.textSize === undefined) size = matched.textSize;
+  }
+
+  return {
+    top: `${top}%`,
+    left: `${left}%`,
+    fontSize: size ? `${size}px` : undefined,
+    transform: isVert ? 'translate(-50%, -50%) rotate(-90deg)' : 'translate(-50%, -50%)'
+  };
 }
 
 const activeStoreId = computed(() => {

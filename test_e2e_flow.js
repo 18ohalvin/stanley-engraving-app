@@ -943,6 +943,57 @@ const confirmResSG = await queueStore.confirmOrderIntake('310826-3R5', 'SG-001')
 assert(confirmResSG.success === true, 'Cup intake confirmed for Singapore Store');
 assert(confirmResSG.order.status === 'in_queue', 'Singapore order status transitioned to in_queue');
 
+console.log('\n--- 15. Testing Real Customer Selected Product Image & Live Visualizer Thumbnail ---');
+// Customer selects Aerolight Transit Bottle
+const engravingTestStore = useEngravingStore();
+engravingTestStore.items = [];
+engravingTestStore.resetDraft();
+const aerolightModel = CUP_MODELS.find(m => m.id === 'aerolight-transit');
+engravingTestStore.setModel(aerolightModel.name, aerolightModel.shortName, aerolightModel.image, aerolightModel.placementImage, aerolightModel.textTop, aerolightModel.textLeft, aerolightModel.textSize);
+engravingTestStore.setSize('20 Oz');
+engravingTestStore.setPosition('Vertical');
+engravingTestStore.setText('AERO');
+engravingTestStore.saveCurrentItem();
+
+assert(engravingTestStore.items.length === 1, 'Item saved to cart');
+assert(engravingTestStore.items[0].model === 'The Aerolight™ Transit Bottle', 'Cart item model matches selected Aerolight');
+assert(engravingTestStore.items[0].image.includes('product-iceflow-fastflow.png'), 'Cart item image is set to real Aerolight image');
+assert(engravingTestStore.items[0].position === 'Vertical', 'Cart item position is Vertical');
+
+// Customer adds a second different cup: Quencher H2.0
+const quencherModel = CUP_MODELS.find(m => m.id === 'quencher-h20');
+engravingTestStore.setModel(quencherModel.name, quencherModel.shortName, quencherModel.image, quencherModel.placementImage);
+engravingTestStore.setSize('40 Oz');
+engravingTestStore.setPosition('Horizontal');
+engravingTestStore.setText('QUENCH');
+engravingTestStore.saveCurrentItem();
+
+assert(engravingTestStore.items.length === 2, '2 items in cart');
+assert(engravingTestStore.items[1].model === 'Quencher H2.0 30oz', 'Cart item 2 model matches Quencher');
+assert(engravingTestStore.items[1].image.includes('machine-cup-1.png'), 'Cart item 2 image matches Quencher cup image');
+
+// Test machine loading multi-cup order
+const multiCupOrder = {
+  order_id: 'ord-multi-prod-1',
+  intake_code: 'MP1',
+  system_queue_number: '0030',
+  customer_name: 'Multi Cup Buyer',
+  status: 'in_queue',
+  items: [...engravingTestStore.items]
+};
+queueStore.addOrder(multiCupOrder);
+queueStore.assignOrderToMachine('ord-multi-prod-1', 'machine-01');
+
+const m1Assigned = queueStore.getAssignedOrder(queueStore.machines[0]);
+assert(m1Assigned !== null, 'Machine 01 has assigned order');
+assert(m1Assigned.items[0].image.includes('product-iceflow-fastflow.png'), 'Cup 1 in Machine 01 displays real Aerolight image');
+
+// Toggle to Cup 2
+queueStore.setMachineItemIndex('machine-01', 1);
+assert(queueStore.machines[0].currentItemIndex === 1, 'Machine 01 item index updated to Cup 2');
+const currentItemCup2 = m1Assigned.items[queueStore.machines[0].currentItemIndex];
+assert(currentItemCup2.image.includes('machine-cup-1.png'), 'Cup 2 in Machine 01 displays real Quencher image');
+
 await clearAllOrdersInDb();
 await deleteAuthSessionToken(egSession.token);
 await deleteAuthSessionToken(superAdminSession.token);
