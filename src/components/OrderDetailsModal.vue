@@ -42,11 +42,20 @@
                   :key="item.id || idx" 
                   class="order-item-card"
                 >
-                  <div class="item-engraving" :class="item.fontClass">
-                    {{ item.text }}
-                  </div>
-                  <div class="item-specs">
-                    {{ item.size }} {{ item.model }} • Position {{ item.position }} • Font: {{ item.font }}
+                  <div class="item-card-inner">
+                    <img 
+                      :src="getProductImage(item)" 
+                      :alt="item.model || 'Stanley Tumbler'" 
+                      class="item-thumb-img" 
+                    />
+                    <div class="item-details-col">
+                      <div class="item-engraving" :class="item.fontClass">
+                        {{ item.text }}
+                      </div>
+                      <div class="item-specs">
+                        {{ item.size }} {{ item.model }} • Position {{ item.position }} • Font: {{ item.font }}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -65,6 +74,7 @@
 <script setup>
 import { computed } from 'vue';
 import { getCanonicalStore } from '../utils/storeResolver.js';
+import { getProductImage } from '../utils/productResolver.js';
 
 const props = defineProps({
   isOpen: {
@@ -222,10 +232,31 @@ function formatStatus(status) {
   padding: 12px 16px;
 }
 
+.item-card-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.item-thumb-img {
+  width: 44px;
+  height: 54px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
+  flex-shrink: 0;
+}
+
+.item-details-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
 .item-engraving {
-  font-size: 24px;
+  font-size: 20px;
   color: var(--color-black);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .item-specs {

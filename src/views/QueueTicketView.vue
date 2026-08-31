@@ -91,13 +91,20 @@
                 :key="idx"
                 class="ready-item-card"
               >
-                <div class="ready-item-content">
-                  <span class="ready-item-text" :class="item.fontClass">
-                    {{ item.text }}
-                  </span>
-                  <span class="ready-item-meta">
-                    {{ item.size }} {{ item.shortName || item.model }} • Position {{ item.position }}
-                  </span>
+                <div class="ready-item-left-wrap">
+                  <img 
+                    :src="getProductImage(item)" 
+                    :alt="item.model || 'Stanley Tumbler'" 
+                    class="ready-item-thumb" 
+                  />
+                  <div class="ready-item-content">
+                    <span class="ready-item-text" :class="item.fontClass">
+                      {{ item.text }}
+                    </span>
+                    <span class="ready-item-meta">
+                      {{ item.size }} {{ item.model || item.shortName }} • Position {{ item.position }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -194,6 +201,7 @@ import OrderDetailsModal from '../components/OrderDetailsModal.vue';
 import CancelOrderModal from '../components/CancelOrderModal.vue';
 import { useQueueStore } from '../store/queueStore';
 import { getStorePhone, getCanonicalStore } from '../utils/storeResolver.js';
+import { getProductImage } from '../utils/productResolver.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -583,10 +591,24 @@ onUnmounted(() => {
   width: 100%;
 }
 
+.ready-item-left-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ready-item-thumb {
+  width: 48px;
+  height: 60px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
+  flex-shrink: 0;
+}
+
 .ready-item-content {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ready-item-text {

@@ -317,17 +317,24 @@
                 :key="idx"
                 class="popup-item-row"
               >
-                <div class="item-info-col">
-                  <p class="item-title-spec">
-                    {{ item.model || 'The IceFlow™ Flip Straw Tumbler' }} {{ item.size || '30oz' }}
-                  </p>
-                  <div class="item-text-font-line">
-                    <span class="item-custom-word" :class="item.fontClass">
-                      {{ item.text }}
-                    </span>
-                    <span class="item-font-family-tag">
-                      {{ item.font }}
-                    </span>
+                <div class="popup-item-left-wrap">
+                  <img 
+                    :src="getItemImage(item)" 
+                    :alt="item.model || 'Stanley Tumbler'" 
+                    class="popup-item-thumb" 
+                  />
+                  <div class="item-info-col">
+                    <p class="item-title-spec">
+                      {{ item.model || 'The IceFlow™ Flip Straw Tumbler' }} {{ item.size || '30oz' }}
+                    </p>
+                    <div class="item-text-font-line">
+                      <span class="item-custom-word" :class="item.fontClass">
+                        {{ item.text }}
+                      </span>
+                      <span class="item-font-family-tag">
+                        {{ item.font }}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1580,6 +1587,21 @@ function handleDoneNotify(machine) {
 
 .popup-item-row:first-child {
   padding-top: 0;
+}
+
+.popup-item-left-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.popup-item-thumb {
+  width: 40px;
+  height: 50px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
+  flex-shrink: 0;
 }
 
 .item-info-col {

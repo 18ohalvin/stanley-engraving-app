@@ -830,6 +830,7 @@ import { useRouter } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';
 import { getAnalyticsLogs, clearAnalyticsLogs } from '../utils/analyticsService.js';
 import { clearAllClientStorage } from '../utils/storage.js';
+import { getProductImage } from '../utils/productResolver.js';
 
 const router = useRouter();
 const queueStore = useQueueStore();
@@ -1427,10 +1428,14 @@ const topProducts = computed(() => {
   }
 
   const modelCounts = {};
+  const modelImages = {};
   realValidOrders.value.forEach(order => {
     (order.items || []).forEach(item => {
       const name = item.model || item.shortName || 'The IceFlow™ Flip Straw Tumbler';
       modelCounts[name] = (modelCounts[name] || 0) + 1;
+      if (!modelImages[name] && (item.placementImage || item.image)) {
+        modelImages[name] = item.placementImage || item.image;
+      }
     });
   });
 
@@ -1443,7 +1448,7 @@ const topProducts = computed(() => {
     return {
       id: `prod-${idx}`,
       name,
-      image: '/src/assets/images/product-step1.png',
+      image: getProductImage(modelImages[name] || name),
       count,
       percentage
     };
@@ -1457,7 +1462,7 @@ const topProductDurations = computed(() => {
     return [];
   }
 
-  const modelDurations = {}; // { [modelName]: { totalSecs: number, count: number } }
+  const modelDurations = {}; // { [modelName]: { totalSecs: number, count: number, image?: string } }
   const slaTargetSecs = (categoryTargets.value?.avg_engraving_time || 4.0) * 60;
 
   realCompletedOrders.value.forEach(order => {
@@ -1465,10 +1470,17 @@ const topProductDurations = computed(() => {
     (order.items || []).forEach(item => {
       const name = item.model || item.shortName || 'The IceFlow™ Flip Straw Tumbler';
       if (!modelDurations[name]) {
-        modelDurations[name] = { totalSecs: 0, count: 0 };
+        modelDurations[name] = { 
+          totalSecs: 0, 
+          count: 0,
+          image: item.placementImage || item.image || null
+        };
       }
       modelDurations[name].totalSecs += duration;
       modelDurations[name].count += 1;
+      if (!modelDurations[name].image && (item.placementImage || item.image)) {
+        modelDurations[name].image = item.placementImage || item.image;
+      }
     });
   });
 
@@ -1483,7 +1495,7 @@ const topProductDurations = computed(() => {
     return {
       id: `p-dur-${idx}`,
       name,
-      image: '/src/assets/images/product-step1.png',
+      image: getProductImage(item.image || name),
       avgSecs,
       durationFormatted,
       slaStatus: isWithinSla ? '✓ Within Target SLA' : '⚠️ Over Target SLA',
