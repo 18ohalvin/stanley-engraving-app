@@ -199,13 +199,13 @@ assert(c4xOrder.status === 'pending_dropoff', 'Order C4X is in pending_dropoff s
 assert(c4xOrder.intake_code === 'C4X', 'Order C4X has 3-char alphanumeric intake code');
 
 // Test Zone A: Intake Lookup (Pop-up modal preview)
-const lookupRes = queueStore.lookupIntakeOrder('c4x'); // Lowercase input testing
+const lookupRes = await queueStore.lookupIntakeOrder('c4x'); // Lowercase input testing
 assert(lookupRes.success === true, 'Lookup of code c4x succeeded with auto uppercase');
 assert(lookupRes.order.order_id === c4xOrder.order_id, 'Lookup returned matching order object');
 assert(Boolean(lookupRes.nextQueueNumber), 'Assigned next system queue number is generated');
 
 // Test Zone A: Modal Confirmation CTA
-const confirmRes = queueStore.confirmOrderIntake(c4xOrder.order_id);
+const confirmRes = await queueStore.confirmOrderIntake(c4xOrder.order_id);
 assert(confirmRes.success === true, 'Confirmation of cup intake succeeded');
 assert(c4xOrder.status === 'in_queue', 'Order C4X status updated to in_queue in database');
 assert(Boolean(c4xOrder.system_queue_number), 'Order C4X assigned system queue number');
@@ -751,12 +751,12 @@ assert(queueStore.getOrderById('ord-cust-A').system_queue_number === null, 'Cust
 assert(queueStore.getOrderById('ord-cust-B').system_queue_number === null, 'Customer B has null queue number upon PWA submission');
 
 // Customer B gets confirmed FIRST by engraver
-const confirmB = queueStore.confirmOrderIntake('ord-cust-B');
+const confirmB = await queueStore.confirmOrderIntake('ord-cust-B');
 assert(confirmB.success === true, 'Customer B confirmed intake first');
 assert(queueStore.getOrderById('ord-cust-B').system_queue_number === '0001', 'Customer B receives queue #0001 because B was confirmed first');
 
 // Customer A gets confirmed SECOND by engraver
-const confirmA = queueStore.confirmOrderIntake('ord-cust-A');
+const confirmA = await queueStore.confirmOrderIntake('ord-cust-A');
 assert(confirmA.success === true, 'Customer A confirmed intake second');
 assert(queueStore.getOrderById('ord-cust-A').system_queue_number === '0002', 'Customer A receives queue #0002 because A was confirmed second');
 
@@ -781,7 +781,7 @@ const orderSG = {
 };
 queueStore.addOrder(orderSG);
 
-const crossLookup = queueStore.lookupIntakeOrder('BSP', 'EG-021');
+const crossLookup = await queueStore.lookupIntakeOrder('BSP', 'EG-021');
 assert(crossLookup.success === false, 'Cross-store lookup BSP on EG-021 is rejected');
 assert(crossLookup.message.includes('submitted for Store "SG001"'), 'Cross-store lookup error message explicitly mentions target store SG001');
 
@@ -866,6 +866,60 @@ const reordered = [customCatalogSettings[1], customCatalogSettings[0]];
 const remappedOrder = mapProductsToCupModels(reordered);
 assert(remappedOrder[0].name === 'Product First in DB', 'After Settings drag-reorder, Step 1 #1 updates to Product First in DB');
 assert(remappedOrder[1].name === 'Product Second in DB', 'After Settings drag-reorder, Step 1 #2 updates to Product Second in DB');
+
+console.log('\n--- 14. Testing Independent Store Form Link Unique Intake Code Recognition ---');
+// 1. Submit order for Store 001 (Stanley Pondok Indah Mall) via store link alias
+const orderPimStore = {
+  order_id: '130826-P9K',
+  intake_code: 'P9K',
+  short_code: null,
+  system_queue_number: null,
+  customer_name: 'David Beckham',
+  phone: '+62817000111',
+  email: 'david@example.com',
+  store_id: '001',
+  store_code: '001',
+  store_name: 'Stanley Pondok Indah Mall',
+  status: 'pending_dropoff',
+  items: [{ text: 'BECKHAM', model: 'IceFlow', size: '30 Oz' }]
+};
+queueStore.addOrder(orderPimStore);
+await upsertSingleOrderInDb(orderPimStore);
+
+// Engraver at Pondok Indah Mall (using alias 'EG-021' or 'Pondok Indah Mall')
+const lookupResPim = await queueStore.lookupIntakeOrder('P9K', 'EG-021');
+assert(lookupResPim.success === true, 'Intake code P9K recognized by admin dashboard at store EG-021');
+assert(lookupResPim.order.customer_name === 'David Beckham', 'Lookup returns matching customer name David Beckham');
+
+// Engraver using store name 'Stanley Pondok Indah Mall'
+const lookupResPimName = await queueStore.lookupIntakeOrder('P9K', 'Stanley Pondok Indah Mall');
+assert(lookupResPimName.success === true, 'Intake code P9K recognized when queried by store name');
+
+// 2. Submit order for custom independent store 'Bali Kiosk' (code 'BALI01')
+const orderBali = {
+  order_id: '130826-K7M',
+  intake_code: 'K7M',
+  short_code: null,
+  system_queue_number: null,
+  customer_name: 'Wayan Bali',
+  phone: '+62819876543',
+  store_id: 'BALI01',
+  store_code: 'BALI01',
+  store_name: 'Bali Kiosk Store',
+  status: 'pending_dropoff',
+  items: [{ text: 'BALI', model: 'Quencher', size: '40 Oz' }]
+};
+queueStore.addOrder(orderBali);
+await upsertSingleOrderInDb(orderBali);
+
+const lookupResBali = await queueStore.lookupIntakeOrder('K7M', 'BALI01');
+assert(lookupResBali.success === true, 'Intake code K7M recognized by independent custom store BALI01');
+assert(lookupResBali.order.customer_name === 'Wayan Bali', 'Lookup returns matching customer name Wayan Bali');
+
+// Confirm intake
+const confirmResBali = await queueStore.confirmOrderIntake('130826-K7M', 'BALI01');
+assert(confirmResBali.success === true, 'Cup intake confirmed for Bali Kiosk');
+assert(confirmResBali.order.status === 'in_queue', 'Order status transitioned to in_queue');
 
 await clearAllOrdersInDb();
 await deleteAuthSessionToken(egSession.token);

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { getStoredOrders, saveStoredOrders, fetchServerOrders, getBroadcastChannel, broadcastSyncMessage } from '../utils/storage.js';
 import { logEngravingAnalytics, sendWhatsAppNotification } from '../utils/analyticsService.js';
 import { formatSystemQueueNumber } from '../utils/formatters.js';
+import { isSameStore, getCanonicalStore } from '../utils/storeResolver.js';
 
 // Clean empty starting state for production deployment
 const INITIAL_SEED_ORDERS = [];
@@ -90,29 +91,14 @@ export const useQueueStore = defineStore('queue', {
         .map(m => m.currentOrderId)
         .filter(Boolean);
 
-      const isSameStore = (storeA, storeB) => {
-        if (!storeA || !storeB) return false;
-        if (storeA === '*' || storeB === '*' || storeA === 'HQ Central' || storeB === 'HQ Central') return true;
-        const a = String(storeA).trim().toLowerCase();
-        const b = String(storeB).trim().toLowerCase();
-        if (!a || !b) return false;
-        if (a === b) return true;
-        const cleanA = a.replace(/[^a-z0-9]/g, '');
-        const cleanB = b.replace(/[^a-z0-9]/g, '');
-        if (!cleanA || !cleanB) return false;
-        return cleanA === cleanB;
-      };
-
       const storeId = activeStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
 
       return state.orders
         .filter(o => {
           if (o.status !== 'in_queue' || activeAssignedIds.includes(o.order_id)) return false;
           if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
-            const matchId = isSameStore(o.store_id, storeId);
-            const matchCode = isSameStore(o.store_code, storeId);
-            const matchName = isSameStore(o.store_name, storeId);
-            if (!matchId && !matchCode && !matchName) return false;
+            const match = isSameStore(o.store_id, storeId) || isSameStore(o.store_code, storeId) || isSameStore(o.store_name, storeId);
+            if (!match) return false;
           }
           return true;
         })
@@ -287,26 +273,11 @@ export const useQueueStore = defineStore('queue', {
 
       const todayStr = getYYYYMMDD(new Date());
 
-      const isSameStore = (storeA, storeB) => {
-        if (!storeA || !storeB) return false;
-        if (storeA === '*' || storeB === '*' || storeA === 'HQ Central' || storeB === 'HQ Central') return true;
-        const a = String(storeA).trim().toLowerCase();
-        const b = String(storeB).trim().toLowerCase();
-        if (!a || !b) return false;
-        if (a === b) return true;
-        const cleanA = a.replace(/[^a-z0-9]/g, '');
-        const cleanB = b.replace(/[^a-z0-9]/g, '');
-        if (!cleanA || !cleanB) return false;
-        return cleanA === cleanB;
-      };
-
       const filtered = this.orders.filter(o => {
         if (o.status === 'pending_dropoff' || o.status === 'cancelled') return false;
-        if (storeId && storeId !== '*') {
-          const matchId = isSameStore(o.store_id, storeId);
-          const matchCode = isSameStore(o.store_code, storeId);
-          const matchName = isSameStore(o.store_name, storeId);
-          if (!matchId && !matchCode && !matchName) return false;
+        if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
+          const match = isSameStore(o.store_id, storeId) || isSameStore(o.store_code, storeId) || isSameStore(o.store_name, storeId);
+          if (!match) return false;
         }
         const oDate = getYYYYMMDD(o.created_at || o.intake_at);
         return oDate === todayStr;
@@ -412,17 +383,40 @@ export const useQueueStore = defineStore('queue', {
      * Zone A: Lookup Order by 3-digit Alphanumeric Code (e.g. C4X)
      * Returns order details to show in confirmation modal
      */
-    lookupIntakeOrder(rawCode, activeStoreId = null) {
+    async lookupIntakeOrder(rawCode, activeStoreId = null) {
       if (!rawCode || !rawCode.trim()) {
         return { success: false, message: 'Please enter a 3-character intake code.' };
       }
 
       const cleanCode = rawCode.trim().toUpperCase();
-      const order = this.orders.find(o => 
+      let order = this.orders.find(o => 
         (o.intake_code && o.intake_code.toUpperCase() === cleanCode) ||
         (o.short_code && o.short_code.toUpperCase() === cleanCode) ||
         (o.order_id && o.order_id.toUpperCase().endsWith(cleanCode))
       );
+
+      // Real-time backend query fallback if not found in local Pinia memory
+      if (!order && typeof fetch !== 'undefined') {
+        try {
+          const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+          const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+          const storeParam = activeStoreId ? `?storeId=${encodeURIComponent(activeStoreId)}` : '';
+          const res = await fetch(`/api/orders/lookup/${encodeURIComponent(cleanCode)}${storeParam}`, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.order) {
+              order = data.order;
+              const existIdx = this.orders.findIndex(o => o.order_id === order.order_id);
+              if (existIdx >= 0) {
+                this.orders[existIdx] = order;
+              } else {
+                this.orders.unshift(order);
+              }
+              saveStoredOrders(this.orders);
+            }
+          }
+        } catch (e) {}
+      }
 
       if (!order) {
         return { 
@@ -431,27 +425,14 @@ export const useQueueStore = defineStore('queue', {
         };
       }
 
-      const isSameStore = (storeA, storeB) => {
-        if (!storeA || !storeB) return false;
-        if (storeA === '*' || storeB === '*' || storeA === 'HQ Central' || storeB === 'HQ Central') return true;
-        const a = String(storeA).trim().toLowerCase();
-        const b = String(storeB).trim().toLowerCase();
-        if (!a || !b) return false;
-        if (a === b) return true;
-        const cleanA = a.replace(/[^a-z0-9]/g, '');
-        const cleanB = b.replace(/[^a-z0-9]/g, '');
-        if (!cleanA || !cleanB) return false;
-        return cleanA === cleanB;
-      };
-
       const targetStore = activeStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
       if (targetStore && targetStore !== '*' && targetStore !== 'HQ Central') {
         const orderStore = order.store_id || order.store_code || order.store_name;
         if (orderStore) {
-          const matchId = isSameStore(order.store_id, targetStore);
-          const matchCode = isSameStore(order.store_code, targetStore);
-          const matchName = isSameStore(order.store_name, targetStore);
-          if (!matchId && !matchCode && !matchName) {
+          const match = isSameStore(order.store_id, targetStore) || 
+                        isSameStore(order.store_code, targetStore) || 
+                        isSameStore(order.store_name, targetStore);
+          if (!match) {
             return {
               success: false,
               message: `Order #${cleanCode} was submitted for Store "${orderStore}". Cannot process at Store "${targetStore}".`
@@ -488,33 +469,37 @@ export const useQueueStore = defineStore('queue', {
      * Zone A: Confirm Intake from Pop-up Modal
      * Moves order to in_queue, assigns official 4-digit system queue number (e.g. #0021)
      */
-    confirmOrderIntake(orderId, activeStoreId = null) {
-      const order = this.orders.find(o => o.order_id === orderId || o.short_code === orderId || o.intake_code === orderId);
+    async confirmOrderIntake(orderId, activeStoreId = null) {
+      let order = this.orders.find(o => o.order_id === orderId || o.short_code === orderId || o.intake_code === orderId);
+      
+      // Real-time backend fetch fallback if not in local memory
+      if (!order && typeof fetch !== 'undefined') {
+        try {
+          const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+          const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+          const res = await fetch(`/api/orders/lookup/${encodeURIComponent(orderId)}`, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.order) {
+              order = data.order;
+              this.orders.unshift(order);
+            }
+          }
+        } catch (e) {}
+      }
+
       if (!order) {
         return { success: false, message: 'Order not found.' };
       }
-
-      const isSameStore = (storeA, storeB) => {
-        if (!storeA || !storeB) return false;
-        if (storeA === '*' || storeB === '*' || storeA === 'HQ Central' || storeB === 'HQ Central') return true;
-        const a = String(storeA).trim().toLowerCase();
-        const b = String(storeB).trim().toLowerCase();
-        if (!a || !b) return false;
-        if (a === b) return true;
-        const cleanA = a.replace(/[^a-z0-9]/g, '');
-        const cleanB = b.replace(/[^a-z0-9]/g, '');
-        if (!cleanA || !cleanB) return false;
-        return cleanA === cleanB;
-      };
 
       const targetStore = activeStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
       if (targetStore && targetStore !== '*' && targetStore !== 'HQ Central') {
         const orderStore = order.store_id || order.store_code || order.store_name;
         if (orderStore) {
-          const matchId = isSameStore(order.store_id, targetStore);
-          const matchCode = isSameStore(order.store_code, targetStore);
-          const matchName = isSameStore(order.store_name, targetStore);
-          if (!matchId && !matchCode && !matchName) {
+          const match = isSameStore(order.store_id, targetStore) || 
+                        isSameStore(order.store_code, targetStore) || 
+                        isSameStore(order.store_name, targetStore);
+          if (!match) {
             return {
               success: false,
               message: `Order belongs to Store "${orderStore}". Cannot confirm intake at Store "${targetStore}".`

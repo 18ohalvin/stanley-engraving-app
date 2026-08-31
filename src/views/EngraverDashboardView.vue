@@ -586,10 +586,10 @@ async function copyToClipboard(text, machineId) {
 /**
  * Zone A: Lookup Order by 3-digit Alphanumeric Code and open Details Modal
  */
-function handleIntakeLookup() {
+async function handleIntakeLookup() {
   if (!intakeCode.value.trim()) return;
   const clean = intakeCode.value.trim().toUpperCase();
-  const res = queueStore.lookupIntakeOrder(clean, activeStoreId.value);
+  const res = await queueStore.lookupIntakeOrder(clean, activeStoreId.value);
   
   if (res.success) {
     pendingIntakeOrder.value = res.order;
@@ -606,9 +606,9 @@ function handleIntakeLookup() {
 /**
  * Confirm Intake from Modal: translates to system queue #0021
  */
-function handleConfirmIntakeModal() {
+async function handleConfirmIntakeModal() {
   if (!pendingIntakeOrder.value) return;
-  const res = queueStore.confirmOrderIntake(pendingIntakeOrder.value.order_id, activeStoreId.value);
+  const res = await queueStore.confirmOrderIntake(pendingIntakeOrder.value.order_id, activeStoreId.value);
   
   if (res.success) {
     showIntakeModal.value = false;

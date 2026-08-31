@@ -134,6 +134,31 @@ app.get('/api/orders/public/:id', async (req, res) => {
   }
 });
 
+// Zone A Direct Intake Code Lookup endpoint (with store resolution)
+app.get('/api/orders/lookup/:code', async (req, res) => {
+  try {
+    const rawCode = req.params.code;
+    const storeQuery = req.query.storeId || req.query.store || null;
+    const session = await getOptionalStaffSession(req);
+    const activeStore = storeQuery || (session ? session.storeId : null);
+
+    const order = await getOrderByIdFromDb(rawCode, activeStore);
+    if (!order) {
+      return res.status(404).json({ 
+        success: false, 
+        error: `Intake Code #${rawCode.toUpperCase()} not found. Please verify customer phone screen.` 
+      });
+    }
+
+    res.json({
+      success: true,
+      order
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ----------------------------------------------------
 // AUTHENTICATION ENDPOINTS (Staff PIN Authentication)
 // ----------------------------------------------------

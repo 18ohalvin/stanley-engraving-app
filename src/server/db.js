@@ -284,17 +284,22 @@ export async function getNextQueueNumberFromDb(storeId, dateStr = null) {
 }
 
 export async function getAllOrdersFromDb(storeId) {
-  let rows = [];
+  const allRows = await dbAdapter.query(`SELECT * FROM orders ORDER BY created_at DESC`);
+  let rows = allRows;
+
   if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
-    const s = String(storeId).trim().toLowerCase();
-    rows = await dbAdapter.query(`
-      SELECT * FROM orders 
-      WHERE LOWER(store_id) = ? OR LOWER(store_code) = ? OR LOWER(store_name) = ?
-      ORDER BY created_at DESC
-    `, [s, s, s]);
-  } else {
-    rows = await dbAdapter.query(`SELECT * FROM orders ORDER BY created_at DESC`);
+    const canonical = await getCanonicalStore(storeId);
+    const aliases = canonical ? [canonical.id, canonical.code, canonical.name, ...(canonical.aliases || [])] : [storeId];
+    const cleanAliases = aliases.map(a => String(a).trim().toLowerCase()).filter(Boolean);
+
+    rows = allRows.filter(r => {
+      const sId = String(r.store_id || '').trim().toLowerCase();
+      const sCode = String(r.store_code || '').trim().toLowerCase();
+      const sName = String(r.store_name || '').trim().toLowerCase();
+      return cleanAliases.includes(sId) || cleanAliases.includes(sCode) || cleanAliases.includes(sName);
+    });
   }
+
   return rows.map(r => ({
     ...r,
     items: r.items_json ? (typeof r.items_json === 'string' ? JSON.parse(r.items_json) : r.items_json) : [],

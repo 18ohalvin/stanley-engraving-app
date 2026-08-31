@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { containsProfanity, sanitizeEngravingText } from '../utils/profanityFilter.js';
 import { generateOrderId, generateIntakeCode, generateShortCode, formatBookingTime, formatPhoneNumber } from '../utils/formatters.js';
 import { useQueueStore } from './queueStore.js';
+import { getCanonicalStore } from '../utils/storeResolver.js';
 
 export const FONT_OPTIONS = [
   { id: 'lato', name: 'Helvetica Bold', label: 'AA', fontClass: 'font-engraving-lato', previewText: 'HELVETICA', allCaps: true },
@@ -299,6 +300,11 @@ export const useEngravingStore = defineStore('engraving', {
       const fullPhone = formatPhoneNumber(this.customer.countryCode, this.customer.phone);
 
       const targetStoreId = this.selectedStoreId || 'EG-021';
+      const canonical = getCanonicalStore(targetStoreId);
+      const storeIdVal = canonical ? canonical.id : targetStoreId;
+      const storeCodeVal = canonical ? canonical.code : targetStoreId;
+      const storeNameVal = canonical ? canonical.name : targetStoreId;
+
       const orderPayload = {
         order_id: orderId,
         intake_code: intakeCode,
@@ -310,9 +316,9 @@ export const useEngravingStore = defineStore('engraving', {
         booking_time: bookingTime,
         created_at: now.toISOString(),
         status: 'pending_dropoff',
-        store_id: targetStoreId,
-        store_code: targetStoreId,
-        store_name: targetStoreId,
+        store_id: storeIdVal,
+        store_code: storeCodeVal,
+        store_name: storeNameVal,
         queue_position: queueStore.getActiveQueueCount() + 1,
         items: this.items.map(item => ({
           id: item.id,
