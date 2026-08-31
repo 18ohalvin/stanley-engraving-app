@@ -988,7 +988,7 @@ function getOrderOperatingHour(order) {
 // Helper to extract YYYY-MM-DD date string from an order
 function getOrderDateStr(order) {
   if (!order) return '';
-  const raw = order.created_at || order.intake_at || order.ready_at;
+  const raw = order.created_at || order.intake_at || order.ready_at || order.createdAt;
   if (!raw) return '';
   if (typeof raw === 'string') {
     const match = raw.match(/^\d{4}-\d{2}-\d{2}/);
@@ -1006,6 +1006,41 @@ function getOrderDateStr(order) {
   return '';
 }
 
+function isOrderInSelectedDate(order) {
+  if (!selectedDate.value || selectedDate.value === 'alltime') return true; // All Time
+  const orderDate = getOrderDateStr(order);
+  if (!orderDate) return false;
+
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+
+  if (selectedDate.value === 'today') {
+    return orderDate === today;
+  }
+
+  if (selectedDate.value === 'yesterday') {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const yestStr = d.toISOString().split('T')[0];
+    return orderDate === yestStr;
+  }
+
+  if (selectedDate.value === 'last7days') {
+    const past7 = new Date();
+    past7.setDate(past7.getDate() - 6);
+    const startStr = past7.toISOString().split('T')[0];
+    return orderDate >= startStr && orderDate <= today;
+  }
+
+  if (selectedDate.value === 'thismonth') {
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return orderDate.startsWith(currentYearMonth);
+  }
+
+  // Exact date string (e.g. '2026-08-25')
+  return orderDate === selectedDate.value;
+}
+
 // ----------------------------------------------------
 // 100% REAL DATABASE METRIC COMPUTATIONS FROM QUEUE STORE
 // ----------------------------------------------------
@@ -1014,8 +1049,7 @@ function getOrderDateStr(order) {
 const realCompletedOrders = computed(() => {
   const orders = queueStore.orders || [];
   const completed = orders.filter(o => o.status === 'ready_for_pickup' || o.status === 'completed');
-  if (!selectedDate.value) return completed; // All Time
-  return completed.filter(o => getOrderDateStr(o) === selectedDate.value);
+  return completed.filter(o => isOrderInSelectedDate(o));
 });
 
 const realTotalEngravings = computed(() => {
@@ -1026,8 +1060,7 @@ const realTotalEngravings = computed(() => {
 const realValidOrders = computed(() => {
   const orders = queueStore.orders || [];
   const valid = orders.filter(o => o.status !== 'cancelled');
-  if (!selectedDate.value) return valid; // All Time
-  return valid.filter(o => getOrderDateStr(o) === selectedDate.value);
+  return valid.filter(o => isOrderInSelectedDate(o));
 });
 
 const realTotalOrdersCups = computed(() => {
@@ -1569,9 +1602,16 @@ const topStores = computed(() => {
 
 // Date Formatter
 const formattedSelectedDate = computed(() => {
-  if (!selectedDate.value) return 'Today';
+  if (!selectedDate.value || selectedDate.value === 'alltime') return 'All Time';
+  if (selectedDate.value === 'last7days') return 'Last 7 Days';
+  if (selectedDate.value === 'thismonth') return 'This Month';
+  if (selectedDate.value === 'today') return 'Today';
+  if (selectedDate.value === 'yesterday') return 'Yesterday';
+
   const todayDate = new Date().toISOString().split('T')[0];
   const d = new Date(selectedDate.value + 'T00:00:00');
+  if (isNaN(d.getTime())) return selectedDate.value;
+
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const formatted = `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
@@ -1582,8 +1622,15 @@ const formattedSelectedDate = computed(() => {
 });
 
 const dialogHeadlineDate = computed(() => {
-  if (!tempSelectedDate.value) return 'Today';
+  if (!tempSelectedDate.value || tempSelectedDate.value === 'alltime') return 'All Time';
+  if (tempSelectedDate.value === 'last7days') return 'Last 7 Days';
+  if (tempSelectedDate.value === 'thismonth') return 'This Month';
+  if (tempSelectedDate.value === 'today') return 'Today';
+  if (tempSelectedDate.value === 'yesterday') return 'Yesterday';
+
   const d = new Date(tempSelectedDate.value + 'T00:00:00');
+  if (isNaN(d.getTime())) return tempSelectedDate.value;
+
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
@@ -1614,14 +1661,14 @@ const calendarDays = computed(() => {
     days.push({ dayNumber: '', dateString: `prev-${i}`, isCurrentMonth: false });
   }
 
-  const todayStr = '2025-05-20';
+  const realTodayStr = new Date().toISOString().split('T')[0];
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     days.push({
       dayNumber: d,
       dateString: ds,
       isCurrentMonth: true,
-      isToday: ds === todayStr
+      isToday: ds === realTodayStr
     });
   }
 
@@ -1629,7 +1676,14 @@ const calendarDays = computed(() => {
 });
 
 function openDatePickerModal() {
-  tempSelectedDate.value = selectedDate.value || '2025-05-20';
+  const realTodayStr = new Date().toISOString().split('T')[0];
+  tempSelectedDate.value = selectedDate.value || realTodayStr;
+  if (selectedDate.value && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate.value)) {
+    const parts = selectedDate.value.split('-');
+    currentCalendarMonth.value = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
+  } else {
+    currentCalendarMonth.value = new Date();
+  }
   showDatePickerModal.value = true;
 }
 
@@ -1657,13 +1711,18 @@ function selectCalendarDate(dateStr) {
 
 function applyPreset(presetId) {
   tempActivePreset.value = presetId;
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
   if (presetId === 'today') {
-    const today = new Date().toISOString().split('T')[0];
     tempSelectedDate.value = today;
   } else if (presetId === 'yesterday') {
     const d = new Date();
     d.setDate(d.getDate() - 1);
     tempSelectedDate.value = d.toISOString().split('T')[0];
+  } else if (presetId === 'last7days') {
+    tempSelectedDate.value = 'last7days';
+  } else if (presetId === 'thismonth') {
+    tempSelectedDate.value = 'thismonth';
   } else if (presetId === 'alltime') {
     tempSelectedDate.value = '';
   }

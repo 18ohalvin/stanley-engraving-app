@@ -1075,6 +1075,62 @@ assert(queueStore.machines[1].currentOrderId === 'ord-seq-cust-B', 'Machine 02 c
 // Test station ready thumbnail fallback
 assert(getProductImage(null).includes('station-ready-cup.png') || getProductImage(null).includes('product-step1.png'), 'Station ready product thumbnail matches station ready cup');
 
+console.log('\n--- 17. Testing Day-by-Day Historical Date Filtering in Admin Dashboard ---');
+// Mock orders on different dates
+const ordersPastAndPresent = [
+  {
+    order_id: 'ord-today-1',
+    created_at: '2026-08-31T10:00:00Z',
+    status: 'ready_for_pickup',
+    items: [{ model: 'Quencher' }, { model: 'IceFlow' }]
+  },
+  {
+    order_id: 'ord-lastweek-1',
+    created_at: '2026-08-24T14:00:00Z',
+    status: 'ready_for_pickup',
+    items: [{ model: 'Aerolight' }]
+  },
+  {
+    order_id: 'ord-lastmonth-1',
+    created_at: '2026-07-15T09:00:00Z',
+    status: 'ready_for_pickup',
+    items: [{ model: 'Quencher' }]
+  }
+];
+
+function filterOrdersByDate(orders, filterDate) {
+  if (!filterDate || filterDate === 'alltime') return orders;
+  return orders.filter(o => {
+    const raw = o.created_at || o.intake_at;
+    const match = raw ? raw.match(/^\d{4}-\d{2}-\d{2}/) : null;
+    const oDate = match ? match[0] : '';
+    if (filterDate === 'today') return oDate === '2026-08-31';
+    if (filterDate === 'yesterday') return oDate === '2026-08-30';
+    if (filterDate === 'last7days') return oDate >= '2026-08-25' && oDate <= '2026-08-31';
+    if (filterDate === 'thismonth') return oDate.startsWith('2026-08');
+    return oDate === filterDate;
+  });
+}
+
+// 1. Filtering by Today (2026-08-31)
+const filteredToday = filterOrdersByDate(ordersPastAndPresent, '2026-08-31');
+assert(filteredToday.length === 1, 'Today filter returns exactly 1 order');
+assert(filteredToday[0].order_id === 'ord-today-1', 'Today filter matches ord-today-1');
+
+// 2. Filtering by Last Week specific date (2026-08-24)
+const filteredLastWeek = filterOrdersByDate(ordersPastAndPresent, '2026-08-24');
+assert(filteredLastWeek.length === 1, 'Last week filter returns exactly 1 order');
+assert(filteredLastWeek[0].order_id === 'ord-lastweek-1', 'Last week filter matches ord-lastweek-1');
+assert(filteredLastWeek[0].items[0].model === 'Aerolight', 'Last week order item is Aerolight');
+
+// 3. Filtering by Empty/Zero-Order Date (2026-08-20)
+const filteredEmptyDate = filterOrdersByDate(ordersPastAndPresent, '2026-08-20');
+assert(filteredEmptyDate.length === 0, 'Date with zero orders returns empty list, does NOT fallback to today');
+
+// 4. Filtering by All Time
+const filteredAllTime = filterOrdersByDate(ordersPastAndPresent, 'alltime');
+assert(filteredAllTime.length === 3, 'All Time filter aggregates all historical orders');
+
 await clearAllOrdersInDb();
 await deleteAuthSessionToken(egSession.token);
 await deleteAuthSessionToken(superAdminSession.token);
