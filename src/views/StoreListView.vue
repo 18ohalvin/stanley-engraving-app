@@ -16,8 +16,16 @@
           <p class="store-location">{{ staffGreeting }}</p>
         </div>
 
-        <!-- Right: Single Dashboard Action Button -->
+        <!-- Right: Header Action Buttons -->
         <div class="header-actions">
+          <button 
+            type="button" 
+            class="dashboard-nav-btn"
+            @click="router.push('/settings')"
+            title="System Settings & Configuration"
+          >
+            Settings
+          </button>
           <button 
             type="button" 
             class="dashboard-nav-btn"

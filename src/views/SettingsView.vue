@@ -21,6 +21,14 @@
           <button 
             type="button" 
             class="dashboard-nav-btn"
+            @click="router.push('/stores')"
+            title="View and manage store locations"
+          >
+            Store List
+          </button>
+          <button 
+            type="button" 
+            class="dashboard-nav-btn"
             @click="router.push('/admin')"
             title="Return to Main Overview Dashboard"
           >
