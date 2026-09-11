@@ -21,18 +21,19 @@
           <button 
             type="button" 
             class="dashboard-nav-btn"
-            @click="router.push('/settings')"
-            title="System Settings & Configuration"
-          >
-            Settings
-          </button>
-          <button 
-            type="button" 
-            class="dashboard-nav-btn"
             @click="router.push('/admin')"
             title="Return to Main Overview Dashboard"
           >
             Dashboard
+          </button>
+          <button 
+            type="button" 
+            class="setting-icon-btn" 
+            @click="router.push('/settings')"
+            title="System Settings & SLA Configuration"
+            aria-label="Settings"
+          >
+            <img src="/src/assets/icons/settings.svg" alt="Settings" class="setting-nav-icon" />
           </button>
         </div>
       </div>
@@ -1716,6 +1717,34 @@ function openWhatsApp(phone, staffName, storeName) {
   transform: scale(0.99);
 }
 
+.setting-icon-btn {
+  background-color: #FFFFFF;
+  border: 1px solid #000000;
+  border-radius: 8px;
+  height: 40px;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.setting-icon-btn:hover {
+  background-color: #F9FAFB;
+}
+
+.setting-icon-btn:active {
+  transform: scale(0.96);
+}
+
+.setting-nav-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 /* Main Dashboard Body (Global Padding matching Customer Dashboard) */
 .dashboard-body {
   padding: clamp(16px, 2vw, 24px);
@@ -1972,7 +2001,7 @@ function openWhatsApp(phone, staffName, storeName) {
 }
 
 .sla-track-indicator.on-track {
-  color: #00C950;
+  color: #2D5A27;
 }
 
 .sla-track-indicator.over-sla {
@@ -2216,12 +2245,12 @@ function openWhatsApp(phone, staffName, storeName) {
 }
 
 .store-info-status-badge {
-  background: #DCFCE7;
+  background: #EFF4EE;
   padding: 3px 8px;
   border-radius: 4px;
   font-size: 11px;
   font-weight: 700;
-  color: #22C55E;
+  color: #2D5A27;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -2236,7 +2265,7 @@ function openWhatsApp(phone, staffName, storeName) {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #22C55E;
+  background-color: #2D5A27;
 }
 
 .store-info-status-badge.is-offline .status-dot {

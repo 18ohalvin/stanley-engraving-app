@@ -34,6 +34,15 @@
           >
             Dashboard
           </button>
+          <button 
+            type="button" 
+            class="setting-icon-btn is-active" 
+            @click="router.push('/settings')"
+            title="System Settings & SLA Configuration"
+            aria-label="Settings"
+          >
+            <img src="/src/assets/icons/settings.svg" alt="Settings" class="setting-nav-icon" />
+          </button>
         </div>
       </div>
     </header>
@@ -2996,6 +3005,43 @@ async function deleteStaff(user) {
   transform: scale(0.99);
 }
 
+.setting-icon-btn {
+  background-color: #FFFFFF;
+  border: 1px solid #000000;
+  border-radius: 8px;
+  height: 40px;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.setting-icon-btn:hover {
+  background-color: #F9FAFB;
+}
+
+.setting-icon-btn:active {
+  transform: scale(0.96);
+}
+
+.setting-icon-btn.is-active {
+  background-color: #000000;
+  border-color: #000000;
+}
+
+.setting-icon-btn.is-active .setting-nav-icon {
+  filter: brightness(0) invert(1);
+}
+
+.setting-nav-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 /* Dashboard Body */
 .dashboard-body {
   padding: clamp(16px, 2vw, 24px);
@@ -3435,7 +3481,7 @@ async function deleteStaff(user) {
 }
 
 .product-status-pill.status-active {
-  color: #00C950;
+  color: #2D5A27;
 }
 
 .product-status-pill.status-inactive {
@@ -5021,7 +5067,7 @@ async function deleteStaff(user) {
 }
 
 .item-status-pill.status-active {
-  color: #00C950;
+  color: #2D5A27;
 }
 
 .item-status-pill.status-inactive {

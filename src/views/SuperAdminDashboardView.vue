@@ -2136,7 +2136,7 @@ function handleStorageUpdate() {
 }
 
 .trend-positive {
-  color: #10B981;
+  color: #2D5A27;
   font-weight: 600;
 }
 
@@ -2468,7 +2468,7 @@ function handleStorageUpdate() {
 }
 
 .x-label.is-highlighted {
-  color: #10B981;
+  color: #2D5A27;
   font-weight: 700;
 }
 
@@ -2488,7 +2488,7 @@ function handleStorageUpdate() {
 }
 
 .text-emerald {
-  color: #10B981 !important;
+  color: #2D5A27 !important;
   font-weight: 600;
 }
 
@@ -2758,7 +2758,7 @@ function handleStorageUpdate() {
 }
 
 .store-online-badge.is-active {
-  color: #10B981;
+  color: #2D5A27;
 }
 
 .store-name-title {
