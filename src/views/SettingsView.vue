@@ -52,9 +52,10 @@
         </div>
 
         <!-- Tabs and Search / Action Controls (Figma 362:1170) -->
+        <!-- Tabs and Search / Action Controls (Figma 362:1170 & 487:2187) -->
         <div class="tabs-and-controls-bar">
           
-          <!-- Segmented Menu Toggle (Product vs User) -->
+          <!-- Segmented Menu Toggle (Product vs User vs Notifications) -->
           <div class="segmented-tab-container">
             <button 
               type="button" 
@@ -72,10 +73,18 @@
             >
               User
             </button>
+            <button 
+              type="button" 
+              class="tab-btn"
+              :class="{ 'is-active': activeTab === 'notifications' }"
+              @click="activeTab = 'notifications'"
+            >
+              Notifications
+            </button>
           </div>
 
-          <!-- Search and CTA Button -->
-          <div class="search-and-cta-group">
+          <!-- Search and CTA Button (For Product and User tabs) -->
+          <div v-if="activeTab !== 'notifications'" class="search-and-cta-group">
             <div class="search-box-wrap">
               <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8"></circle>
@@ -102,7 +111,7 @@
             </button>
 
             <button 
-              v-else
+              v-else-if="activeTab === 'user'"
               type="button" 
               class="cta-black-btn"
               @click="openAddStaffModal"
@@ -293,7 +302,7 @@
         <!-- ============================================== -->
         <!-- TAB 2: USER / STAFF SETTINGS                   -->
         <!-- ============================================== -->
-        <div v-else class="user-tab-section">
+        <div v-else-if="activeTab === 'user'" class="user-tab-section">
           <div class="user-table-card">
             <table class="user-data-table">
               <thead>
@@ -408,6 +417,160 @@
               </tbody>
             </table>
           </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- TAB 3: NOTIFICATIONS SETTINGS (Figma 487:1691) -->
+        <!-- ============================================== -->
+        <div v-else-if="activeTab === 'notifications'" class="notifications-tab-section">
+          
+          <div class="notifications-two-col-layout">
+            
+            <!-- LEFT COLUMN CARD: DEFAULT WHATSAPP NUMBER (Figma 487:1854) -->
+            <div class="default-whatsapp-card">
+              <div class="card-step-title-row">
+                <span class="card-heading-title">DEFAULT WHATSAPP NUMBER</span>
+              </div>
+
+              <div class="step-interactive-wrap">
+                <!-- Dropdown Trigger Box -->
+                <div 
+                  class="store-number-dropdown-box" 
+                  @click="isStoreDropdownOpen = !isStoreDropdownOpen"
+                  tabindex="0"
+                >
+                  <div class="dropdown-main-content">
+                    <div class="icon-phone-circle">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                      </svg>
+                    </div>
+                    <div class="dropdown-text-column">
+                      <span class="store-name-sub">{{ currentStore?.name || 'Stanley Puri Indah Mall' }}</span>
+                      <span class="store-phone-bold">{{ currentStoreWhatsappPhone || '0812 3456 7890' }}</span>
+                    </div>
+                  </div>
+                  <div class="dropdown-chevron-box" :class="{ 'is-rotated': isStoreDropdownOpen }">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
+                </div>
+
+                <!-- Dropdown Store Selector Menu -->
+                <div v-if="isStoreDropdownOpen" class="store-picker-dropdown fade-in" @click.stop>
+                  <div class="picker-header">
+                    <span>SELECT STORE LOCATION</span>
+                  </div>
+                  <div class="picker-list">
+                    <div 
+                      v-for="store in allStoresList" 
+                      :key="store.id || store.code"
+                      class="picker-item"
+                      :class="{ 'is-selected': (currentStore?.id === store.id || currentStore?.code === store.code) }"
+                      @click="selectStore(store)"
+                    >
+                      <div class="picker-item-info">
+                        <span class="picker-item-name">{{ store.name }}</span>
+                        <span class="picker-item-phone">{{ getStorePhone(store) }}</span>
+                      </div>
+                      <span v-if="(currentStore?.id === store.id || currentStore?.code === store.code)" class="picker-check">✓</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Action to Edit Store WhatsApp Number -->
+              <div class="store-phone-edit-affordance">
+                <button 
+                  type="button" 
+                  class="btn-edit-store-phone"
+                  @click="openEditStorePhoneModal"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  <span>Edit Store WhatsApp Number</span>
+                </button>
+              </div>
+
+            </div>
+
+            <!-- RIGHT COLUMN CARD: NOTIFICATION LIST AUTOMATION (Figma 498:3339) -->
+            <div class="automation-list-card">
+              <div class="automation-title-row">
+                <span class="card-heading-title">NOTIFICATION LIST AUTOMATION</span>
+                <button 
+                  type="button" 
+                  class="btn-add-notification-profile"
+                  @click="openAddNotificationModal"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>Add Notification Profile</span>
+                </button>
+              </div>
+
+              <!-- Automation Items List -->
+              <div v-if="currentStoreProfiles.length === 0" class="empty-automation-box">
+                <p class="empty-automation-text">No notification profiles configured for this store yet.</p>
+                <button type="button" class="btn-reset-default-profiles" @click="resetToDefaultProfiles">
+                  Load Standard Stanley Templates
+                </button>
+              </div>
+
+              <div v-else class="automation-items-stack">
+                <div 
+                  v-for="(profile, idx) in currentStoreProfiles" 
+                  :key="profile.id || idx"
+                  class="automation-item-row"
+                >
+                  <div class="item-left-meta">
+                    <div class="item-title-badge-row">
+                      <span class="item-profile-name">{{ profile.name }}</span>
+                      <span 
+                        class="item-status-pill"
+                        :class="{ 'status-active': profile.isActive, 'status-inactive': !profile.isActive }"
+                      >
+                        ● {{ profile.isActive ? 'Active' : 'Inactive' }}
+                      </span>
+                    </div>
+                    <span class="item-description-text">
+                      {{ profile.description || getTriggerDescription(profile) }}
+                    </span>
+                  </div>
+
+                  <div class="item-actions-row">
+                    <button 
+                      type="button" 
+                      class="btn-item-edit"
+                      @click="openEditNotificationModal(profile, idx)"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      type="button" 
+                      class="btn-item-delete"
+                      @click="deleteNotificationProfile(idx)"
+                      title="Delete notification profile"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
         </div>
 
       </div>
@@ -966,6 +1129,276 @@
       </div>
     </Teleport>
 
+    <!-- ADD / EDIT NOTIFICATION PROFILE MODAL (FIGMA POPUP 1 - 490:2742) -->
+    <Teleport to="body">
+      <div v-if="showNotificationModal" class="modal-backdrop" @click="closeNotificationModal">
+        <div class="product-modal-card notification-modal-card fade-in" @click.stop>
+          
+          <!-- Modal Header -->
+          <div class="modal-header-row">
+            <h3 class="modal-title-bold">{{ isEditNotificationMode ? 'Edit Notification Profile' : 'Add Notification Profile' }}</h3>
+            <button type="button" class="modal-close-icon-btn" @click="closeNotificationModal" aria-label="Close">
+              ✕
+            </button>
+          </div>
+
+          <form @submit.prevent="saveNotificationProfileForm" class="modal-form-content">
+            
+            <div class="notification-modal-split-body">
+              
+              <!-- LEFT COLUMN: FORM INPUTS -->
+              <div class="notification-form-column">
+                
+                <!-- Field 1: Profile Name (underline) -->
+                <div class="product-name-input-block">
+                  <input 
+                    v-model="notificationForm.name" 
+                    type="text" 
+                    class="product-name-underline-input" 
+                    placeholder="Profile Name" 
+                    required 
+                  />
+                </div>
+
+                <!-- Field 2: Title Notification (underline) -->
+                <div class="product-name-input-block">
+                  <input 
+                    v-model="notificationForm.title" 
+                    type="text" 
+                    class="product-name-underline-input" 
+                    placeholder="Title Notification" 
+                    required 
+                  />
+                </div>
+
+                <!-- Field 3: WhatsApp Message Box -->
+                <div class="wa-message-input-section">
+                  <div class="wa-message-header-row">
+                    <label class="param-col-title">WhatsApp Message</label>
+                    
+                    <!-- Dynamic Variable Tag Pills -->
+                    <div class="variable-tag-pills-row">
+                      <span class="tag-insert-label">Insert:</span>
+                      <button 
+                        v-for="tag in AVAILABLE_MESSAGE_TAGS" 
+                        :key="tag.key"
+                        type="button" 
+                        class="btn-var-chip"
+                        @click="insertVariableTag(tag.key)"
+                        :title="tag.desc"
+                      >
+                        {{ tag.key }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="wa-textarea-wrapper">
+                    <textarea 
+                      v-model="notificationForm.message" 
+                      class="wa-message-textarea"
+                      placeholder="e.g. Hai! Saat ini antrian di toko kami lebih dari 10 orang. Mohon menunggu sebentar ya, terima kasih atas pengertiannya!"
+                      maxlength="500"
+                      rows="4"
+                      required
+                    ></textarea>
+                    <div class="char-counter-text">
+                      {{ (notificationForm.message || '').length }}/500
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Field 4: Send Logic & Status Controls -->
+                <div class="send-logic-status-row">
+                  
+                  <!-- Send Logic Column -->
+                  <div class="logic-control-col">
+                    <label class="param-col-title">Send Logic</label>
+                    <div class="logic-input-controls">
+                      
+                      <!-- Trigger Select -->
+                      <div class="select-underline-wrap logic-select-wrap">
+                        <select 
+                          v-model="notificationForm.triggerType" 
+                          class="product-name-underline-input logic-select-input"
+                        >
+                          <option value="queue_threshold">When queue is more than</option>
+                          <option value="order_accepted">When customer's order is accepted</option>
+                          <option value="order_completed">When the order is completed</option>
+                        </select>
+                        <div class="select-chevron-icon">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </div>
+                      </div>
+
+                      <!-- Threshold input (visible if queue_threshold) -->
+                      <div v-if="notificationForm.triggerType === 'queue_threshold'" class="queue-threshold-input-wrap">
+                        <input 
+                          v-model.number="notificationForm.queueThreshold" 
+                          type="number" 
+                          min="1" 
+                          max="999"
+                          class="product-name-underline-input threshold-number-input" 
+                        />
+                        <span class="threshold-unit-text">People</span>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  <!-- Status Toggle Column -->
+                  <div class="status-control-col">
+                    <label class="param-col-title">Status</label>
+                    <div class="figma-segmented-status-wrap notif-status-wrap">
+                      <button 
+                        type="button" 
+                        class="figma-status-segment-btn"
+                        :class="{ 'is-active': notificationForm.isActive }"
+                        @click="notificationForm.isActive = true"
+                      >
+                        Active
+                      </button>
+                      <button 
+                        type="button" 
+                        class="figma-status-segment-btn"
+                        :class="{ 'is-active': !notificationForm.isActive }"
+                        @click="notificationForm.isActive = false"
+                      >
+                        Inactive
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+
+              <!-- RIGHT COLUMN: NOTIFICATION PREVIEW (Figma 498:3102) -->
+              <div class="notification-preview-card">
+                <div class="preview-text-header">
+                  <h4 class="preview-heading-title">Notification Preview</h4>
+                  <p class="preview-heading-desc">This is how the WhatsApp message will look like to your customers.</p>
+                </div>
+
+                <!-- WhatsApp Mobile View Simulation -->
+                <div class="whatsapp-phone-frame">
+                  
+                  <!-- WhatsApp Green App Header -->
+                  <div class="wa-app-bar">
+                    <div class="wa-bar-left">
+                      <svg class="wa-back-btn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                      </svg>
+                      
+                      <div class="wa-store-avatar-circle">
+                        <span>S</span>
+                      </div>
+
+                      <div class="wa-store-title-badge">
+                        <div class="wa-store-name-line">
+                          <span class="wa-store-title-text">{{ currentStore?.name || 'Stanley Puri Indah Mall' }}</span>
+                          <svg class="wa-verified-icon" width="12" height="12" viewBox="0 0 24 24" fill="#25D366">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                          </svg>
+                        </div>
+                        <span class="wa-online-sub">Online</span>
+                      </div>
+                    </div>
+
+                    <div class="wa-bar-right">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#FFFFFF">
+                        <circle cx="12" cy="5" r="2"/>
+                        <circle cx="12" cy="12" r="2"/>
+                        <circle cx="12" cy="19" r="2"/>
+                      </svg>
+                    </div>
+                  </div>
+
+                  <!-- WhatsApp Chat Canvas Background -->
+                  <div class="wa-chat-canvas">
+                    <div class="wa-bubble-container">
+                      <div class="wa-message-bubble">
+                        <p class="wa-bubble-text">
+                          {{ livePreviewMessageText }}
+                        </p>
+                        <div class="wa-bubble-footer">
+                          <span class="wa-time-text">{{ previewCurrentTime }}</span>
+                          <svg class="wa-ticks-svg" width="14" height="10" viewBox="0 0 16 11" fill="none">
+                            <path d="M11.05 1L5.5 6.55L4.45 5.5L3.4 6.55L5.5 8.65L12.1 2.05L11.05 1ZM15 1L7.5 8.5L7.45 8.45L6.4 9.5L7.5 10.6L16.05 2.05L15 1ZM2.05 6.55L0.95 7.65L3.05 9.75L4.1 8.7L2.05 6.55Z" fill="#53BDEB"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <!-- Modal Bottom Actions -->
+            <div class="modal-bottom-actions-row notif-modal-actions">
+              <button 
+                type="button" 
+                class="btn-figma-cancel"
+                :disabled="isSavingNotification"
+                @click="closeNotificationModal"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                class="btn-figma-save"
+                :disabled="isSavingNotification"
+              >
+                <span v-if="!isSavingNotification">Save</span>
+                <span v-else class="btn-spinner-inline">Saving...</span>
+              </button>
+            </div>
+
+          </form>
+
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- QUICK EDIT STORE PHONE NUMBER MODAL -->
+    <Teleport to="body">
+      <div v-if="showEditStorePhoneModal" class="modal-backdrop" @click="closeEditStorePhoneModal">
+        <div class="product-modal-card store-phone-modal-card fade-in" @click.stop>
+          <div class="modal-header-row">
+            <h3 class="modal-title-bold">Edit Store WhatsApp Number</h3>
+            <button type="button" class="modal-close-icon-btn" @click="closeEditStorePhoneModal" aria-label="Close">✕</button>
+          </div>
+          <form @submit.prevent="saveStorePhoneForm" class="modal-form-content">
+            <p class="store-phone-modal-desc">
+              Updating default WhatsApp notification phone number for <strong>{{ currentStore?.name }}</strong>. Customers will see messages from this phone number.
+            </p>
+            <div class="product-name-input-block" style="margin-top: 16px;">
+              <label class="param-col-title" style="display:block; margin-bottom: 6px;">WhatsApp Phone Number*</label>
+              <input 
+                v-model="editingStorePhone" 
+                type="tel" 
+                class="product-name-underline-input" 
+                placeholder="e.g. 0812 3456 7890" 
+                required 
+              />
+            </div>
+            <div class="modal-bottom-actions-row" style="margin-top: 24px;">
+              <button type="button" class="btn-figma-cancel" @click="closeEditStorePhoneModal">Cancel</button>
+              <button type="submit" class="btn-figma-save" :disabled="isSavingStorePhone">
+                <span v-if="!isSavingStorePhone">Save Number</span>
+                <span v-else class="btn-spinner-inline">Saving...</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- FLOATING TOAST NOTIFICATION -->
     <transition name="toast-pop">
       <div v-if="toastVisible" class="toast-notification" :class="{ 'toast-error': toastType === 'error' }">
@@ -1070,6 +1503,7 @@ const ALL_SIZE_OPTIONS = computed(() => {
 
 const ALL_POSITION_OPTIONS = ['Vertical', 'Horizontal'];
 const storeLocationsList = ref([]);
+const rawNetworkStores = ref([]);
 
 const AVAILABLE_STORE_LOCATIONS = computed(() => {
   if (storeLocationsList.value.length > 0) {
@@ -1087,6 +1521,369 @@ const AVAILABLE_STORE_LOCATIONS = computed(() => {
   return [];
 });
 
+// Standard Stanley default automation templates
+const DEFAULT_NOTIFICATION_TEMPLATES = [
+  {
+    id: 'queuing-notification',
+    name: 'Queuing Notification',
+    title: "You're in the Queue",
+    message: 'Hi! Saat ini antrian di store kami lebih dari 10 orang. Terima kasih sudah menunggu. Kami akan segera memproses pesanan kamu.',
+    triggerType: 'queue_threshold',
+    queueThreshold: 10,
+    isActive: true,
+    description: 'Sent when the queue is more than 10 customers.'
+  },
+  {
+    id: 'order-received-notification',
+    name: 'Order Received Notification',
+    title: 'Order Received',
+    message: "Hi {customer_name}! Pesanan kamu #{short_code} telah diterima oleh tim kami di {store_name}. Mohon menunggu, pesanan kamu akan segera di-engrave.",
+    triggerType: 'order_accepted',
+    queueThreshold: 0,
+    isActive: true,
+    description: "Sent when customer's order is accepted."
+  },
+  {
+    id: 'order-completed-notification',
+    name: 'Order Completed Notification',
+    title: 'Order Completed',
+    message: 'Hi {customer_name}! Pesanan kamu #{short_code} sudah selesai dan siap diambil di {store_name}. Terima kasih telah berbelanja di Stanley!',
+    triggerType: 'order_completed',
+    queueThreshold: 0,
+    isActive: true,
+    description: 'Sent when the order is completed.'
+  }
+];
+
+const AVAILABLE_MESSAGE_TAGS = [
+  { key: '{customer_name}', desc: 'Customer name' },
+  { key: '{short_code}', desc: 'Intake ticket code (e.g. EG-042)' },
+  { key: '{store_name}', desc: 'Name of the retail store' },
+  { key: '{queue_number}', desc: 'System queue number' }
+];
+
+// WhatsApp Notification Personalization State
+const selectedStoreId = ref('');
+const isStoreDropdownOpen = ref(false);
+const whatsappSettings = ref({});
+
+const showNotificationModal = ref(false);
+const isEditNotificationMode = ref(false);
+const editingProfileIndex = ref(-1);
+const isSavingNotification = ref(false);
+
+const showEditStorePhoneModal = ref(false);
+const editingStorePhone = ref('');
+const isSavingStorePhone = ref(false);
+
+const notificationForm = ref({
+  id: '',
+  name: '',
+  title: '',
+  message: '',
+  triggerType: 'queue_threshold',
+  queueThreshold: 10,
+  isActive: true,
+  description: ''
+});
+
+const allStoresList = computed(() => {
+  if (rawNetworkStores.value.length > 0) return rawNetworkStores.value;
+  return [
+    { id: '004', code: '004', name: 'Stanley Puri Indah Mall', phone: '0812 3456 7890' },
+    { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', phone: '+62 817-5566-7788' },
+    { id: '002', code: '002', name: 'Stanley Grand Indonesia', phone: '+62 812-9988-7766' },
+    { id: '003', code: '003', name: 'Stanley Senayan City', phone: '+62 813-1122-3344' },
+    { id: 'SG001', code: 'SG001', name: 'Stanley Singapore Store', phone: '+65 8123 4567' }
+  ];
+});
+
+const currentStore = computed(() => {
+  const list = allStoresList.value;
+  if (!selectedStoreId.value) {
+    const puri = list.find(s => s.name?.includes('Puri Indah') || s.code === '004' || s.id === '004');
+    return puri || list[0];
+  }
+  return list.find(s => s.id === selectedStoreId.value || s.code === selectedStoreId.value) || list[0];
+});
+
+function getStorePhone(store) {
+  if (!store) return '0812 3456 7890';
+  const key = store.id || store.code;
+  if (whatsappSettings.value[key]?.phone) {
+    return whatsappSettings.value[key].phone;
+  }
+  return store.phone || '0812 3456 7890';
+}
+
+const currentStoreWhatsappPhone = computed(() => {
+  return getStorePhone(currentStore.value);
+});
+
+const currentStoreProfiles = computed(() => {
+  const store = currentStore.value;
+  const key = store?.id || store?.code || '004';
+  const storeData = whatsappSettings.value[key] || whatsappSettings.value['default'];
+  if (storeData && Array.isArray(storeData.profiles)) {
+    return storeData.profiles;
+  }
+  return DEFAULT_NOTIFICATION_TEMPLATES;
+});
+
+function selectStore(store) {
+  selectedStoreId.value = store.id || store.code;
+  isStoreDropdownOpen.value = false;
+  const key = store.id || store.code;
+  if (!whatsappSettings.value[key]) {
+    whatsappSettings.value[key] = {
+      phone: store.phone || '0812 3456 7890',
+      profiles: JSON.parse(JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES))
+    };
+  }
+}
+
+function getTriggerDescription(profile) {
+  if (!profile) return '';
+  if (profile.triggerType === 'queue_threshold') {
+    return `Sent when the queue is more than ${profile.queueThreshold !== undefined ? profile.queueThreshold : 10} customers.`;
+  }
+  if (profile.triggerType === 'order_accepted') {
+    return `Sent when customer's order is accepted.`;
+  }
+  if (profile.triggerType === 'order_completed') {
+    return `Sent when the order is completed.`;
+  }
+  return profile.description || '';
+}
+
+const livePreviewMessageText = computed(() => {
+  const msg = notificationForm.value.message || '';
+  if (!msg.trim()) {
+    return 'Hi! Saat ini antrian di store kami lebih dari 10 orang. Terima kasih sudah menunggu. Kami akan segera memproses pesanan kamu.';
+  }
+  const storeName = currentStore.value?.name || 'Stanley Puri Indah Mall';
+  return msg
+    .replace(/\{customer_name\}/gi, 'Budi Santoso')
+    .replace(/\{short_code\}/gi, 'EG-042')
+    .replace(/\{store_name\}/gi, storeName)
+    .replace(/\{order_id\}/gi, 'ORD-9821')
+    .replace(/\{queue_number\}/gi, 'A-012');
+});
+
+const previewCurrentTime = computed(() => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+});
+
+function insertVariableTag(tagKey) {
+  notificationForm.value.message = (notificationForm.value.message || '') + tagKey;
+}
+
+function openAddNotificationModal() {
+  isEditNotificationMode.value = false;
+  editingProfileIndex.value = -1;
+  notificationForm.value = {
+    id: `notif-${Date.now()}`,
+    name: '',
+    title: '',
+    message: '',
+    triggerType: 'queue_threshold',
+    queueThreshold: 10,
+    isActive: true,
+    description: ''
+  };
+  showNotificationModal.value = true;
+}
+
+function openEditNotificationModal(profile, index) {
+  isEditNotificationMode.value = true;
+  editingProfileIndex.value = index;
+  notificationForm.value = {
+    id: profile.id || `notif-${Date.now()}`,
+    name: profile.name || '',
+    title: profile.title || '',
+    message: profile.message || '',
+    triggerType: profile.triggerType || 'queue_threshold',
+    queueThreshold: profile.queueThreshold !== undefined ? profile.queueThreshold : 10,
+    isActive: profile.isActive !== undefined ? profile.isActive : true,
+    description: profile.description || ''
+  };
+  showNotificationModal.value = true;
+}
+
+function closeNotificationModal() {
+  showNotificationModal.value = false;
+}
+
+async function saveNotificationProfileForm() {
+  const key = currentStore.value?.id || currentStore.value?.code || '004';
+  if (!whatsappSettings.value[key]) {
+    whatsappSettings.value[key] = {
+      phone: currentStoreWhatsappPhone.value,
+      profiles: JSON.parse(JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES))
+    };
+  }
+
+  const profiles = [...(whatsappSettings.value[key].profiles || [])];
+  const itemToSave = {
+    ...notificationForm.value,
+    description: getTriggerDescription(notificationForm.value)
+  };
+
+  if (isEditNotificationMode.value && editingProfileIndex.value >= 0) {
+    profiles[editingProfileIndex.value] = itemToSave;
+  } else {
+    profiles.push(itemToSave);
+  }
+
+  whatsappSettings.value[key].profiles = profiles;
+  isSavingNotification.value = true;
+  try {
+    await persistWhatsAppSettings();
+    triggerToast(isEditNotificationMode.value ? 'Notification profile updated' : 'New notification profile added', 'success');
+    closeNotificationModal();
+  } catch (e) {
+    triggerToast('Failed to save notification profile', 'error');
+  } finally {
+    isSavingNotification.value = false;
+  }
+}
+
+async function deleteNotificationProfile(index) {
+  if (!confirm('Are you sure you want to delete this notification profile?')) return;
+  const key = currentStore.value?.id || currentStore.value?.code || '004';
+  if (!whatsappSettings.value[key]) return;
+
+  const profiles = [...(whatsappSettings.value[key].profiles || [])];
+  profiles.splice(index, 1);
+  whatsappSettings.value[key].profiles = profiles;
+
+  try {
+    await persistWhatsAppSettings();
+    triggerToast('Notification profile removed', 'success');
+  } catch (e) {
+    triggerToast('Failed to remove notification profile', 'error');
+  }
+}
+
+function resetToDefaultProfiles() {
+  const key = currentStore.value?.id || currentStore.value?.code || '004';
+  if (!whatsappSettings.value[key]) {
+    whatsappSettings.value[key] = {
+      phone: currentStoreWhatsappPhone.value,
+      profiles: []
+    };
+  }
+  whatsappSettings.value[key].profiles = JSON.parse(JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES));
+  persistWhatsAppSettings();
+  triggerToast('Standard templates loaded', 'success');
+}
+
+function openEditStorePhoneModal() {
+  editingStorePhone.value = currentStoreWhatsappPhone.value;
+  showEditStorePhoneModal.value = true;
+}
+
+function closeEditStorePhoneModal() {
+  showEditStorePhoneModal.value = false;
+}
+
+async function saveStorePhoneForm() {
+  const key = currentStore.value?.id || currentStore.value?.code || '004';
+  if (!whatsappSettings.value[key]) {
+    whatsappSettings.value[key] = {
+      phone: editingStorePhone.value.trim(),
+      profiles: JSON.parse(JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES))
+    };
+  } else {
+    whatsappSettings.value[key].phone = editingStorePhone.value.trim();
+  }
+
+  isSavingStorePhone.value = true;
+  try {
+    await persistWhatsAppSettings();
+    const storeObj = { ...currentStore.value, phone: editingStorePhone.value.trim() };
+    const token = localStorage.getItem('stanley_staff_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    await fetch('/api/network/stores', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(storeObj)
+    }).catch(() => {});
+    
+    const matched = rawNetworkStores.value.find(s => s.id === storeObj.id || s.code === storeObj.code);
+    if (matched) matched.phone = editingStorePhone.value.trim();
+
+    triggerToast('Store WhatsApp phone number updated', 'success');
+    closeEditStorePhoneModal();
+  } catch (e) {
+    triggerToast('Failed to update phone number', 'error');
+  } finally {
+    isSavingStorePhone.value = false;
+  }
+}
+
+async function loadWhatsAppSettings() {
+  const token = localStorage.getItem('stanley_staff_token');
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  try {
+    const res = await fetch('/api/settings/whatsapp_notifications', { headers });
+    if (res.ok) {
+      const data = await res.json();
+      const val = data && data.value !== undefined ? data.value : data;
+      if (val && typeof val === 'object' && Object.keys(val).length > 0) {
+        whatsappSettings.value = val;
+        localStorage.setItem('stanley_whatsapp_notifications', JSON.stringify(val));
+        return;
+      }
+    }
+  } catch (e) {}
+
+  try {
+    const saved = localStorage.getItem('stanley_whatsapp_notifications');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') {
+        whatsappSettings.value = parsed;
+        return;
+      }
+    }
+  } catch (e) {}
+
+  whatsappSettings.value = {
+    default: {
+      phone: '0812 3456 7890',
+      profiles: DEFAULT_NOTIFICATION_TEMPLATES
+    },
+    '004': {
+      phone: '0812 3456 7890',
+      profiles: JSON.parse(JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES))
+    }
+  };
+}
+
+async function persistWhatsAppSettings() {
+  try {
+    localStorage.setItem('stanley_whatsapp_notifications', JSON.stringify(whatsappSettings.value));
+    window.dispatchEvent(new Event('stanley_whatsapp_notifications_updated'));
+  } catch (e) {}
+
+  const token = localStorage.getItem('stanley_staff_token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    await fetch('/api/settings/whatsapp_notifications', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ value: whatsappSettings.value })
+    });
+  } catch (e) {
+    console.warn('Failed to sync WhatsApp settings to server:', e);
+  }
+}
+
 async function loadStoreLocations() {
   const token = localStorage.getItem('stanley_staff_token');
   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -1096,6 +1893,7 @@ async function loadStoreLocations() {
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
       if (list.length > 0) {
+        rawNetworkStores.value = list;
         storeLocationsList.value = list.map(s => s && s.name).filter(Boolean);
         localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
       }
@@ -1291,6 +2089,7 @@ onMounted(async () => {
     await loadStoreLocations();
     await loadStaffAccounts();
     await loadSizePresets();
+    await loadWhatsAppSettings();
 
     if (typeof EventSource !== 'undefined') {
       try {
@@ -1313,6 +2112,9 @@ onMounted(async () => {
             } else if (data && data.key === 'size_presets' && Array.isArray(data.value) && data.value.length > 0) {
               sizePresets.value = data.value;
               localStorage.setItem('stanley_size_presets', JSON.stringify(data.value));
+            } else if (data && data.key === 'whatsapp_notifications' && data.value) {
+              whatsappSettings.value = data.value;
+              localStorage.setItem('stanley_whatsapp_notifications', JSON.stringify(data.value));
             }
           } catch (err) {}
         });
@@ -1331,6 +2133,7 @@ onMounted(async () => {
             const data = JSON.parse(e.data);
             const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
             if (list.length > 0) {
+              rawNetworkStores.value = list;
               storeLocationsList.value = list.map(s => s && s.name).filter(Boolean);
               localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
             }
@@ -1344,12 +2147,14 @@ onMounted(async () => {
     window.addEventListener('stanley_stores_updated', handleStorageUpdate);
     window.addEventListener('stanley_products_updated', handleStorageUpdate);
     window.addEventListener('stanley_size_presets_updated', handleStorageUpdate);
+    window.addEventListener('stanley_whatsapp_notifications_updated', handleStorageUpdate);
 
     pollInterval = setInterval(() => {
       loadProducts();
       loadSizePresets();
       loadStaffAccounts();
       loadStoreLocations();
+      loadWhatsAppSettings();
     }, 3000);
   } catch (e) {
     console.error('Failed to load saved settings data:', e);
@@ -1364,6 +2169,7 @@ onUnmounted(() => {
   window.removeEventListener('stanley_stores_updated', handleStorageUpdate);
   window.removeEventListener('stanley_products_updated', handleStorageUpdate);
   window.removeEventListener('stanley_size_presets_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_whatsapp_notifications_updated', handleStorageUpdate);
 });
 
 function handleStorageUpdate() {
@@ -1371,6 +2177,7 @@ function handleStorageUpdate() {
   loadSizePresets();
   loadStaffAccounts();
   loadStoreLocations();
+  loadWhatsAppSettings();
 }
 
 async function persistProducts() {
@@ -3806,9 +4613,770 @@ async function deleteStaff(user) {
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.toast-pop-enter-from,
-.toast-pop-leave-to {
-  opacity: 0;
-  transform: translateY(16px) scale(0.95);
+/* ==================================================== */
+/* NOTIFICATIONS TAB & PERSONALIZATION STYLES           */
+/* (Figma Node 487:1691 & POPUP 1 Node 490:2742)         */
+/* ==================================================== */
+.notifications-tab-section {
+  width: 100%;
+  padding-bottom: 48px;
+}
+
+.notifications-two-col-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  width: 100%;
+}
+
+/* Left Card: Default WhatsApp Number (Figma 487:1854) */
+.default-whatsapp-card {
+  width: 368px;
+  flex-shrink: 0;
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.card-step-title-row {
+  margin-bottom: 16px;
+}
+
+.card-heading-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #000000;
+  text-transform: uppercase;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.step-interactive-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.store-number-dropdown-box {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.store-number-dropdown-box:hover,
+.store-number-dropdown-box:focus {
+  border-color: #000000;
+}
+
+.dropdown-main-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.icon-phone-circle {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0F172A;
+  flex-shrink: 0;
+}
+
+.dropdown-text-column {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.store-name-sub {
+  font-size: 12px;
+  color: #0F172A;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.store-phone-bold {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0F172A;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+}
+
+.dropdown-chevron-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0F172A;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.dropdown-chevron-box.is-rotated {
+  transform: rotate(180deg);
+}
+
+/* Store Picker Popup */
+.store-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  overflow: hidden;
+}
+
+.picker-header {
+  padding: 10px 14px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748B;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #F1F5F9;
+  background: #F8FAFC;
+}
+
+.picker-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.picker-item {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  border-bottom: 1px solid #F8FAFC;
+  transition: background 0.15s ease;
+}
+
+.picker-item:last-child {
+  border-bottom: none;
+}
+
+.picker-item:hover {
+  background: #F1F5F9;
+}
+
+.picker-item.is-selected {
+  background: #F8FAFC;
+}
+
+.picker-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.picker-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.picker-item-phone {
+  font-size: 12px;
+  color: #64748B;
+}
+
+.picker-check {
+  color: #000000;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.store-phone-edit-affordance {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #F1F5F9;
+}
+
+.btn-edit-store-phone {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #000000;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn-edit-store-phone:hover {
+  color: #374151;
+}
+
+/* Right Container: Notification List Automation (Figma 498:3339) */
+.automation-list-card {
+  flex: 1;
+  min-width: 0;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.automation-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.btn-add-notification-profile {
+  background: #000000;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  height: 44.5px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.btn-add-notification-profile:hover {
+  background: #27272A;
+}
+
+.btn-add-notification-profile:active {
+  transform: scale(0.98);
+}
+
+.automation-items-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.automation-item-row {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.automation-item-row:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.item-left-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-right: 16px;
+}
+
+.item-title-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.item-profile-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.item-status-pill {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.item-status-pill.status-active {
+  color: #00C950;
+}
+
+.item-status-pill.status-inactive {
+  color: #94A3B8;
+}
+
+.item-description-text {
+  font-size: 12px;
+  color: #64748B;
+  line-height: 1.4;
+}
+
+.item-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-item-edit {
+  background: #FFFFFF;
+  border: 1px solid #000000;
+  border-radius: 8px;
+  height: 48px;
+  padding: 0 28px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #000000;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-item-edit:hover {
+  background: #F4F4F5;
+}
+
+.btn-item-delete {
+  background: #FFFFFF;
+  border: 1px solid #000000;
+  border-radius: 8px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-item-delete:hover {
+  background: #FEF2F2;
+  border-color: #EF4444;
+  color: #EF4444;
+}
+
+.empty-automation-box {
+  padding: 32px 16px;
+  text-align: center;
+  border: 1px dashed #E2E8F0;
+  border-radius: 8px;
+}
+
+.empty-automation-text {
+  font-size: 13px;
+  color: #64748B;
+  margin-bottom: 12px;
+}
+
+.btn-reset-default-profiles {
+  background: #F4F4F5;
+  border: 1px solid #D4D4D8;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* ==================================================== */
+/* NOTIFICATION PROFILE MODAL (POPUP 1 - Figma 490:2742) */
+/* ==================================================== */
+.notification-modal-card {
+  max-width: 954px;
+  width: 95%;
+  box-sizing: border-box;
+}
+
+.notification-modal-split-body {
+  display: grid;
+  grid-template-columns: 1fr 348px;
+  gap: 24px;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.notification-form-column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.wa-message-input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wa-message-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.variable-tag-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tag-insert-label {
+  font-size: 11px;
+  color: #64748B;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.btn-var-chip {
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: monospace;
+  color: #0F172A;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-var-chip:hover {
+  background: #000000;
+  color: #FFFFFF;
+  border-color: #000000;
+}
+
+.wa-textarea-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.wa-message-textarea {
+  width: 100%;
+  border: 1px solid #000000;
+  border-radius: 8px;
+  padding: 12px 14px;
+  padding-bottom: 24px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #0F172A;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 120px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.wa-message-textarea:focus {
+  border-color: #000000;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+
+.char-counter-text {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-size: 11px;
+  color: #94A3B8;
+  pointer-events: none;
+}
+
+.send-logic-status-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: flex-start;
+  margin-top: 4px;
+}
+
+.logic-control-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.logic-input-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.logic-select-wrap {
+  flex: 1;
+  min-width: 180px;
+}
+
+.logic-select-input {
+  font-size: 13px;
+  padding-right: 24px;
+}
+
+.queue-threshold-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 110px;
+  flex-shrink: 0;
+}
+
+.threshold-number-input {
+  width: 50px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 6px 2px;
+}
+
+.threshold-unit-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.status-control-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.notif-status-wrap {
+  width: 160px;
+}
+
+/* Right Column: Notification Preview (Figma 498:3102) */
+.notification-preview-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.preview-text-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preview-heading-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.preview-heading-desc {
+  font-size: 12px;
+  color: #6B7280;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* WhatsApp Mobile Screen Mockup */
+.whatsapp-phone-frame {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  background: #EFEAE2;
+}
+
+.wa-app-bar {
+  background: #075E54;
+  color: #FFFFFF;
+  height: 52px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wa-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wa-back-btn {
+  flex-shrink: 0;
+}
+
+.wa-store-avatar-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #25D366;
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wa-store-title-badge {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wa-store-name-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wa-store-title-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #FFFFFF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+.wa-verified-icon {
+  flex-shrink: 0;
+}
+
+.wa-online-sub {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1;
+}
+
+.wa-bar-right {
+  display: flex;
+  align-items: center;
+  color: #FFFFFF;
+  opacity: 0.9;
+}
+
+.wa-chat-canvas {
+  background-color: #EFEAE2;
+  background-image: radial-gradient(#dcd5cb 0.75px, transparent 0.75px);
+  background-size: 12px 12px;
+  padding: 16px 12px;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.wa-bubble-container {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.wa-message-bubble {
+  background: #FFFFFF;
+  border-radius: 8px;
+  border-top-left-radius: 2px;
+  padding: 10px 12px 6px;
+  box-shadow: 0 1px 1.5px rgba(11, 20, 26, 0.14);
+  max-width: 90%;
+  position: relative;
+  word-break: break-word;
+}
+
+.wa-bubble-text {
+  font-size: 12.5px;
+  color: #111827;
+  line-height: 1.45;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.wa-bubble-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.wa-time-text {
+  font-size: 10px;
+  color: #667781;
+}
+
+.wa-ticks-svg {
+  display: block;
+}
+
+.notif-modal-actions {
+  margin-top: 8px;
+}
+
+/* Quick Edit Store Phone Modal */
+.store-phone-modal-card {
+  max-width: 480px;
+  width: 90%;
+}
+
+.store-phone-modal-desc {
+  font-size: 13px;
+  color: #4B5563;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .notifications-two-col-layout {
+    flex-direction: column;
+  }
+  
+  .default-whatsapp-card {
+    width: 100%;
+  }
+
+  .notification-modal-split-body {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

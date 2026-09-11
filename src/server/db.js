@@ -87,6 +87,7 @@ async function seedDefaultMasterData() {
       { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', city: 'Jakarta Selatan', address: 'Pondok Indah Mall 5, Lt 2, Jakarta', phone: '+62 817-5566-7788', total_machines: 2, active_machines: 2, status: 'Online' },
       { id: '002', code: '002', name: 'Stanley Grand Indonesia', city: 'Jakarta Pusat', address: 'Grand Indonesia East Mall, Lt 1, Jakarta', phone: '+62 812-9988-7766', total_machines: 2, active_machines: 2, status: 'Online' },
       { id: '003', code: '003', name: 'Stanley Senayan City', city: 'Jakarta Selatan', address: 'Senayan City Mall, Lt Ground, Jakarta', phone: '+62 813-1122-3344', total_machines: 1, active_machines: 1, status: 'Online' },
+      { id: '004', code: '004', name: 'Stanley Puri Indah Mall', city: 'Jakarta Barat', address: 'Puri Indah Mall, Lt 1, Jakarta Barat', phone: '0812 3456 7890', total_machines: 2, active_machines: 2, status: 'Online' },
       { id: 'SG001', code: 'SG001', name: 'Stanley Singapore Store', city: 'Singapore', address: 'Orchard Road #01-12, Singapore', phone: '+65 8123 4567', total_machines: 1, active_machines: 1, status: 'Online' }
     ];
 
@@ -96,6 +97,17 @@ async function seedDefaultMasterData() {
         INSERT INTO stores (id, code, name, city, address, phone, total_machines, active_machines, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [s.id, s.code, s.name, s.city, s.address, s.phone, s.total_machines, s.active_machines, s.status, now]);
+    }
+  } else {
+    // Ensure Stanley Puri Indah Mall exists if not already present
+    const puriCheck = await dbAdapter.get(`SELECT count(*) as count FROM stores WHERE id = '004' OR name LIKE '%Puri Indah%'`);
+    const puriCount = Number(puriCheck?.count || puriCheck?.COUNT || 0);
+    if (puriCount === 0) {
+      const now = new Date().toISOString();
+      await dbAdapter.run(`
+        INSERT OR IGNORE INTO stores (id, code, name, city, address, phone, total_machines, active_machines, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, ['004', '004', 'Stanley Puri Indah Mall', 'Jakarta Barat', 'Puri Indah Mall, Lt 1, Jakarta Barat', '0812 3456 7890', 2, 2, 'Online', now]);
     }
   }
 
@@ -111,6 +123,56 @@ async function seedDefaultMasterData() {
   const presetCount = Number(presetCheck?.count || presetCheck?.COUNT || 0);
   if (presetCount === 0) {
     await saveSettingsInDb('size_presets', ['12 Oz', '14 Oz', '16 Oz', '20 Oz', '24 Oz', '30 Oz', '36 Oz', '40 Oz', '48 Oz']);
+  }
+
+  // Seed default WhatsApp notification settings if empty
+  const notifCheck = await dbAdapter.get(`SELECT count(*) as count FROM settings WHERE key = ?`, ['whatsapp_notifications']);
+  const notifCount = Number(notifCheck?.count || notifCheck?.COUNT || 0);
+  if (notifCount === 0) {
+    const defaultTemplates = [
+      {
+        id: 'queuing-notification',
+        name: 'Queuing Notification',
+        title: "You're in the Queue",
+        message: 'Hi! Saat ini antrian di store kami lebih dari 10 orang. Terima kasih sudah menunggu. Kami akan segera memproses pesanan kamu.',
+        triggerType: 'queue_threshold',
+        queueThreshold: 10,
+        isActive: true,
+        description: 'Sent when the queue is more than 10 customers.'
+      },
+      {
+        id: 'order-received-notification',
+        name: 'Order Received Notification',
+        title: 'Order Received',
+        message: "Hi {customer_name}! Pesanan kamu #{short_code} telah diterima oleh tim kami di {store_name}. Mohon menunggu, pesanan kamu akan segera di-engrave.",
+        triggerType: 'order_accepted',
+        queueThreshold: 0,
+        isActive: true,
+        description: "Sent when customer's order is accepted."
+      },
+      {
+        id: 'order-completed-notification',
+        name: 'Order Completed Notification',
+        title: 'Order Completed',
+        message: 'Hi {customer_name}! Pesanan kamu #{short_code} sudah selesai dan siap diambil di {store_name}. Terima kasih telah berbelanja di Stanley!',
+        triggerType: 'order_completed',
+        queueThreshold: 0,
+        isActive: true,
+        description: 'Sent when the order is completed.'
+      }
+    ];
+
+    const initialSettings = {
+      default: {
+        phone: '0812 3456 7890',
+        profiles: defaultTemplates
+      },
+      '004': {
+        phone: '0812 3456 7890',
+        profiles: JSON.parse(JSON.stringify(defaultTemplates))
+      }
+    };
+    await saveSettingsInDb('whatsapp_notifications', initialSettings);
   }
 
   // Migrate legacy data from data/orders.json if orders table is empty (SQLite local mode)

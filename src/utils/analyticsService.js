@@ -62,10 +62,61 @@ export function clearAnalyticsLogs() {
 }
 
 /**
- * Trigger simulated WhatsApp Webhook notification upon job completion
- * @param {Object} order 
+ * Helper to interpolate template variables in WhatsApp messages
  */
-export function sendWhatsAppNotification(order) {
+export function interpolateWhatsAppMessage(template, vars = {}) {
+  if (!template) return '';
+  let msg = template;
+  msg = msg.replace(/\{customer_name\}/gi, vars.customer_name || 'Customer');
+  msg = msg.replace(/\{short_code\}/gi, vars.short_code || '');
+  msg = msg.replace(/\{store_name\}/gi, vars.store_name || 'Stanley Store');
+  msg = msg.replace(/\{order_id\}/gi, vars.order_id || '');
+  msg = msg.replace(/\{queue_number\}/gi, vars.queue_number || vars.short_code || '');
+  return msg;
+}
+
+/**
+ * Trigger simulated WhatsApp Webhook notification upon job completion or queue events
+ * @param {Object} order 
+ * @param {string} triggerType 'order_completed' | 'order_accepted' | 'queue_threshold'
+ */
+export function sendWhatsAppNotification(order, triggerType = 'order_completed') {
+  if (!order || !order.phone) return null;
+
+  // Retrieve personalized notification templates from storage
+  let message = '';
+  let senderPhone = '';
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const rawNotif = localStorage.getItem('stanley_whatsapp_notifications');
+      if (rawNotif) {
+        const parsed = JSON.parse(rawNotif);
+        const storeKey = order.store_id || order.store_code || order.store || 'default';
+        const storeSettings = parsed[storeKey] || parsed['default'] || Object.values(parsed)[0];
+        
+        if (storeSettings) {
+          senderPhone = storeSettings.phone || '';
+          const profiles = storeSettings.profiles || [];
+          const matched = profiles.find(p => p.triggerType === triggerType && p.isActive);
+          if (matched) {
+            message = interpolateWhatsAppMessage(matched.message, {
+              customer_name: order.customer_name,
+              short_code: order.short_code,
+              store_name: order.store_name || 'Stanley Store',
+              order_id: order.order_id,
+              queue_number: order.system_queue_number
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {}
+
+  // Fallback to standard message if no personalized template found
+  if (!message) {
+    message = `Hi ${order.customer_name}! Your custom Stanley cup (#${order.short_code}) has been laser-engraved and is ready for pickup at ${order.store_name || 'Stanley Store'}. View your ticket: http://10.77.1.25:5173/queue/${order.order_id}`;
+  }
+
   const existing = getStoredLogs(STORAGE_KEY_WHATSAPP);
   const webhookPayload = {
     id: `wa-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -74,7 +125,11 @@ export function sendWhatsAppNotification(order) {
     recipientName: order.customer_name,
     orderId: order.order_id,
     shortCode: order.short_code,
-    message: `Hi ${order.customer_name}! Your custom Stanley cup (#${order.short_code}) has been laser-engraved and is ready for pickup at Stanley Pondok Indah Mall 5. View your ticket: http://10.77.1.25:5173/queue/${order.order_id}`,
+    storeId: order.store_id || order.store_code || '',
+    storeName: order.store_name || 'Stanley Store',
+    senderPhone: senderPhone || '0812 3456 7890',
+    triggerType,
+    message,
     status: 'delivered'
   };
 
@@ -82,7 +137,9 @@ export function sendWhatsAppNotification(order) {
   if (existing.length > 50) existing.pop();
 
   try {
-    localStorage.setItem(STORAGE_KEY_WHATSAPP, JSON.stringify(existing));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_WHATSAPP, JSON.stringify(existing));
+    }
   } catch (e) {
     console.warn('Failed to save WhatsApp webhook log to localStorage', e);
   }
