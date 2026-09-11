@@ -20,17 +20,6 @@
         <div class="header-actions">
           <button 
             type="button" 
-            class="clear-orders-btn"
-            @click="clearTestOrders"
-            :disabled="isClearingOrders"
-            title="Clear all test orders from database and reset live queue to 0"
-          >
-            <svg v-if="isClearingOrders" class="spinner-inline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25" stroke="currentColor"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path></svg>
-            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-            <span>{{ isClearingOrders ? 'Clearing...' : 'Clear Test Orders' }}</span>
-          </button>
-          <button 
-            type="button" 
             class="dashboard-nav-btn"
             @click="router.push('/admin')"
             title="Return to Main Overview Dashboard"
@@ -61,7 +50,7 @@
               type="button" 
               class="tab-btn"
               :class="{ 'is-active': activeTab === 'product' }"
-              @click="activeTab = 'product'"
+              @click="switchTab('product')"
             >
               Product
             </button>
@@ -69,7 +58,7 @@
               type="button" 
               class="tab-btn"
               :class="{ 'is-active': activeTab === 'user' }"
-              @click="activeTab = 'user'"
+              @click="switchTab('user')"
             >
               User
             </button>
@@ -77,7 +66,7 @@
               type="button" 
               class="tab-btn"
               :class="{ 'is-active': activeTab === 'notifications' }"
-              @click="activeTab = 'notifications'"
+              @click="switchTab('notifications')"
             >
               Notifications
             </button>
@@ -436,7 +425,7 @@
                 <!-- Dropdown Trigger Box -->
                 <div 
                   class="store-number-dropdown-box" 
-                  @click="isStoreDropdownOpen = !isStoreDropdownOpen"
+                  @click.stop="isStoreDropdownOpen = !isStoreDropdownOpen"
                   tabindex="0"
                 >
                   <div class="dropdown-main-content">
@@ -457,24 +446,29 @@
                   </div>
                 </div>
 
-                <!-- Dropdown Store Selector Menu -->
+                <!-- Dropdown Store Selector Menu (Global Dropdown UI Style) -->
                 <div v-if="isStoreDropdownOpen" class="store-picker-dropdown fade-in" @click.stop>
-                  <div class="picker-header">
-                    <span>SELECT STORE LOCATION</span>
-                  </div>
                   <div class="picker-list">
                     <div 
                       v-for="store in allStoresList" 
                       :key="store.id || store.code"
-                      class="picker-item"
-                      :class="{ 'is-selected': (currentStore?.id === store.id || currentStore?.code === store.code) }"
+                      class="staff-dropdown-item picker-store-item"
+                      :class="{ 'is-selected': isSelectedStore(store) }"
                       @click="selectStore(store)"
                     >
+                      <div class="staff-radio-icon">
+                        <div v-if="isSelectedStore(store)" class="radio-circle-active">
+                          <div class="radio-dot"></div>
+                        </div>
+                        <div v-else class="radio-circle-inactive"></div>
+                      </div>
                       <div class="picker-item-info">
-                        <span class="picker-item-name">{{ store.name }}</span>
+                        <div class="picker-item-top">
+                          <span class="picker-item-name">{{ store.name }}</span>
+                          <span v-if="store.code" class="picker-item-code">{{ store.code }}</span>
+                        </div>
                         <span class="picker-item-phone">{{ getStorePhone(store) }}</span>
                       </div>
-                      <span v-if="(currentStore?.id === store.id || currentStore?.code === store.code)" class="picker-check">✓</span>
                     </div>
                   </div>
                 </div>
@@ -578,7 +572,7 @@
 
     <!-- ADD / EDIT PRODUCT MODAL (FIGMA NODE 350:353) -->
     <Teleport to="body">
-      <div v-if="showProductModal" class="modal-backdrop" @click="closeProductModal">
+      <div v-if="showProductModal" class="modal-backdrop">
         <div class="product-modal-card fade-in" @click.stop>
           
           <!-- Modal Header (Figma 350:421) -->
@@ -944,7 +938,7 @@
 
     <!-- ADD / EDIT STAFF MODAL -->
     <Teleport to="body">
-      <div v-if="showStaffModal" class="modal-backdrop" @click="closeStaffModal">
+      <div v-if="showStaffModal" class="modal-backdrop">
         <div class="product-modal-card staff-modal-card fade-in" @click.stop>
           
           <div class="modal-header-row">
@@ -1131,7 +1125,7 @@
 
     <!-- ADD / EDIT NOTIFICATION PROFILE MODAL (FIGMA POPUP 1 - 490:2742) -->
     <Teleport to="body">
-      <div v-if="showNotificationModal" class="modal-backdrop" @click="closeNotificationModal">
+      <div v-if="showNotificationModal" class="modal-backdrop">
         <div class="product-modal-card notification-modal-card fade-in" @click.stop>
           
           <!-- Modal Header -->
@@ -1367,7 +1361,7 @@
 
     <!-- QUICK EDIT STORE PHONE NUMBER MODAL -->
     <Teleport to="body">
-      <div v-if="showEditStorePhoneModal" class="modal-backdrop" @click="closeEditStorePhoneModal">
+      <div v-if="showEditStorePhoneModal" class="modal-backdrop">
         <div class="product-modal-card store-phone-modal-card fade-in" @click.stop>
           <div class="modal-header-row">
             <h3 class="modal-title-bold">Edit Store WhatsApp Number</h3>
@@ -1415,15 +1409,37 @@ import logoBlack from '../assets/images/logo-black.png';
 import productStep1 from '../assets/images/product-step1.png';
 import productStep2 from '../assets/images/product-step2.png';
 import productIceflow from '../assets/images/product-iceflow-fastflow.png';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { clearAllClientStorage } from '../utils/storage.js';
 
 const router = useRouter();
+const route = useRoute();
 const isClearingOrders = ref(false);
 
-// Active Navigation Tab: 'product' (default) or 'user'
-const activeTab = ref('product');
+const VALID_TABS = ['product', 'user', 'notifications'];
+
+function resolveTab(tabParam) {
+  const t = (tabParam || '').toString().toLowerCase();
+  return VALID_TABS.includes(t) ? t : 'product';
+}
+
+// Active Navigation Tab initialized from URL parameter:
+const activeTab = ref(resolveTab(route.params.tab));
+
+function switchTab(tab) {
+  if (activeTab.value === tab) return;
+  activeTab.value = tab;
+  router.push(`/settings/${tab}`);
+}
+
+watch(() => route.params.tab, (newTab) => {
+  const resolved = resolveTab(newTab);
+  if (activeTab.value !== resolved) {
+    activeTab.value = resolved;
+  }
+});
+
 const searchQuery = ref('');
 
 // Constants for available options (12oz, 14oz, 16oz, 20oz, 24oz, 30oz, 36oz, 40oz, 48oz + Custom)
@@ -1640,6 +1656,12 @@ function selectStore(store) {
       profiles: JSON.parse(JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES))
     };
   }
+}
+
+function isSelectedStore(store) {
+  const current = currentStore.value;
+  if (!current || !store) return false;
+  return (current.id && store.id && current.id === store.id) || (current.code && store.code && current.code === store.code);
 }
 
 function getTriggerDescription(profile) {
@@ -2142,6 +2164,11 @@ onMounted(async () => {
       } catch (e) {}
     }
 
+    if (!route.params.tab) {
+      router.replace(`/settings/${activeTab.value}`);
+    }
+
+    document.addEventListener('click', handleGlobalClick);
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('stanley_staff_updated', handleStorageUpdate);
     window.addEventListener('stanley_stores_updated', handleStorageUpdate);
@@ -2164,6 +2191,7 @@ onMounted(async () => {
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval);
   if (eventSource) eventSource.close();
+  document.removeEventListener('click', handleGlobalClick);
   window.removeEventListener('storage', handleStorageUpdate);
   window.removeEventListener('stanley_staff_updated', handleStorageUpdate);
   window.removeEventListener('stanley_stores_updated', handleStorageUpdate);
@@ -2171,6 +2199,15 @@ onUnmounted(() => {
   window.removeEventListener('stanley_size_presets_updated', handleStorageUpdate);
   window.removeEventListener('stanley_whatsapp_notifications_updated', handleStorageUpdate);
 });
+
+function handleGlobalClick(e) {
+  if (isStoreDropdownOpen.value) {
+    const wrap = document.querySelector('.step-interactive-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      isStoreDropdownOpen.value = false;
+    }
+  }
+}
 
 function handleStorageUpdate() {
   loadProducts();
@@ -3007,12 +3044,13 @@ async function deleteStaff(user) {
   border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .tab-btn {
   height: 40px;
-  width: 96px;
+  min-width: 124px;
+  padding: 0 28px;
   border: none;
   background: transparent;
   border-radius: 6px;
@@ -3021,6 +3059,15 @@ async function deleteStaff(user) {
   color: #111827;
   cursor: pointer;
   transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.tab-btn:hover:not(.is-active) {
+  background: rgba(0, 0, 0, 0.04);
+  color: #000000;
 }
 
 .tab-btn.is-active {
@@ -4732,28 +4779,20 @@ async function deleteStaff(user) {
   transform: rotate(180deg);
 }
 
-/* Store Picker Popup */
+/* Store Picker Popup (Global Dropdown UI Style) */
 .store-picker-dropdown {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   left: 0;
   width: 100%;
   background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
   z-index: 50;
   overflow: hidden;
-}
-
-.picker-header {
-  padding: 10px 14px 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748B;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid #F1F5F9;
-  background: #F8FAFC;
+  display: flex;
+  flex-direction: column;
 }
 
 .picker-list {
@@ -4761,49 +4800,99 @@ async function deleteStaff(user) {
   overflow-y: auto;
 }
 
-.picker-item {
+.picker-store-item {
   padding: 10px 14px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
   cursor: pointer;
-  border-bottom: 1px solid #F8FAFC;
-  transition: background 0.15s ease;
+  transition: background-color 0.15s ease;
+  border-bottom: 1px solid #E5E7EB;
 }
 
-.picker-item:last-child {
+.picker-store-item:last-child {
   border-bottom: none;
 }
 
-.picker-item:hover {
-  background: #F1F5F9;
+.picker-store-item:hover {
+  background-color: #F9FAFB;
 }
 
-.picker-item.is-selected {
-  background: #F8FAFC;
+.picker-store-item.is-selected {
+  background-color: #F3F4F6;
+}
+
+.staff-radio-icon {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radio-circle-active {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radio-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #000000;
+}
+
+.radio-circle-inactive {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid #D1D5DB;
 }
 
 .picker-item-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.picker-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .picker-item-name {
   font-size: 13px;
   font-weight: 600;
-  color: #0F172A;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker-item-code {
+  font-size: 10px;
+  font-weight: 700;
+  color: #4B5563;
+  background: #E5E7EB;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
 }
 
 .picker-item-phone {
   font-size: 12px;
-  color: #64748B;
-}
-
-.picker-check {
-  color: #000000;
-  font-weight: 700;
-  font-size: 14px;
+  color: #6B7280;
 }
 
 .store-phone-edit-affordance {

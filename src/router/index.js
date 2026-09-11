@@ -128,8 +128,8 @@ const routes = [
     meta: { fullWidth: true, requiresAuth: true, requiresSuperAdmin: true }
   },
   {
-    path: '/settings',
-    alias: ['/admin/settings', '/setting'],
+    path: '/settings/:tab?',
+    alias: ['/settings', '/setting', '/setting/:tab?', '/admin/settings', '/admin/settings/:tab?'],
     name: 'settings',
     component: SettingsView,
     meta: { fullWidth: true, requiresAuth: true, requiresSuperAdmin: true }
