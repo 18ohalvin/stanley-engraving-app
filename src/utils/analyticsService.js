@@ -130,7 +130,7 @@ export function sendWhatsAppNotification(order, triggerType = 'order_completed')
     shortCode: order.short_code,
     storeId: order.store_id || order.store_code || '',
     storeName: order.store_name || 'Stanley Store',
-    senderPhone: senderPhone || '0812 3456 7890',
+    senderPhone: senderPhone || order.store_phone || '',
     triggerType,
     message,
     status: 'delivered'

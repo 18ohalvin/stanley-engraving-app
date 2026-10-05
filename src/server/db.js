@@ -98,17 +98,6 @@ async function seedDefaultMasterData() {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [s.id, s.code, s.name, s.city, s.address, s.phone, s.total_machines, s.active_machines, s.status, now]);
     }
-  } else {
-    // Ensure Stanley Puri Indah Mall exists if not already present
-    const puriCheck = await dbAdapter.get(`SELECT count(*) as count FROM stores WHERE id = '004' OR name LIKE '%Puri Indah%'`);
-    const puriCount = Number(puriCheck?.count || puriCheck?.COUNT || 0);
-    if (puriCount === 0) {
-      const now = new Date().toISOString();
-      await dbAdapter.run(`
-        INSERT OR IGNORE INTO stores (id, code, name, city, address, phone, total_machines, active_machines, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, ['004', '004', 'Stanley Puri Indah Mall', 'Jakarta Barat', 'Puri Indah Mall, Lt 1, Jakarta Barat', '0812 3456 7890', 2, 2, 'Online', now]);
-    }
   }
 
   // Seed default product catalog in settings table if empty
@@ -164,12 +153,8 @@ async function seedDefaultMasterData() {
 
     const initialSettings = {
       default: {
-        phone: '0812 3456 7890',
+        phone: '',
         profiles: defaultTemplates
-      },
-      '004': {
-        phone: '0812 3456 7890',
-        profiles: JSON.parse(JSON.stringify(defaultTemplates))
       }
     };
     await saveSettingsInDb('whatsapp_notifications', initialSettings);
@@ -542,6 +527,13 @@ export async function getOrderByIdFromDb(idOrCode, storeId) {
 
 export async function clearAllOrdersInDb() {
   await dbAdapter.run(`DELETE FROM orders`);
+}
+
+export async function deleteOrderFromDb(orderId) {
+  if (!orderId) return false;
+  const clean = String(orderId).trim();
+  await dbAdapter.run(`DELETE FROM orders WHERE order_id = ? OR short_code = ? OR intake_code = ?`, [clean, clean, clean]);
+  return true;
 }
 
 export async function resetAllDatabaseExceptStaff() {

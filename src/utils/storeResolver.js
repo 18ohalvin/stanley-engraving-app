@@ -64,7 +64,7 @@ export function getCanonicalStore(inputStr) {
                 id: store.id,
                 code: store.code || store.id,
                 name: store.name,
-                phone: store.phone || '+62 817-5566-7788',
+                phone: store.phone || '',
                 aliases: [sId, sCode, sName, sIdClean, sCodeClean, sNameClean]
               };
             }
@@ -95,7 +95,7 @@ export function getCanonicalStore(inputStr) {
     id: raw,
     code: raw,
     name: raw,
-    phone: '+62 817-5566-7788',
+    phone: '',
     aliases: [lower, clean]
   };
 }
@@ -122,7 +122,7 @@ export function isSameStore(storeA, storeB) {
 }
 
 export function getStorePhone(storeInput) {
-  if (!storeInput) return '+62 817-5566-7788';
+  if (!storeInput) return '';
   
   try {
     if (typeof localStorage !== 'undefined') {
@@ -149,5 +149,5 @@ export function getStorePhone(storeInput) {
 
   const canonical = getCanonicalStore(storeInput);
   if (canonical && canonical.phone) return canonical.phone;
-  return '+62 817-5566-7788';
+  return '';
 }

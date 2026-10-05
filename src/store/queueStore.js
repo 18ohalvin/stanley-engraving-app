@@ -361,9 +361,11 @@ export const useQueueStore = defineStore('queue', {
       return null;
     },
 
-    deleteOrder(orderId) {
+    async deleteOrder(orderId) {
       const index = this.orders.findIndex(o => o.order_id === orderId || o.short_code === orderId || o.intake_code === orderId);
       if (index !== -1) {
+        const target = this.orders[index];
+        const targetId = target.order_id || orderId;
         this.orders.splice(index, 1);
         saveStoredOrders(this.orders);
 
@@ -374,6 +376,21 @@ export const useQueueStore = defineStore('queue', {
           machine.timerSeconds = 0;
           this.autoAssignMachines();
         }
+
+        // Permanently delete from cloud backend database
+        try {
+          if (typeof fetch !== 'undefined') {
+            const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+            const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+            await fetch(`/api/orders/${encodeURIComponent(targetId)}`, {
+              method: 'DELETE',
+              headers
+            });
+          }
+        } catch (e) {
+          console.warn('Failed to delete order from backend database:', e);
+        }
+
         return true;
       }
       return false;

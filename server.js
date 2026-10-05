@@ -12,6 +12,7 @@ import {
   saveAllOrdersToDb,
   upsertSingleOrderInDb,
   getOrderByIdFromDb,
+  deleteOrderFromDb,
   clearAllOrdersInDb,
   resetAllDatabaseExceptStaff,
   findStaffForAuth,
@@ -358,6 +359,18 @@ app.post('/api/orders', requireAuth, async (req, res) => {
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE single order by ID (Protected / Staff access)
+app.delete('/api/orders/:id', async (req, res) => {
+  try {
+    const success = await deleteOrderFromDb(req.params.id);
+    const allOrders = await getAllOrdersFromDb();
+    broadcast('orders_updated', allOrders);
+    res.json({ success, orders: allOrders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

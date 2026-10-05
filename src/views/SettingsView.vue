@@ -456,8 +456,8 @@
                       </svg>
                     </div>
                     <div class="dropdown-text-column">
-                      <span class="store-name-sub">{{ currentStore?.name || 'Stanley Puri Indah Mall' }}</span>
-                      <span class="store-phone-bold">{{ currentStoreWhatsappPhone || '0812 3456 7890' }}</span>
+                      <span class="store-name-sub">{{ currentStore?.name || 'Select Store' }}</span>
+                      <span class="store-phone-bold">{{ currentStoreWhatsappPhone || 'No phone configured' }}</span>
                     </div>
                   </div>
                   <div class="dropdown-chevron-box" :class="{ 'is-rotated': isStoreDropdownOpen }">
@@ -1377,7 +1377,7 @@
 
                       <div class="wa-store-title-badge">
                         <div class="wa-store-name-line">
-                          <span class="wa-store-title-text">{{ currentStore?.name || 'Stanley Puri Indah Mall' }}</span>
+                          <span class="wa-store-title-text">{{ currentStore?.name || 'Stanley Store' }}</span>
                           <svg class="wa-verified-icon" width="12" height="12" viewBox="0 0 24 24" fill="#25D366">
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                           </svg>
@@ -1890,27 +1890,20 @@ const notificationForm = ref({
 });
 
 const allStoresList = computed(() => {
-  if (rawNetworkStores.value.length > 0) return rawNetworkStores.value;
-  return [
-    { id: '004', code: '004', name: 'Stanley Puri Indah Mall', phone: '0812 3456 7890' },
-    { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', phone: '+62 817-5566-7788' },
-    { id: '002', code: '002', name: 'Stanley Grand Indonesia', phone: '+62 812-9988-7766' },
-    { id: '003', code: '003', name: 'Stanley Senayan City', phone: '+62 813-1122-3344' },
-    { id: 'SG001', code: 'SG001', name: 'Stanley Singapore Store', phone: '+65 8123 4567' }
-  ];
+  return rawNetworkStores.value || [];
 });
 
 const currentStore = computed(() => {
   const list = allStoresList.value;
+  if (!list || list.length === 0) return null;
   if (!selectedStoreId.value) {
-    const puri = list.find(s => s.name?.includes('Puri Indah') || s.code === '004' || s.id === '004');
-    return puri || list[0];
+    return list[0] || null;
   }
-  return list.find(s => s.id === selectedStoreId.value || s.code === selectedStoreId.value) || list[0];
+  return list.find(s => s.id === selectedStoreId.value || s.code === selectedStoreId.value) || list[0] || null;
 });
 
 function getStorePhone(store) {
-  if (!store) return '0812 3456 7890';
+  if (!store) return '';
   const key = store.id || store.code;
 
   // 1. Check store overrides (from StoreListView quick edits)
@@ -1940,7 +1933,7 @@ function getStorePhone(store) {
     return whatsappSettings.value[key].phone.trim();
   }
 
-  return '0812 3456 7890';
+  return '';
 }
 
 function syncStorePhonesToWhatsAppSettings() {
@@ -2028,7 +2021,7 @@ const livePreviewMessageText = computed(() => {
   if (!msg.trim()) {
     return 'Hi! Saat ini antrian di store kami lebih dari 10 orang. Terima kasih sudah menunggu. Kami akan segera memproses pesanan kamu.';
   }
-  const storeName = currentStore.value?.name || 'Stanley Puri Indah Mall';
+  const storeName = currentStore.value?.name || 'Stanley Store';
   return msg
     .replace(/\{customer_name\}/gi, 'Budi Santoso')
     .replace(/\{short_code\}/gi, 'EG-042')
@@ -2404,12 +2397,8 @@ async function loadWhatsAppSettings() {
 
   whatsappSettings.value = {
     default: {
-      phone: '0812 3456 7890',
+      phone: '',
       profiles: DEFAULT_NOTIFICATION_TEMPLATES
-    },
-    '004': {
-      phone: '0812 3456 7890',
-      profiles: JSON.parse(JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES))
     }
   };
 }

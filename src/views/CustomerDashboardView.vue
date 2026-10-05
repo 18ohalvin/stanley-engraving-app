@@ -988,9 +988,9 @@ function saveEditOrder() {
 }
 
 
-function confirmDelete() {
+async function confirmDelete() {
   if (deletingOrder.value) {
-    queueStore.deleteOrder(deletingOrder.value.order_id);
+    await queueStore.deleteOrder(deletingOrder.value.order_id);
   }
   showDeleteModal.value = false;
   deletingOrder.value = null;

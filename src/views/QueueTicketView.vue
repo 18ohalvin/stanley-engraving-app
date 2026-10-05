@@ -294,47 +294,40 @@ async function fetchOrder() {
     return;
   }
 
-  // Direct public HTTP API ticket status lookup from SQLite backend with retry loop
+  // Direct public HTTP API ticket status lookup from backend
   const cleanId = String(rawId).replace('#', '').trim();
   let url = `/api/orders/public/${encodeURIComponent(cleanId)}`;
   if (storeIdParam) {
     url += `?storeId=${encodeURIComponent(storeIdParam)}`;
   }
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) {
-        const serverOrder = await res.json();
-        if (serverOrder && (serverOrder.order_id || serverOrder.short_code || serverOrder.intake_code)) {
-          const matchOId = (serverOrder.order_id || '').trim().toUpperCase();
-          const matchSCode = (serverOrder.short_code || '').trim().toUpperCase();
-          const matchICode = (serverOrder.intake_code || '').trim().toUpperCase();
-          const matchQNum = (serverOrder.system_queue_number || '').trim().toUpperCase();
-          const reqUpper = cleanId.toUpperCase();
-          const parts = reqUpper.split('-');
-          const sub = parts[parts.length - 1];
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const serverOrder = await res.json();
+      if (serverOrder && (serverOrder.order_id || serverOrder.short_code || serverOrder.intake_code)) {
+        const matchOId = (serverOrder.order_id || '').trim().toUpperCase();
+        const matchSCode = (serverOrder.short_code || '').trim().toUpperCase();
+        const matchICode = (serverOrder.intake_code || '').trim().toUpperCase();
+        const matchQNum = (serverOrder.system_queue_number || '').trim().toUpperCase();
+        const reqUpper = cleanId.toUpperCase();
+        const parts = reqUpper.split('-');
+        const sub = parts[parts.length - 1];
 
-          const isMatch = (matchOId && (matchOId === reqUpper || matchOId.endsWith(`-${reqUpper}`))) ||
-                          (matchSCode && (matchSCode === reqUpper || (sub.length >= 3 && matchSCode === sub))) ||
-                          (matchICode && (matchICode === reqUpper || (sub.length >= 3 && matchICode === sub))) ||
-                          (matchQNum && (matchQNum === reqUpper || (sub.length >= 3 && matchQNum === sub)));
+        const isMatch = (matchOId && (matchOId === reqUpper || matchOId.endsWith(`-${reqUpper}`))) ||
+                        (matchSCode && (matchSCode === reqUpper || (sub.length >= 3 && matchSCode === sub))) ||
+                        (matchICode && (matchICode === reqUpper || (sub.length >= 3 && matchICode === sub))) ||
+                        (matchQNum && (matchQNum === reqUpper || (sub.length >= 3 && matchQNum === sub)));
 
-          if (isMatch) {
-            fallbackOrder.value = serverOrder;
-            isNotFound.value = false;
-            queueStore.upsertOrder(serverOrder);
-            return;
-          }
+        if (isMatch) {
+          fallbackOrder.value = serverOrder;
+          isNotFound.value = false;
+          queueStore.upsertOrder(serverOrder);
+          return;
         }
       }
-    } catch (e) {}
-
-    // Wait 300ms before retrying to allow backend DB write to finish
-    if (attempt < 4) {
-      await new Promise(resolve => setTimeout(resolve, 300));
     }
-  }
+  } catch (e) {}
 
   if (!fallbackOrder.value) {
     isNotFound.value = true;
