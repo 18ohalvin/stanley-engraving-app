@@ -714,6 +714,9 @@ export const useQueueStore = defineStore('queue', {
         }
       } catch (e) {}
 
+      // Trigger WhatsApp notification for order received / accepted
+      sendWhatsAppNotification(order, 'order_accepted');
+
       return {
         success: true,
         order,

@@ -41,13 +41,52 @@ export function setStorePhoneResolver(resolver) {
 
 export function normalizePhoneDigits(phone, defaultCountryCode = '62') {
   if (!phone) return '';
-  let digits = String(phone).replace(/\D/g, '');
+  const raw = String(phone).trim();
+  if (!raw) return '';
+
+  const cleanDefaultCode = String(defaultCountryCode || '62').replace(/\D/g, '') || '62';
+
+  // If raw string starts with '+', keep the explicit international country code
+  if (raw.startsWith('+')) {
+    let digits = raw.replace(/\D/g, '');
+    if (digits.startsWith('6208')) {
+      digits = '62' + digits.slice(3); // +62 0812 -> 62812
+    } else if (digits.startsWith('6001')) {
+      digits = '60' + digits.slice(3); // +60 012 -> 6012
+    }
+    return digits;
+  }
+
+  let digits = raw.replace(/\D/g, '');
   if (!digits) return '';
+
+  // 1. Handle leading 0 (e.g. 08176530000 -> 628176530000)
   if (digits.startsWith('0')) {
-    digits = defaultCountryCode + digits.slice(1);
-  } else if (digits.length === 8 && (digits.startsWith('8') || digits.startsWith('9'))) {
+    digits = cleanDefaultCode + digits.replace(/^0+/, '');
+  }
+
+  // 2. Handle 6208... (e.g. 6208123456 -> 628123456)
+  if (digits.startsWith('6208')) {
+    digits = '62' + digits.slice(3);
+  }
+
+  // 3. Handle Indonesian mobile numbers starting directly with '8' (e.g. 8176530000, 81277208270)
+  if (digits.startsWith('8') && digits.length >= 9 && digits.length <= 13) {
+    digits = (cleanDefaultCode === '65' ? '65' : '62') + digits;
+  }
+
+  // 4. Handle Singapore 8-digit numbers (8xxx-xxxx or 9xxx-xxxx)
+  if (cleanDefaultCode === '65' && digits.length === 8 && (digits.startsWith('8') || digits.startsWith('9'))) {
     digits = '65' + digits;
   }
+
+  // 5. If digits don't start with known country codes and is 9-12 digits long
+  if (!digits.startsWith('62') && !digits.startsWith('65') && !digits.startsWith('60') && !digits.startsWith('1') && !digits.startsWith('44')) {
+    if (digits.startsWith('8') || digits.startsWith('9')) {
+      digits = cleanDefaultCode + digits;
+    }
+  }
+
   return digits;
 }
 
@@ -69,7 +108,7 @@ export function arePhonesMatching(phoneA, phoneB) {
 export function formatToWhatsAppJid(phone, defaultCountryCode = '62') {
   if (!phone) return null;
   let digits = normalizePhoneDigits(phone, defaultCountryCode);
-  if (!digits) return null;
+  if (!digits || digits.length < 8) return null;
   return `${digits}@s.whatsapp.net`;
 }
 
@@ -324,7 +363,37 @@ export async function disconnectStore(storeId) {
  * Send a WhatsApp text notification to a customer from a store's linked session
  */
 export async function sendStoreWhatsAppMessage(storeId, recipientPhone, messageText) {
-  const session = sessions.get(storeId);
+  // 1. Try exact store session
+  let session = sessions.get(storeId);
+  let resolvedStoreId = storeId;
+
+  // 2. If not found or not connected, try alias match (case-insensitive / digits-only)
+  if (!session || !session.sock || session.status !== 'connected') {
+    const targetClean = String(storeId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const [sId, s] of sessions.entries()) {
+      if (s && s.sock && s.status === 'connected') {
+        const sClean = String(sId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (sClean === targetClean) {
+          session = s;
+          resolvedStoreId = sId;
+          break;
+        }
+      }
+    }
+  }
+
+  // 3. Fallback: Use ANY active connected store session (or 'default')
+  if (!session || !session.sock || session.status !== 'connected') {
+    for (const [sId, s] of sessions.entries()) {
+      if (s && s.sock && s.status === 'connected') {
+        console.log(`[WA-GATEWAY] Store "${storeId}" session not connected. Falling back to active connected session "${sId}".`);
+        session = s;
+        resolvedStoreId = sId;
+        break;
+      }
+    }
+  }
+
   if (!session || !session.sock || session.status !== 'connected') {
     return {
       success: false,
@@ -333,8 +402,13 @@ export async function sendStoreWhatsAppMessage(storeId, recipientPhone, messageT
     };
   }
 
-  // Infer default country code from store id (SG -> 65, else -> 62)
-  const defaultCountry = String(storeId).toUpperCase().includes('SG') ? '65' : '62';
+  // Infer default country code from store id or recipient phone
+  let defaultCountry = '62';
+  const phoneStr = String(recipientPhone || '').trim();
+  if (String(storeId).toUpperCase().includes('SG') || phoneStr.startsWith('+65') || phoneStr.startsWith('65')) {
+    defaultCountry = '65';
+  }
+
   const jid = formatToWhatsAppJid(recipientPhone, defaultCountry);
 
   if (!jid) {
@@ -345,12 +419,27 @@ export async function sendStoreWhatsAppMessage(storeId, recipientPhone, messageT
   }
 
   try {
-    const result = await session.sock.sendMessage(jid, { text: messageText });
+    let targetJid = jid;
+
+    // Check if number is registered on WhatsApp using Baileys onWhatsApp
+    if (typeof session.sock.onWhatsApp === 'function') {
+      try {
+        const results = await session.sock.onWhatsApp(jid);
+        if (Array.isArray(results) && results.length > 0 && results[0]?.exists && results[0]?.jid) {
+          targetJid = results[0].jid;
+        }
+      } catch (onWaErr) {
+        // Continue with formatted JID
+      }
+    }
+
+    const result = await session.sock.sendMessage(targetJid, { text: messageText });
     return {
       success: true,
       messageId: result?.key?.id,
       recipientPhone,
-      jid,
+      jid: targetJid,
+      storeId: resolvedStoreId,
       timestamp: new Date().toISOString()
     };
   } catch (err) {

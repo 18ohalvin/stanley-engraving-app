@@ -117,7 +117,16 @@ export function sendWhatsAppNotification(order, triggerType = 'order_completed')
     const origin = (typeof window !== 'undefined' && window.location && window.location.origin) 
       ? window.location.origin 
       : (process.env.APP_URL || 'http://localhost:3000');
-    message = `Hi ${order.customer_name}! Your custom Stanley cup (#${order.short_code || order.system_queue_number || order.intake_code}) has been laser-engraved and is ready for pickup at ${order.store_name || 'Stanley Store'}. View your ticket: ${origin}/queue/${order.order_id}`;
+    const ticketCode = order.short_code || order.system_queue_number || order.intake_code || '';
+    const storeName = order.store_name || 'Stanley Store';
+
+    if (triggerType === 'order_accepted') {
+      message = `Hi ${order.customer_name}! Pesanan kamu #${ticketCode} telah diterima oleh tim kami di ${storeName}. Mohon menunggu, pesanan kamu akan segera di-engrave. Pantau status: ${origin}/queue/${order.order_id}`;
+    } else if (triggerType === 'queue_threshold') {
+      message = `Hi ${order.customer_name}! Saat ini antrian di ${storeName} sedang ramai. Terima kasih sudah menunggu, kami akan segera memproses pesanan kamu #${ticketCode}. Pantau antrian: ${origin}/queue/${order.order_id}`;
+    } else {
+      message = `Hi ${order.customer_name}! Pesanan kamu #${ticketCode} sudah selesai dan siap diambil di ${storeName}. Terima kasih telah berbelanja di Stanley! Cek tiket: ${origin}/queue/${order.order_id}`;
+    }
   }
 
   const existing = getStoredLogs(STORAGE_KEY_WHATSAPP);
