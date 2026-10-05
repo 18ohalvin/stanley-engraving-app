@@ -140,9 +140,14 @@ app.get('/api/events', (req, res) => {
   if (typeof res.flush === 'function') res.flush();
   sseClients.add(res);
 
-  req.on('close', () => {
+  const cleanup = () => {
     sseClients.delete(res);
-  });
+  };
+
+  req.on('close', cleanup);
+  res.on('finish', cleanup);
+  res.on('close', cleanup);
+  res.on('error', cleanup);
 });
 
 // Customer Public Order Submission (Strict Rate Limited)

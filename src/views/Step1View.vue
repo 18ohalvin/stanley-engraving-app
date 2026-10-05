@@ -120,34 +120,28 @@ onMounted(async () => {
   }
   await syncCatalogModels();
 
-  if (typeof EventSource !== 'undefined') {
-    try {
-      eventSource = new EventSource('/api/events');
-      eventSource.addEventListener('products_updated', () => {
-        syncCatalogModels();
-      });
-      eventSource.addEventListener('settings_updated', (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (data && data.key === 'products') {
-            syncCatalogModels();
-          }
-        } catch (err) {}
-      });
-    } catch (e) {}
-  }
-
   window.addEventListener('stanley_products_updated', syncCatalogModels);
-  window.addEventListener('storage', (e) => {
-    if (e.key === 'stanley_product_catalog_order') {
-      syncCatalogModels();
-    }
-  });
+  window.addEventListener('stanley_settings_updated', handleSettingsUpdate);
+  window.addEventListener('storage', handleStorageUpdate);
 });
 
+function handleSettingsUpdate(e) {
+  const data = e?.detail;
+  if (data && data.key === 'products') {
+    syncCatalogModels();
+  }
+}
+
+function handleStorageUpdate(e) {
+  if (e.key === 'stanley_product_catalog_order') {
+    syncCatalogModels();
+  }
+}
+
 onUnmounted(() => {
-  if (eventSource) eventSource.close();
   window.removeEventListener('stanley_products_updated', syncCatalogModels);
+  window.removeEventListener('stanley_settings_updated', handleSettingsUpdate);
+  window.removeEventListener('storage', handleStorageUpdate);
 });
 
 function selectSize(size) {

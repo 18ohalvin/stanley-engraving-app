@@ -215,12 +215,17 @@ export const useQueueStore = defineStore('queue', {
 
       // Listen to real-time events broadcasted across devices over LAN/WiFi via SSE with auto-reconnect
       let sseInstance = null;
+      let reconnectTimer = null;
       const connectSSE = () => {
         if (typeof EventSource === 'undefined') return;
         try {
           if (sseInstance) {
             sseInstance.close();
             sseInstance = null;
+          }
+          if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
           }
           sseInstance = new EventSource('/api/events');
           sseInstance.addEventListener('orders_updated', (e) => {
@@ -229,6 +234,7 @@ export const useQueueStore = defineStore('queue', {
               if (Array.isArray(updated)) {
                 this.orders = updated;
                 this.autoAssignMachines();
+                window.dispatchEvent(new CustomEvent('stanley_orders_updated', { detail: updated }));
               }
             } catch (err) {}
           });
@@ -246,7 +252,38 @@ export const useQueueStore = defineStore('queue', {
                     if (storedM.isActive !== undefined) target.isActive = storedM.isActive;
                   }
                 });
+                window.dispatchEvent(new CustomEvent('stanley_machines_updated', { detail: updated }));
               }
+            } catch (err) {}
+          });
+          sseInstance.addEventListener('products_updated', (e) => {
+            try {
+              const updated = JSON.parse(e.data);
+              window.dispatchEvent(new CustomEvent('stanley_products_updated', { detail: updated }));
+            } catch (err) {}
+          });
+          sseInstance.addEventListener('stores_updated', (e) => {
+            try {
+              const updated = JSON.parse(e.data);
+              window.dispatchEvent(new CustomEvent('stanley_stores_updated', { detail: updated }));
+            } catch (err) {}
+          });
+          sseInstance.addEventListener('settings_updated', (e) => {
+            try {
+              const updated = JSON.parse(e.data);
+              window.dispatchEvent(new CustomEvent('stanley_settings_updated', { detail: updated }));
+            } catch (err) {}
+          });
+          sseInstance.addEventListener('staff_updated', (e) => {
+            try {
+              const updated = JSON.parse(e.data);
+              window.dispatchEvent(new CustomEvent('stanley_staff_updated', { detail: updated }));
+            } catch (err) {}
+          });
+          sseInstance.addEventListener('whatsapp_status', (e) => {
+            try {
+              const updated = JSON.parse(e.data);
+              window.dispatchEvent(new CustomEvent('stanley_whatsapp_status', { detail: updated }));
             } catch (err) {}
           });
           sseInstance.onerror = () => {
@@ -254,17 +291,39 @@ export const useQueueStore = defineStore('queue', {
               sseInstance.close();
               sseInstance = null;
             }
-            setTimeout(connectSSE, 3000);
+            if (!reconnectTimer) {
+              reconnectTimer = setTimeout(connectSSE, 3000);
+            }
           };
         } catch (e) {}
       };
 
       connectSSE();
 
-      // Fast network polling sync (every 1.5s) as bulletproof fail-safe
+      // Clean up SSE connection before page unload/refresh to free browser socket immediately
+      window.addEventListener('beforeunload', () => {
+        if (sseInstance) {
+          sseInstance.close();
+          sseInstance = null;
+        }
+      });
+
+      // Synchronize immediately when user focuses or returns to the tab
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            this.refreshFromStorage();
+          }
+        });
+        window.addEventListener('focus', () => {
+          this.refreshFromStorage();
+        });
+      }
+
+      // Gentle background fail-safe sync (every 15s) without hammering the network
       setInterval(() => {
         this.refreshFromStorage();
-      }, 1500);
+      }, 15000);
     },
 
     async resetDatabase() {

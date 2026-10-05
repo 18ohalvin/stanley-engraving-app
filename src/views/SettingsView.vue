@@ -2618,104 +2618,109 @@ onMounted(async () => {
     await loadWhatsAppSettings();
     await fetchWhatsAppStatus(currentStore.value?.id || currentStore.value?.code || 'SG001');
 
-    if (typeof EventSource !== 'undefined') {
-      try {
-        eventSource = new EventSource('/api/events');
-        eventSource.addEventListener('whatsapp_status', (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            const storeKey = currentStore.value?.id || currentStore.value?.code;
-            if (data && (data.storeId === storeKey || !data.storeId)) {
-              waStoreStatus.value = {
-                connected: Boolean(data.connected),
-                status: data.status || 'disconnected',
-                phone: data.phone || null,
-                qr: data.qr || null,
-                error: data.error || null
-              };
-              if (data.status === 'rejected_mismatch') {
-                stopWaPolling();
-                triggerToast(data.error || 'Scanned device does not match store phone number', 'error');
-              } else if (data.connected && showWhatsAppQrModal.value) {
-                showWhatsAppQrModal.value = false;
-                stopWaPolling();
-                triggerToast(`WhatsApp device linked for ${currentStore.value?.name || 'Store'}!`, 'success');
-              }
-            }
-          } catch (err) {}
-        });
-        eventSource.addEventListener('products_updated', (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            if (Array.isArray(data) && data.length > 0) {
-              products.value = data;
-              localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data));
-            }
-          } catch (err) {}
-        });
-        eventSource.addEventListener('settings_updated', (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            if (data && data.key === 'products' && Array.isArray(data.value) && data.value.length > 0) {
-              products.value = data.value;
-              localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data.value));
-            } else if (data && data.key === 'size_presets' && Array.isArray(data.value) && data.value.length > 0) {
-              sizePresets.value = data.value;
-              localStorage.setItem('stanley_size_presets', JSON.stringify(data.value));
-            } else if (data && data.key === 'whatsapp_notifications' && data.value) {
-              whatsappSettings.value = data.value;
-              localStorage.setItem('stanley_whatsapp_notifications', JSON.stringify(data.value));
-            }
-          } catch (err) {}
-        });
-        eventSource.addEventListener('staff_updated', (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            if (Array.isArray(data) && data.length > 0) {
-              const withoutDev = data.filter(u => u && u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
-              staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
-              localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
-            }
-          } catch (err) {}
-        });
-        eventSource.addEventListener('stores_updated', (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
-            if (list.length > 0) {
-              rawNetworkStores.value = list;
-              storeLocationsList.value = list.map(s => s && s.name).filter(Boolean);
-              localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
-              syncStorePhonesToWhatsAppSettings();
-            }
-          } catch (err) {}
-        });
-      } catch (e) {}
-    }
-
     if (!route.params.tab) {
       router.replace(`/settings/${activeTab.value}`);
     }
 
     document.addEventListener('click', handleGlobalClick);
     window.addEventListener('storage', handleStorageUpdate);
-    window.addEventListener('stanley_staff_updated', handleStorageUpdate);
-    window.addEventListener('stanley_stores_updated', handleStorageUpdate);
-    window.addEventListener('stanley_products_updated', handleStorageUpdate);
+    window.addEventListener('stanley_staff_updated', handleStaffUpdate);
+    window.addEventListener('stanley_stores_updated', handleStoresUpdate);
+    window.addEventListener('stanley_products_updated', handleProductsUpdate);
+    window.addEventListener('stanley_settings_updated', handleSettingsUpdate);
+    window.addEventListener('stanley_whatsapp_status', handleWhatsAppStatusEvent);
     window.addEventListener('stanley_size_presets_updated', handleStorageUpdate);
     window.addEventListener('stanley_whatsapp_notifications_updated', handleStorageUpdate);
-
-    pollInterval = setInterval(() => {
-      loadProducts();
-      loadSizePresets();
-      loadStaffAccounts();
-      loadStoreLocations();
-      loadWhatsAppSettings();
-    }, 3000);
   } catch (e) {
     console.error('Failed to load saved settings data:', e);
   }
 });
+
+function handleWhatsAppStatusEvent(e) {
+  try {
+    const data = e?.detail;
+    const storeKey = currentStore.value?.id || currentStore.value?.code;
+    if (data && (data.storeId === storeKey || !data.storeId)) {
+      waStoreStatus.value = {
+        connected: Boolean(data.connected),
+        status: data.status || 'disconnected',
+        phone: data.phone || null,
+        qr: data.qr || null,
+        error: data.error || null
+      };
+      if (data.status === 'rejected_mismatch') {
+        stopWaPolling();
+        triggerToast(data.error || 'Scanned device does not match store phone number', 'error');
+      } else if (data.connected && showWhatsAppQrModal.value) {
+        showWhatsAppQrModal.value = false;
+        stopWaPolling();
+        triggerToast(`WhatsApp device linked for ${currentStore.value?.name || 'Store'}!`, 'success');
+      }
+    }
+  } catch (err) {}
+}
+
+function handleProductsUpdate(e) {
+  try {
+    const data = e?.detail;
+    if (Array.isArray(data) && data.length > 0) {
+      products.value = data;
+      localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data));
+    } else {
+      loadProducts();
+    }
+  } catch (err) {
+    loadProducts();
+  }
+}
+
+function handleStaffUpdate(e) {
+  try {
+    const data = e?.detail;
+    if (Array.isArray(data) && data.length > 0) {
+      const withoutDev = data.filter(u => u && u.username !== 'devsosco01' && u.staffId !== 'devsosco01' && u.id !== 'devsosco01');
+      staffUsers.value = [DEVELOPER_ACCOUNT, ...withoutDev];
+      localStorage.setItem('stanley_staff_users', JSON.stringify(staffUsers.value));
+    } else {
+      loadStaffAccounts();
+    }
+  } catch (err) {
+    loadStaffAccounts();
+  }
+}
+
+function handleStoresUpdate(e) {
+  try {
+    const data = e?.detail;
+    const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
+    if (list.length > 0) {
+      rawNetworkStores.value = list;
+      storeLocationsList.value = list.map(s => s && s.name).filter(Boolean);
+      localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
+      syncStorePhonesToWhatsAppSettings();
+    } else {
+      loadStoreLocations();
+    }
+  } catch (err) {
+    loadStoreLocations();
+  }
+}
+
+function handleSettingsUpdate(e) {
+  try {
+    const data = e?.detail;
+    if (data && data.key === 'products' && Array.isArray(data.value) && data.value.length > 0) {
+      products.value = data.value;
+      localStorage.setItem('stanley_product_catalog_order', JSON.stringify(data.value));
+    } else if (data && data.key === 'size_presets' && Array.isArray(data.value) && data.value.length > 0) {
+      sizePresets.value = data.value;
+      localStorage.setItem('stanley_size_presets', JSON.stringify(data.value));
+    } else if (data && data.key === 'whatsapp_notifications' && data.value) {
+      whatsappSettings.value = data.value;
+      localStorage.setItem('stanley_whatsapp_notifications', JSON.stringify(data.value));
+    }
+  } catch (err) {}
+}
 
 watch(currentStore, (newStore) => {
   if (newStore) {
@@ -2726,13 +2731,13 @@ watch(currentStore, (newStore) => {
 
 onUnmounted(() => {
   stopWaPolling();
-  if (pollInterval) clearInterval(pollInterval);
-  if (eventSource) eventSource.close();
   document.removeEventListener('click', handleGlobalClick);
   window.removeEventListener('storage', handleStorageUpdate);
-  window.removeEventListener('stanley_staff_updated', handleStorageUpdate);
-  window.removeEventListener('stanley_stores_updated', handleStorageUpdate);
-  window.removeEventListener('stanley_products_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_staff_updated', handleStaffUpdate);
+  window.removeEventListener('stanley_stores_updated', handleStoresUpdate);
+  window.removeEventListener('stanley_products_updated', handleProductsUpdate);
+  window.removeEventListener('stanley_settings_updated', handleSettingsUpdate);
+  window.removeEventListener('stanley_whatsapp_status', handleWhatsAppStatusEvent);
   window.removeEventListener('stanley_size_presets_updated', handleStorageUpdate);
   window.removeEventListener('stanley_whatsapp_notifications_updated', handleStorageUpdate);
 });

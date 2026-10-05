@@ -803,33 +803,16 @@ function handleStorageUpdate() {
 onMounted(() => {
   queueStore.refreshFromStorage();
 
-  // Fast auto-sync poll interval (every 1.5s) for zero-latency cross-device sync
-  pollInterval = setInterval(() => {
-    queueStore.refreshFromStorage();
-  }, 1500);
-
-  // Real-time SSE listener for instant cross-device status push
-  if (typeof EventSource !== 'undefined') {
-    try {
-      eventSource = new EventSource('/api/events');
-      eventSource.addEventListener('orders_updated', handleStorageUpdate);
-      eventSource.addEventListener('machines_updated', handleStorageUpdate);
-    } catch (e) {}
-  }
-
-  // Cross-tab and storage listeners
+  // Cross-tab and centralized SSE store listeners
   window.addEventListener('storage', handleStorageUpdate);
   window.addEventListener('stanley_orders_updated', handleStorageUpdate);
+  window.addEventListener('stanley_machines_updated', handleStorageUpdate);
 });
 
 onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval);
-  if (eventSource) {
-    eventSource.close();
-    eventSource = null;
-  }
   window.removeEventListener('storage', handleStorageUpdate);
   window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_machines_updated', handleStorageUpdate);
 });
 
 function formatTicketId(rowOrOrder) {

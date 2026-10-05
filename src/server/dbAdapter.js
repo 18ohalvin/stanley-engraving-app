@@ -48,7 +48,18 @@ class DatabaseAdapter {
         config.ssl = { rejectUnauthorized: false };
       }
 
-      this.pgPool = new pg.Pool(config);
+      const poolConfig = {
+        ...config,
+        max: parseInt(process.env.DB_POOL_MAX || '20', 10),
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+        allowExitOnIdle: false
+      };
+
+      this.pgPool = new pg.Pool(poolConfig);
+      this.pgPool.on('error', (err) => {
+        console.warn('⚠️ [Database] Idle client warning on PostgreSQL pool:', err.message);
+      });
       console.log(`🔌 [Database] Connected to PostgreSQL pool (${config.host || 'via DATABASE_URL'})`);
     } else if (this.driver === 'mysql') {
       const dbUrl = process.env.DATABASE_URL;
@@ -59,8 +70,11 @@ class DatabaseAdapter {
         password: process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || '',
         database: process.env.MYSQL_DATABASE || process.env.DB_NAME || 'stanley_db',
         waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
+        connectionLimit: parseInt(process.env.DB_POOL_MAX || '20', 10),
+        queueLimit: 0,
+        connectTimeout: 5000,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10000
       };
 
       this.mysqlPool = mysql.createPool(config);

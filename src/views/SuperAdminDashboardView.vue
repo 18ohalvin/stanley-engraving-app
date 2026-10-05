@@ -1807,42 +1807,27 @@ onMounted(() => {
   queueStore.refreshFromStorage();
   fetchNetworkStores();
 
-  if (typeof EventSource !== 'undefined') {
-    try {
-      eventSource = new EventSource('/api/events');
-      eventSource.addEventListener('orders_updated', () => {
-        queueStore.refreshFromStorage();
-      });
-      eventSource.addEventListener('stores_updated', (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
-          if (list.length > 0) {
-            localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
-          }
-        } catch (err) {}
-      });
-    } catch (e) {}
-  }
-
   window.addEventListener('storage', handleStorageUpdate);
   window.addEventListener('stanley_orders_updated', handleStorageUpdate);
   window.addEventListener('stanley_targets_updated', handleStorageUpdate);
-  window.addEventListener('stanley_stores_updated', handleStorageUpdate);
-
-  pollInterval = setInterval(() => {
-    queueStore.refreshFromStorage();
-    fetchNetworkStores();
-  }, 2500);
+  window.addEventListener('stanley_stores_updated', handleStoresUpdate);
 });
 
+function handleStoresUpdate(e) {
+  try {
+    const list = e?.detail;
+    if (Array.isArray(list) && list.length > 0) {
+      localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
+    }
+  } catch (err) {}
+  fetchNetworkStores();
+}
+
 onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval);
-  if (eventSource) eventSource.close();
   window.removeEventListener('storage', handleStorageUpdate);
   window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
   window.removeEventListener('stanley_targets_updated', handleStorageUpdate);
-  window.removeEventListener('stanley_stores_updated', handleStorageUpdate);
+  window.removeEventListener('stanley_stores_updated', handleStoresUpdate);
 });
 
 function handleStorageUpdate() {

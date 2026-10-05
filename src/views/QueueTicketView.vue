@@ -344,34 +344,15 @@ function startNewOrder() {
   router.push('/');
 }
 
-let eventSource = null;
-
 onMounted(() => {
   fetchOrder();
   
-  // Real-time SSE listener for instant cross-device status push
-  if (typeof EventSource !== 'undefined') {
-    try {
-      eventSource = new EventSource('/api/events');
-      eventSource.addEventListener('orders_updated', () => {
-        fetchOrder();
-      });
-    } catch (e) {}
-  }
-
-  // Fast network polling sync (every 1.5s)
-  pollInterval = setInterval(() => {
-    fetchOrder();
-  }, 1500);
-
-  // Storage listeners for real-time cross-tab sync
+  // Storage listeners for real-time cross-tab and centralized SSE sync
   window.addEventListener('stanley_orders_updated', fetchOrder);
   window.addEventListener('storage', fetchOrder);
 });
 
 onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval);
-  if (eventSource) eventSource.close();
   window.removeEventListener('stanley_orders_updated', fetchOrder);
   window.removeEventListener('storage', fetchOrder);
 });
