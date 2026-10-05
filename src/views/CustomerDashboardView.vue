@@ -793,8 +793,35 @@ const editForm = ref({
 const showDeleteModal = ref(false);
 const deletingOrder = ref(null);
 
+let eventSource = null;
+
+function handleStorageUpdate() {
+  queueStore.refreshFromStorage();
+}
+
 onMounted(() => {
   queueStore.refreshFromStorage();
+
+  // Real-time SSE listener for instant cross-device status push
+  if (typeof EventSource !== 'undefined') {
+    try {
+      eventSource = new EventSource('/api/events');
+      eventSource.addEventListener('orders_updated', handleStorageUpdate);
+    } catch (e) {}
+  }
+
+  // Cross-tab and storage listeners
+  window.addEventListener('storage', handleStorageUpdate);
+  window.addEventListener('stanley_orders_updated', handleStorageUpdate);
+});
+
+onUnmounted(() => {
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  window.removeEventListener('storage', handleStorageUpdate);
+  window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
 });
 
 function formatTicketId(rowOrOrder) {

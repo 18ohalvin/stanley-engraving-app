@@ -345,11 +345,18 @@ export const useEngravingStore = defineStore('engraving', {
         items: this.items.map(item => ({
           id: item.id,
           model: item.model,
+          shortName: item.shortName,
           size: item.size,
           position: item.position,
           text: item.text,
           font: item.font,
-          fontClass: item.fontClass
+          fontId: item.fontId,
+          fontClass: item.fontClass,
+          image: item.image,
+          placementImage: item.placementImage,
+          textTop: item.textTop,
+          textLeft: item.textLeft,
+          textSize: item.textSize
         }))
       };
 

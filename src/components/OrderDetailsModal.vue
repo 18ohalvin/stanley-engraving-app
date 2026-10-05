@@ -14,7 +14,7 @@
             <div v-if="order" class="order-summary">
               <div class="info-row">
                 <span class="label">Ticket ID:</span>
-                <span class="value font-bold">#{{ order.short_code }}</span>
+                <span class="value font-bold">#{{ order.system_queue_number || order.short_code || order.intake_code }}</span>
               </div>
               <div class="info-row">
                 <span class="label">Customer Name:</span>

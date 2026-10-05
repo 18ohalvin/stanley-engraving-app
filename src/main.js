@@ -14,9 +14,5 @@ app.use(router);
 app.mount('#app');
 
 // Initialize Cross-Device Real-time Synchronization
-import { clearAnalyticsLogs } from './utils/analyticsService.js';
 const queueStore = useQueueStore();
-if (!queueStore.orders || queueStore.orders.length === 0) {
-  clearAnalyticsLogs();
-}
 queueStore.initRealtimeSync();

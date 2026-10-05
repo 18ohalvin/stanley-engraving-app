@@ -114,7 +114,10 @@ export function sendWhatsAppNotification(order, triggerType = 'order_completed')
 
   // Fallback to standard message if no personalized template found
   if (!message) {
-    message = `Hi ${order.customer_name}! Your custom Stanley cup (#${order.short_code}) has been laser-engraved and is ready for pickup at ${order.store_name || 'Stanley Store'}. View your ticket: http://10.77.1.25:5173/queue/${order.order_id}`;
+    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) 
+      ? window.location.origin 
+      : (process.env.APP_URL || 'http://localhost:3000');
+    message = `Hi ${order.customer_name}! Your custom Stanley cup (#${order.short_code || order.system_queue_number || order.intake_code}) has been laser-engraved and is ready for pickup at ${order.store_name || 'Stanley Store'}. View your ticket: ${origin}/queue/${order.order_id}`;
   }
 
   const existing = getStoredLogs(STORAGE_KEY_WHATSAPP);
@@ -145,9 +148,10 @@ export function sendWhatsAppNotification(order, triggerType = 'order_completed')
   }
 
   // Asynchronously dispatch to real WhatsApp engine on backend if in browser
-  if (typeof window !== 'undefined' && typeof fetch !== 'undefined' && order.phone && message) {
+  if (typeof window !== 'undefined' && window.location && window.location.origin && order.phone && message) {
     const storeId = order.store_id || order.store_code || order.store || 'SG001';
-    fetch(`/api/whatsapp/${encodeURIComponent(storeId)}/dispatch`, {
+    const dispatchUrl = new URL(`/api/whatsapp/${encodeURIComponent(storeId)}/dispatch`, window.location.origin).toString();
+    fetch(dispatchUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -163,7 +167,6 @@ export function sendWhatsAppNotification(order, triggerType = 'order_completed')
         console.info(`[WHATSAPP GATEWAY] Store ${storeId} message status:`, data.error || data.status);
       }
     }).catch(err => {
-      // Offline or network warning
       console.debug('[WHATSAPP GATEWAY] Dispatch notice:', err.message);
     });
   }
