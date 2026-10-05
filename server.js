@@ -105,6 +105,7 @@ function broadcast(event, data) {
   for (const client of sseClients) {
     try {
       client.write(payload);
+      if (typeof client.flush === 'function') client.flush();
     } catch (e) {
       sseClients.delete(client);
     }
@@ -117,7 +118,7 @@ setBroadcastHandler(broadcast);
 // Periodic heartbeat ping to keep SSE connection alive behind proxies (Coolify/Nginx/Cloudflare)
 setInterval(() => {
   broadcast('ping', { timestamp: Date.now() });
-}, 15000);
+}, 10000);
 
 
 // ----------------------------------------------------
@@ -128,12 +129,15 @@ setInterval(() => {
 app.get('/api/events', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
+    'Cache-Control': 'no-cache, no-transform, private',
     'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no',
+    'Content-Encoding': 'none',
     'Access-Control-Allow-Origin': '*'
   });
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
   res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+  if (typeof res.flush === 'function') res.flush();
   sseClients.add(res);
 
   req.on('close', () => {

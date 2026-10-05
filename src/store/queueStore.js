@@ -213,11 +213,17 @@ export const useQueueStore = defineStore('queue', {
         this.refreshFromStorage();
       });
 
-      // Listen to real-time events broadcasted across devices over LAN/WiFi via SSE
-      if (typeof EventSource !== 'undefined') {
+      // Listen to real-time events broadcasted across devices over LAN/WiFi via SSE with auto-reconnect
+      let sseInstance = null;
+      const connectSSE = () => {
+        if (typeof EventSource === 'undefined') return;
         try {
-          const es = new EventSource('/api/events');
-          es.addEventListener('orders_updated', (e) => {
+          if (sseInstance) {
+            sseInstance.close();
+            sseInstance = null;
+          }
+          sseInstance = new EventSource('/api/events');
+          sseInstance.addEventListener('orders_updated', (e) => {
             try {
               const updated = JSON.parse(e.data);
               if (Array.isArray(updated)) {
@@ -226,7 +232,7 @@ export const useQueueStore = defineStore('queue', {
               }
             } catch (err) {}
           });
-          es.addEventListener('machines_updated', (e) => {
+          sseInstance.addEventListener('machines_updated', (e) => {
             try {
               const updated = JSON.parse(e.data);
               if (Array.isArray(updated)) {
@@ -243,10 +249,19 @@ export const useQueueStore = defineStore('queue', {
               }
             } catch (err) {}
           });
+          sseInstance.onerror = () => {
+            if (sseInstance) {
+              sseInstance.close();
+              sseInstance = null;
+            }
+            setTimeout(connectSSE, 3000);
+          };
         } catch (e) {}
-      }
+      };
 
-      // Fast network polling sync (every 1.5s) for rock-solid cross-device sync
+      connectSSE();
+
+      // Fast network polling sync (every 1.5s) as bulletproof fail-safe
       setInterval(() => {
         this.refreshFromStorage();
       }, 1500);

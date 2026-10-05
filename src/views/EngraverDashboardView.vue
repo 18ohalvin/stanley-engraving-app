@@ -488,9 +488,11 @@ const pendingIntakeOrder = ref(null);
 const nextAssignedQueueNumber = ref('');
 
 let timerInterval = null;
+let pollInterval = null;
+let eventSource = null;
 
 onMounted(async () => {
-  queueStore.refreshFromStorage();
+  queueStore.refreshFromStorage(activeStoreId.value);
   await fetchCatalogCupModels();
 
   // 1-second count-up stopwatch timer for active laser machines
@@ -498,8 +500,26 @@ onMounted(async () => {
     queueStore.tickTimers();
   }, 1000);
 
-  // Auto-sync across browser tabs (localStorage event listener)
+  // Fast auto-sync poll interval (every 1.5s) for zero-latency cross-device sync
+  pollInterval = setInterval(() => {
+    queueStore.refreshFromStorage(activeStoreId.value);
+  }, 1500);
+
+  // Real-time SSE listener for instant cross-device status push
+  if (typeof EventSource !== 'undefined') {
+    try {
+      eventSource = new EventSource('/api/events');
+      eventSource.addEventListener('orders_updated', handleStorageUpdate);
+      eventSource.addEventListener('machines_updated', handleStorageUpdate);
+      eventSource.addEventListener('products_updated', () => {
+        fetchCatalogCupModels();
+      });
+    } catch (e) {}
+  }
+
+  // Auto-sync across browser tabs & custom events
   window.addEventListener('storage', handleStorageUpdate);
+  window.addEventListener('stanley_orders_updated', handleStorageUpdate);
   window.addEventListener('stanley_products_updated', () => {
     fetchCatalogCupModels();
   });
@@ -507,12 +527,18 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
+  if (pollInterval) clearInterval(pollInterval);
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
   window.removeEventListener('storage', handleStorageUpdate);
+  window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
   window.removeEventListener('stanley_products_updated', () => {});
 });
 
 function handleStorageUpdate() {
-  queueStore.refreshFromStorage();
+  queueStore.refreshFromStorage(activeStoreId.value);
 }
 
 function getWorkspaceEngraveImage(item) {

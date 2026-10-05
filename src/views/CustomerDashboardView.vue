@@ -794,6 +794,7 @@ const showDeleteModal = ref(false);
 const deletingOrder = ref(null);
 
 let eventSource = null;
+let pollInterval = null;
 
 function handleStorageUpdate() {
   queueStore.refreshFromStorage();
@@ -802,11 +803,17 @@ function handleStorageUpdate() {
 onMounted(() => {
   queueStore.refreshFromStorage();
 
+  // Fast auto-sync poll interval (every 1.5s) for zero-latency cross-device sync
+  pollInterval = setInterval(() => {
+    queueStore.refreshFromStorage();
+  }, 1500);
+
   // Real-time SSE listener for instant cross-device status push
   if (typeof EventSource !== 'undefined') {
     try {
       eventSource = new EventSource('/api/events');
       eventSource.addEventListener('orders_updated', handleStorageUpdate);
+      eventSource.addEventListener('machines_updated', handleStorageUpdate);
     } catch (e) {}
   }
 
@@ -816,6 +823,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval);
   if (eventSource) {
     eventSource.close();
     eventSource = null;
