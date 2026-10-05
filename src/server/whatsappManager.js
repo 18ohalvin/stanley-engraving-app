@@ -141,9 +141,26 @@ export async function initStoreWhatsApp(storeId, options = {}) {
   sessionData.isManualStop = false;
   sessionData.error = null;
 
-  const expected = options.expectedPhone || (storePhoneResolver ? storePhoneResolver(storeId) : null);
-  if (expected) {
-    sessionData.expectedPhone = expected;
+  let expected = options.expectedPhone || null;
+  if (!expected && storePhoneResolver) {
+    try {
+      expected = await storePhoneResolver(storeId);
+    } catch (e) {
+      console.warn(`[WA-${storeId}] Error resolving expected store phone:`, e.message);
+      expected = null;
+    }
+  }
+  if (expected && typeof expected.then === 'function') {
+    try {
+      expected = await expected;
+    } catch (e) {
+      expected = null;
+    }
+  }
+  if (expected && typeof expected === 'string' && expected.trim().length > 0) {
+    sessionData.expectedPhone = expected.trim();
+  } else {
+    sessionData.expectedPhone = null;
   }
   sessions.set(storeId, sessionData);
   notifyStatusUpdate(storeId);
