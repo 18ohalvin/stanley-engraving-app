@@ -348,6 +348,7 @@ export async function getAllOrdersFromDb(storeId) {
 
   return rows.map(r => ({
     ...r,
+    booking_time: r.booking_time || (r.created_at ? new Date(r.created_at).toTimeString().slice(0, 5) : ''),
     items: r.items_json ? (typeof r.items_json === 'string' ? JSON.parse(r.items_json) : r.items_json) : [],
     durationSeconds: r.duration_seconds
   }));
@@ -519,6 +520,7 @@ export async function getOrderByIdFromDb(idOrCode, storeId) {
   if (!row) return null;
   return {
     ...row,
+    booking_time: row.booking_time || (row.created_at ? new Date(row.created_at).toTimeString().slice(0, 5) : ''),
     items: row.items_json ? (typeof row.items_json === 'string' ? JSON.parse(row.items_json) : row.items_json) : [],
     durationSeconds: row.duration_seconds
   };

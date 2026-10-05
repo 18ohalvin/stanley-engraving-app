@@ -19,7 +19,8 @@
           <div class="notice-row multi-line">
             <img src="/src/assets/icons/info-black-circle.svg" alt="Info" class="info-circle-icon" />
             <p class="notice-text">
-              We'll WhatsApp {{ maskedPhone }}.<br />
+              <span v-if="maskedPhone">We'll WhatsApp {{ maskedPhone }}.<br /></span>
+              <span v-else>We'll WhatsApp your registered phone number.<br /></span>
               Safe to close page. Check counter if missed.
             </p>
           </div>
@@ -140,7 +141,7 @@
             </div>
             <div class="spec-row">
               <span class="spec-label">Booking Time :</span>
-              <span class="spec-value">{{ order.booking_time }}</span>
+              <span class="spec-value">{{ displayBookingTime }}</span>
             </div>
           </div>
 
@@ -233,22 +234,57 @@ const storePhone = computed(() => {
 });
 
 const maskedPhone = computed(() => {
-  if (!order.value || !order.value.phone) return '+62 812-77XX-XX70';
-  const raw = order.value.phone.trim();
-  const parts = raw.split(' ');
-  if (parts.length >= 2) {
-    const code = parts[0];
-    const num = parts.slice(1).join('');
-    if (num.length >= 6) {
-      return `${code} ${num.slice(0, 3)}-XXXX-${num.slice(-3)}`;
+  const p = order.value?.phone;
+  if (!p) return '';
+  const raw = String(p).trim();
+  if (!raw) return '';
+
+  let prefix = '';
+  let digits = raw;
+
+  if (raw.startsWith('+')) {
+    const match = raw.match(/^(\+(?:62|65|60|61|44|81|82|86|1|\d{2}))\s*(.*)$/);
+    if (match) {
+      prefix = match[1];
+      digits = match[2].replace(/\D/g, '');
+    } else {
+      digits = raw.replace(/\D/g, '');
     }
-    return raw;
-  } else if (raw.startsWith('+')) {
-    if (raw.length >= 10) {
-      return `${raw.slice(0, 6)}-XXXX-${raw.slice(-3)}`;
-    }
+  } else if (raw.startsWith('0')) {
+    prefix = '+62';
+    digits = raw.replace(/^0+/, '');
+  } else {
+    digits = raw.replace(/\D/g, '');
   }
+
+  if (digits.length >= 8) {
+    const start = digits.slice(0, 3);
+    const end = digits.slice(-3);
+    const middleCount = Math.max(2, digits.length - 6);
+    const masked = 'X'.repeat(Math.min(middleCount, 4));
+    return prefix ? `${prefix} ${start}-${masked}-${end}` : `${start}-${masked}-${end}`;
+  } else if (digits.length >= 4) {
+    const start = digits.slice(0, 2);
+    const end = digits.slice(-2);
+    return prefix ? `${prefix} ${start}-XXXX-${end}` : `${start}-XXXX-${end}`;
+  }
+
   return raw;
+});
+
+const displayBookingTime = computed(() => {
+  if (order.value?.booking_time) return order.value.booking_time;
+  if (order.value?.created_at) {
+    try {
+      const d = new Date(order.value.created_at);
+      if (!isNaN(d.getTime())) {
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      }
+    } catch (e) {}
+  }
+  return '-';
 });
 
 const queueAheadCount = computed(() => {
