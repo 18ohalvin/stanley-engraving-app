@@ -168,6 +168,15 @@ class DatabaseAdapter {
           expires_at BIGINT,
           created_at VARCHAR(100)
         );
+
+        CREATE INDEX IF NOT EXISTS idx_orders_intake ON orders (intake_code);
+        CREATE INDEX IF NOT EXISTS idx_orders_short ON orders (short_code);
+        CREATE INDEX IF NOT EXISTS idx_orders_queue ON orders (system_queue_number);
+        CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
+        CREATE INDEX IF NOT EXISTS idx_orders_store ON orders (store_id);
+        CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (created_at);
+        CREATE INDEX IF NOT EXISTS idx_staff_username ON staff_users (username);
+        CREATE INDEX IF NOT EXISTS idx_auth_token ON auth_sessions (token);
       `);
     } else if (this.driver === 'mysql') {
       const queries = [
@@ -186,7 +195,13 @@ class DatabaseAdapter {
           store_id VARCHAR(100),
           store_name VARCHAR(255),
           created_at VARCHAR(100),
-          updated_at VARCHAR(100)
+          updated_at VARCHAR(100),
+          INDEX idx_orders_intake (intake_code),
+          INDEX idx_orders_short (short_code),
+          INDEX idx_orders_queue (system_queue_number),
+          INDEX idx_orders_status (status),
+          INDEX idx_orders_store (store_id),
+          INDEX idx_orders_created (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
         `CREATE TABLE IF NOT EXISTS staff_users (
@@ -201,7 +216,8 @@ class DatabaseAdapter {
           status VARCHAR(50),
           is_developer INT DEFAULT 0,
           is_protected INT DEFAULT 0,
-          created_at VARCHAR(100)
+          created_at VARCHAR(100),
+          INDEX idx_staff_username (username)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
         `CREATE TABLE IF NOT EXISTS stores (
@@ -240,7 +256,8 @@ class DatabaseAdapter {
           store_id VARCHAR(191),
           is_developer INT DEFAULT 0,
           expires_at BIGINT,
-          created_at VARCHAR(100)
+          created_at VARCHAR(100),
+          INDEX idx_auth_token (token)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
       ];
 
@@ -320,6 +337,15 @@ class DatabaseAdapter {
           expires_at INTEGER,
           created_at TEXT
         );
+
+        CREATE INDEX IF NOT EXISTS idx_orders_intake ON orders (intake_code);
+        CREATE INDEX IF NOT EXISTS idx_orders_short ON orders (short_code);
+        CREATE INDEX IF NOT EXISTS idx_orders_queue ON orders (system_queue_number);
+        CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
+        CREATE INDEX IF NOT EXISTS idx_orders_store ON orders (store_id);
+        CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (created_at);
+        CREATE INDEX IF NOT EXISTS idx_staff_username ON staff_users (username);
+        CREATE INDEX IF NOT EXISTS idx_auth_token ON auth_sessions (token);
       `);
 
       try {

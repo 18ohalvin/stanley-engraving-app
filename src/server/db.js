@@ -470,54 +470,47 @@ export async function upsertSingleOrderInDb(order, storeId) {
 
 export async function getOrderByIdFromDb(idOrCode, storeId) {
   if (!idOrCode) return null;
-  const clean = String(idOrCode).replace('#', '').trim().toLowerCase();
-  if (!clean || clean === 'undefined' || clean === 'null') return null;
-  const parts = clean.split('-');
-  const subCode = parts[parts.length - 1];
+  const rawClean = String(idOrCode).replace('#', '').trim();
+  if (!rawClean || rawClean.toLowerCase() === 'undefined' || rawClean.toLowerCase() === 'null') return null;
   
-  let row = null;
+  const clean = rawClean.toLowerCase();
+  const cleanUpper = rawClean.toUpperCase();
+  const subCode = clean.split('-').pop().toUpperCase();
+  
+  // Fast query using exact matches on indexed columns
+  const sql = `
+    SELECT * FROM orders 
+    WHERE UPPER(order_id) = ? 
+       OR UPPER(order_id) LIKE ?
+       OR UPPER(intake_code) = ? 
+       OR UPPER(intake_code) = ?
+       OR UPPER(short_code) = ? 
+       OR UPPER(short_code) = ?
+       OR UPPER(system_queue_number) = ?
+    ORDER BY created_at DESC LIMIT 10
+  `;
+  const params = [cleanUpper, `%${cleanUpper}`, cleanUpper, subCode, cleanUpper, subCode, cleanUpper];
+  
+  const rows = await dbAdapter.query(sql, params);
+  if (!rows || rows.length === 0) return null;
+  
+  let row = rows[0];
   if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
     const canonical = await getCanonicalStore(storeId);
     const aliases = canonical ? [canonical.id, canonical.code, canonical.name, ...(canonical.aliases || [])] : [storeId];
     const cleanAliases = aliases.map(a => String(a).trim().toLowerCase()).filter(Boolean);
 
-    const allMatches = await dbAdapter.query(`
-      SELECT * FROM orders 
-      WHERE (
-        LOWER(order_id) = ? 
-        OR (short_code IS NOT NULL AND short_code != '' AND LOWER(short_code) = ?) 
-        OR (intake_code IS NOT NULL AND intake_code != '' AND LOWER(intake_code) = ?) 
-        OR (system_queue_number IS NOT NULL AND system_queue_number != '' AND LOWER(system_queue_number) = ?) 
-        OR (LENGTH(?) >= 3 AND short_code IS NOT NULL AND short_code != '' AND LOWER(short_code) = ?) 
-        OR (LENGTH(?) >= 3 AND intake_code IS NOT NULL AND intake_code != '' AND LOWER(intake_code) = ?)
-        OR (LENGTH(?) >= 3 AND LOWER(order_id) LIKE ?)
-      )
-      ORDER BY created_at DESC
-    `, [clean, clean, clean, clean, subCode, subCode, subCode, subCode, clean, `%${clean}%`]);
-
-    row = allMatches.find(r => {
+    const storeMatch = rows.find(r => {
       const sId = String(r.store_id || '').trim().toLowerCase();
       const sCode = String(r.store_code || '').trim().toLowerCase();
       const sName = String(r.store_name || '').trim().toLowerCase();
       return cleanAliases.includes(sId) || cleanAliases.includes(sCode) || cleanAliases.includes(sName);
     });
+    if (storeMatch) {
+      row = storeMatch;
+    }
   }
 
-  if (!row) {
-    row = await dbAdapter.get(`
-      SELECT * FROM orders 
-      WHERE LOWER(order_id) = ? 
-         OR (short_code IS NOT NULL AND short_code != '' AND LOWER(short_code) = ?) 
-         OR (intake_code IS NOT NULL AND intake_code != '' AND LOWER(intake_code) = ?) 
-         OR (system_queue_number IS NOT NULL AND system_queue_number != '' AND LOWER(system_queue_number) = ?) 
-         OR (LENGTH(?) >= 3 AND short_code IS NOT NULL AND short_code != '' AND LOWER(short_code) = ?) 
-         OR (LENGTH(?) >= 3 AND intake_code IS NOT NULL AND intake_code != '' AND LOWER(intake_code) = ?)
-         OR (LENGTH(?) >= 3 AND LOWER(order_id) LIKE ?)
-      ORDER BY created_at DESC LIMIT 1
-    `, [clean, clean, clean, clean, subCode, subCode, subCode, subCode, clean, `%${clean}%`]);
-  }
-
-  if (!row) return null;
   return {
     ...row,
     booking_time: row.booking_time || (row.created_at ? new Date(row.created_at).toTimeString().slice(0, 5) : ''),

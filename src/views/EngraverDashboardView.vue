@@ -219,9 +219,9 @@
               <button 
                 type="submit" 
                 class="intake-confirm-btn"
-                :disabled="!intakeCode.trim()"
+                :disabled="!intakeCode.trim() || isIntakeSearching"
               >
-                Confirm
+                {{ isIntakeSearching ? 'Searching...' : 'Confirm' }}
               </button>
             </form>
           </div>
@@ -349,10 +349,14 @@
 
           <!-- Action CTA Buttons (Figma 83:2581) -->
           <div class="popup-action-buttons">
-            <button class="btn-confirm-queue-cta" @click="handleConfirmIntakeModal">
-              CONFIRM & ADD TO QUEUE (#{{ nextAssignedQueueNumber }})
+            <button 
+              class="btn-confirm-queue-cta" 
+              :disabled="isConfirmingIntake"
+              @click="handleConfirmIntakeModal"
+            >
+              {{ isConfirmingIntake ? 'ADDING TO QUEUE...' : `CONFIRM & ADD TO QUEUE (#${nextAssignedQueueNumber})` }}
             </button>
-            <button class="btn-cancel-queue-cta" @click="showIntakeModal = false">
+            <button class="btn-cancel-queue-cta" :disabled="isConfirmingIntake" @click="showIntakeModal = false">
               CANCEL
             </button>
           </div>
@@ -479,6 +483,8 @@ function handleLogout() {
 const intakeCode = ref('');
 const intakeFeedback = ref('');
 const intakeError = ref(false);
+const isIntakeSearching = ref(false);
+const isConfirmingIntake = ref(false);
 const copiedMachineId = ref(null);
 const showAnalyticsModal = ref(false);
 
@@ -648,19 +654,29 @@ async function copyToClipboard(text, machineId) {
  * Zone A: Lookup Order by 3-digit Alphanumeric Code and open Details Modal
  */
 async function handleIntakeLookup() {
-  if (!intakeCode.value.trim()) return;
+  if (!intakeCode.value.trim() || isIntakeSearching.value) return;
   const clean = intakeCode.value.trim().toUpperCase();
-  const res = await queueStore.lookupIntakeOrder(clean, activeStoreId.value);
-  
-  if (res.success) {
-    pendingIntakeOrder.value = res.order;
-    nextAssignedQueueNumber.value = res.nextQueueNumber;
-    showIntakeModal.value = true;
-    intakeFeedback.value = '';
-    intakeError.value = false;
-  } else {
-    intakeFeedback.value = res.message;
+  isIntakeSearching.value = true;
+  intakeFeedback.value = '';
+  intakeError.value = false;
+
+  try {
+    const res = await queueStore.lookupIntakeOrder(clean, activeStoreId.value);
+    if (res.success) {
+      pendingIntakeOrder.value = res.order;
+      nextAssignedQueueNumber.value = res.nextQueueNumber;
+      showIntakeModal.value = true;
+      intakeFeedback.value = '';
+      intakeError.value = false;
+    } else {
+      intakeFeedback.value = res.message;
+      intakeError.value = true;
+    }
+  } catch (err) {
+    intakeFeedback.value = 'Failed to lookup intake code. Please try again.';
     intakeError.value = true;
+  } finally {
+    isIntakeSearching.value = false;
   }
 }
 
@@ -668,19 +684,30 @@ async function handleIntakeLookup() {
  * Confirm Intake from Modal: translates to system queue #0021
  */
 async function handleConfirmIntakeModal() {
-  if (!pendingIntakeOrder.value) return;
-  const res = await queueStore.confirmOrderIntake(pendingIntakeOrder.value.order_id, activeStoreId.value);
-  
-  if (res.success) {
-    showIntakeModal.value = false;
-    intakeCode.value = '';
-    intakeFeedback.value = res.message;
-    intakeError.value = false;
-    pendingIntakeOrder.value = null;
+  if (!pendingIntakeOrder.value || isConfirmingIntake.value) return;
+  isConfirmingIntake.value = true;
 
-    setTimeout(() => {
-      intakeFeedback.value = '';
-    }, 4000);
+  try {
+    const res = await queueStore.confirmOrderIntake(pendingIntakeOrder.value.order_id, activeStoreId.value);
+    if (res.success) {
+      showIntakeModal.value = false;
+      intakeCode.value = '';
+      intakeFeedback.value = res.message;
+      intakeError.value = false;
+      pendingIntakeOrder.value = null;
+
+      setTimeout(() => {
+        intakeFeedback.value = '';
+      }, 4000);
+    } else {
+      intakeFeedback.value = res.message || 'Failed to confirm intake.';
+      intakeError.value = true;
+    }
+  } catch (err) {
+    intakeFeedback.value = 'Network error confirming intake.';
+    intakeError.value = true;
+  } finally {
+    isConfirmingIntake.value = false;
   }
 }
 
