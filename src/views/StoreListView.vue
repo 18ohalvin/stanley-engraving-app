@@ -1141,7 +1141,6 @@ onMounted(() => {
   loadMasterStaff();
 
   window.addEventListener('storage', handleStorageUpdate);
-  window.addEventListener('stanley_orders_updated', handleStorageUpdate);
   window.addEventListener('stanley_stores_updated', handleStoresUpdate);
   window.addEventListener('stanley_staff_updated', handleStaffUpdate);
 });
@@ -1152,9 +1151,11 @@ function handleStoresUpdate(e) {
     if (Array.isArray(data) && data.length > 0) {
       customStores.value = data;
       localStorage.setItem('stanley_custom_stores', JSON.stringify(data));
-    } else if (data && Array.isArray(data.stores)) {
+      return;
+    } else if (data && Array.isArray(data.stores) && data.stores.length > 0) {
       customStores.value = data.stores;
       localStorage.setItem('stanley_custom_stores', JSON.stringify(data.stores));
+      return;
     }
   } catch (err) {}
   fetchNetworkStores();
@@ -1173,14 +1174,12 @@ function handleStaffUpdate(e) {
 
 onUnmounted(() => {
   window.removeEventListener('storage', handleStorageUpdate);
-  window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
   window.removeEventListener('stanley_stores_updated', handleStoresUpdate);
   window.removeEventListener('stanley_staff_updated', handleStaffUpdate);
 });
 
 function handleStorageUpdate() {
   loadStaffInfo();
-  queueStore.refreshFromStorage();
   loadCustomStores();
   loadStoreOverrides();
   loadMasterStaff();

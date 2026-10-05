@@ -1,17 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import LandingView from '../views/LandingView.vue';
-import Step1View from '../views/Step1View.vue';
-import Step2View from '../views/Step2View.vue';
-import Step3View from '../views/Step3View.vue';
-import Step4View from '../views/Step4View.vue';
-import Step5View from '../views/Step5View.vue';
-import QueueTicketView from '../views/QueueTicketView.vue';
-import EngraverDashboardView from '../views/EngraverDashboardView.vue';
-import CustomerDashboardView from '../views/CustomerDashboardView.vue';
-import SuperAdminDashboardView from '../views/SuperAdminDashboardView.vue';
-import StoreListView from '../views/StoreListView.vue';
-import SettingsView from '../views/SettingsView.vue';
-import LoginView from '../views/LoginView.vue';
+const LoginView = () => import('../views/LoginView.vue');
+const LandingView = () => import('../views/LandingView.vue');
+const Step1View = () => import('../views/Step1View.vue');
+const Step2View = () => import('../views/Step2View.vue');
+const Step3View = () => import('../views/Step3View.vue');
+const Step4View = () => import('../views/Step4View.vue');
+const Step5View = () => import('../views/Step5View.vue');
+const QueueTicketView = () => import('../views/QueueTicketView.vue');
+const EngraverDashboardView = () => import('../views/EngraverDashboardView.vue');
+const CustomerDashboardView = () => import('../views/CustomerDashboardView.vue');
+const SuperAdminDashboardView = () => import('../views/SuperAdminDashboardView.vue');
+const StoreListView = () => import('../views/StoreListView.vue');
+const SettingsView = () => import('../views/SettingsView.vue');
 
 const routes = [
   {

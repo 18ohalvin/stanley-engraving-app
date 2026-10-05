@@ -797,22 +797,18 @@ let eventSource = null;
 let pollInterval = null;
 
 function handleStorageUpdate() {
-  queueStore.refreshFromStorage();
+  // Pinia queueStore is reactive, no need to re-fetch from network
 }
 
 onMounted(() => {
   queueStore.refreshFromStorage();
 
-  // Cross-tab and centralized SSE store listeners
+  // Cross-tab storage listeners
   window.addEventListener('storage', handleStorageUpdate);
-  window.addEventListener('stanley_orders_updated', handleStorageUpdate);
-  window.addEventListener('stanley_machines_updated', handleStorageUpdate);
 });
 
 onUnmounted(() => {
   window.removeEventListener('storage', handleStorageUpdate);
-  window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
-  window.removeEventListener('stanley_machines_updated', handleStorageUpdate);
 });
 
 function formatTicketId(rowOrOrder) {

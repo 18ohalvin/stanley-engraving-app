@@ -1768,6 +1768,45 @@ function handleLogout() {
 let pollInterval = null;
 let eventSource = null;
 
+const customStores = ref([]);
+
+function loadCustomStores() {
+  try {
+    const saved = localStorage.getItem('stanley_custom_stores');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        customStores.value = parsed;
+      }
+    }
+  } catch (e) {}
+}
+
+const allStoreLocations = computed(() => {
+  const list = customStores.value && customStores.value.length > 0 ? customStores.value : [];
+  const orders = queueStore.orders || [];
+  return list.map(store => {
+    const sOrders = orders.filter(o =>
+      (o.store_code && o.store_code === store.code) ||
+      (o.store_id && o.store_id === store.id) ||
+      (o.store_name && o.store_name === store.name)
+    );
+    const inQueue = sOrders.filter(o => o.status === 'in_queue' || o.status === 'engraving_in_progress');
+    const totalM = store.total_machines || store.totalMachines || 2;
+    const activeM = store.active_machines !== undefined ? store.active_machines : (store.activeMachines !== undefined ? store.activeMachines : totalM);
+    return {
+      ...store,
+      code: store.code || store.id,
+      name: store.name || `Store ${store.code}`,
+      address: store.address || '',
+      status: (store.status || 'online').toLowerCase(),
+      totalMachines: totalM,
+      activeMachines: activeM,
+      todayQueue: inQueue.length
+    };
+  });
+});
+
 async function fetchNetworkStores() {
   const token = localStorage.getItem('stanley_staff_token');
   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -1777,10 +1816,13 @@ async function fetchNetworkStores() {
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
       if (list.length > 0) {
+        customStores.value = list;
         localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    loadCustomStores();
+  }
 }
 
 const loggedInStaffName = ref('');
@@ -1803,12 +1845,12 @@ const staffGreeting = computed(() => {
 
 onMounted(() => {
   loadStaffInfo();
+  loadCustomStores();
   loadCategoryTargets();
   queueStore.refreshFromStorage();
   fetchNetworkStores();
 
   window.addEventListener('storage', handleStorageUpdate);
-  window.addEventListener('stanley_orders_updated', handleStorageUpdate);
   window.addEventListener('stanley_targets_updated', handleStorageUpdate);
   window.addEventListener('stanley_stores_updated', handleStoresUpdate);
 });
@@ -1817,7 +1859,9 @@ function handleStoresUpdate(e) {
   try {
     const list = e?.detail;
     if (Array.isArray(list) && list.length > 0) {
+      customStores.value = list;
       localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
+      return;
     }
   } catch (err) {}
   fetchNetworkStores();
@@ -1825,7 +1869,6 @@ function handleStoresUpdate(e) {
 
 onUnmounted(() => {
   window.removeEventListener('storage', handleStorageUpdate);
-  window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
   window.removeEventListener('stanley_targets_updated', handleStorageUpdate);
   window.removeEventListener('stanley_stores_updated', handleStoresUpdate);
 });
@@ -1833,7 +1876,7 @@ onUnmounted(() => {
 function handleStorageUpdate() {
   loadStaffInfo();
   loadCategoryTargets();
-  queueStore.refreshFromStorage();
+  loadCustomStores();
 }
 </script>
 

@@ -208,10 +208,6 @@ export const useQueueStore = defineStore('queue', {
         };
       }
 
-      // Listen to in-app custom event
-      window.addEventListener('stanley_orders_updated', () => {
-        this.refreshFromStorage();
-      });
 
       // Listen to real-time events broadcasted across devices over LAN/WiFi via SSE with auto-reconnect
       let sseInstance = null;

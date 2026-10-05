@@ -52,10 +52,6 @@ export async function fetchServerOrders(storeId = null) {
       const orders = await res.json();
       if (Array.isArray(orders)) {
         inMemoryOrders = orders;
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('stanley_orders_updated'));
-          broadcastSyncMessage('orders_updated', orders);
-        }
         return orders;
       }
     }

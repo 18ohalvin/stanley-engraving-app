@@ -508,8 +508,6 @@ onMounted(async () => {
 
   // Auto-sync across browser tabs & centralized store events
   window.addEventListener('storage', handleStorageUpdate);
-  window.addEventListener('stanley_orders_updated', handleStorageUpdate);
-  window.addEventListener('stanley_machines_updated', handleStorageUpdate);
   window.addEventListener('stanley_products_updated', handleProductsUpdate);
 });
 
@@ -520,13 +518,11 @@ function handleProductsUpdate() {
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
   window.removeEventListener('storage', handleStorageUpdate);
-  window.removeEventListener('stanley_orders_updated', handleStorageUpdate);
-  window.removeEventListener('stanley_machines_updated', handleStorageUpdate);
   window.removeEventListener('stanley_products_updated', handleProductsUpdate);
 });
 
 function handleStorageUpdate() {
-  queueStore.refreshFromStorage(activeStoreId.value);
+  // Pinia store is reactive across tabs
 }
 
 function getWorkspaceEngraveImage(item) {

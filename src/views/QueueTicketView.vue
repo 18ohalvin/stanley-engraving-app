@@ -315,7 +315,6 @@ const queueAheadCount = computed(() => {
 });
 
 async function fetchOrder() {
-  await queueStore.refreshFromStorage();
   const rawId = route.params.orderId || route.params.ticketId || route.params.code;
   const storeIdParam = route.params.storeId || route.query.storeId || route.query.store;
   if (!rawId || rawId === 'undefined' || rawId === 'null') {
@@ -370,6 +369,17 @@ async function fetchOrder() {
   }
 }
 
+function checkLocalOrder() {
+  const rawId = route.params.orderId || route.params.ticketId || route.params.code;
+  if (rawId) {
+    const found = queueStore.getOrderById(rawId);
+    if (found) {
+      fallbackOrder.value = found;
+      isNotFound.value = false;
+    }
+  }
+}
+
 function handleConfirmCancel() {
   showCancelModal.value = false;
   if (!order.value) return;
@@ -384,13 +394,13 @@ onMounted(() => {
   fetchOrder();
   
   // Storage listeners for real-time cross-tab and centralized SSE sync
-  window.addEventListener('stanley_orders_updated', fetchOrder);
-  window.addEventListener('storage', fetchOrder);
+  window.addEventListener('stanley_orders_updated', checkLocalOrder);
+  window.addEventListener('storage', checkLocalOrder);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('stanley_orders_updated', fetchOrder);
-  window.removeEventListener('storage', fetchOrder);
+  window.removeEventListener('stanley_orders_updated', checkLocalOrder);
+  window.removeEventListener('storage', checkLocalOrder);
 });
 </script>
 
