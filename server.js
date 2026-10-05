@@ -362,6 +362,40 @@ app.post('/api/orders', requireAuth, async (req, res) => {
   }
 });
 
+// PUT /api/orders/:id - Update order in DB
+app.put('/api/orders/:id', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const existing = await getOrderByIdFromDb(orderId);
+    const updated = { ...(existing || {}), ...req.body, order_id: orderId, updated_at: new Date().toISOString() };
+    const saved = await upsertSingleOrderInDb(updated);
+    const allOrders = await getAllOrdersFromDb();
+    broadcast('orders_updated', allOrders);
+    res.json({ success: true, order: saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PATCH /api/orders/:id/status - Update order status in DB
+app.patch('/api/orders/:id/status', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'Status is required' });
+    const existing = await getOrderByIdFromDb(orderId);
+    if (!existing) return res.status(404).json({ error: 'Order not found' });
+    existing.status = status;
+    existing.updated_at = new Date().toISOString();
+    const saved = await upsertSingleOrderInDb(existing);
+    const allOrders = await getAllOrdersFromDb();
+    broadcast('orders_updated', allOrders);
+    res.json({ success: true, order: saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // DELETE single order by ID (Protected / Staff access)
 app.delete('/api/orders/:id', async (req, res) => {
   try {
@@ -371,6 +405,35 @@ app.delete('/api/orders/:id', async (req, res) => {
     res.json({ success, orders: allOrders });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// CENTRAL CLOUD MACHINES STATE ENDPOINTS
+// ----------------------------------------------------
+
+// GET /api/machines - Get real-time laser machines state across network
+app.get('/api/machines', async (req, res) => {
+  try {
+    const machines = (await getSettingsFromDb('machines')) || [];
+    res.json(machines);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/machines - Sync real-time laser machines state to cloud DB
+app.post('/api/machines', async (req, res) => {
+  try {
+    const machines = req.body;
+    if (!Array.isArray(machines)) {
+      return res.status(400).json({ error: 'Machines must be an array' });
+    }
+    const saved = await saveSettingsInDb('machines', machines);
+    broadcast('machines_updated', saved);
+    res.json({ success: true, machines: saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

@@ -553,7 +553,7 @@ function getItemPlacementStyle(item) {
 }
 
 const activeStoreId = computed(() => {
-  return route.params.storeId || localStorage.getItem('stanley_user_store') || 'EG-021';
+  return route.params.storeId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : '') || '';
 });
 
 const upcomingListOrders = computed(() => {

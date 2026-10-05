@@ -2111,7 +2111,7 @@ async function saveNotificationProfileForm() {
 
 async function deleteNotificationProfile(index) {
   if (!confirm('Are you sure you want to delete this notification profile?')) return;
-  const key = currentStore.value?.id || currentStore.value?.code || '004';
+  const key = currentStore.value?.id || currentStore.value?.code || 'default';
   if (!whatsappSettings.value[key]) return;
 
   const profiles = [...(whatsappSettings.value[key].profiles || [])];
@@ -2127,7 +2127,7 @@ async function deleteNotificationProfile(index) {
 }
 
 function resetToDefaultProfiles() {
-  const key = currentStore.value?.id || currentStore.value?.code || '004';
+  const key = currentStore.value?.id || currentStore.value?.code || 'default';
   if (!whatsappSettings.value[key]) {
     whatsappSettings.value[key] = {
       phone: currentStoreWhatsappPhone.value,
@@ -2149,7 +2149,7 @@ function closeEditStorePhoneModal() {
 }
 
 async function saveStorePhoneForm() {
-  const key = currentStore.value?.id || currentStore.value?.code || '004';
+  const key = currentStore.value?.id || currentStore.value?.code || 'default';
   if (!whatsappSettings.value[key]) {
     whatsappSettings.value[key] = {
       phone: editingStorePhone.value.trim(),
@@ -2174,26 +2174,6 @@ async function saveStorePhoneForm() {
     
     const matched = rawNetworkStores.value.find(s => s.id === storeObj.id || s.code === storeObj.code);
     if (matched) matched.phone = editingStorePhone.value.trim();
-
-    // Sync storeOverrides & stanley_custom_stores in localStorage
-    try {
-      const storeIdKey = currentStore.value?.id || currentStore.value?.code || '004';
-      const rawOverrides = localStorage.getItem('stanley_store_overrides');
-      const overrides = rawOverrides ? JSON.parse(rawOverrides) : {};
-      overrides[storeIdKey] = { ...(overrides[storeIdKey] || {}), phone: editingStorePhone.value.trim() };
-      localStorage.setItem('stanley_store_overrides', JSON.stringify(overrides));
-
-      const rawCustom = localStorage.getItem('stanley_custom_stores');
-      if (rawCustom) {
-        const customStores = JSON.parse(rawCustom);
-        const idx = customStores.findIndex(s => s.id === storeIdKey || s.code === storeIdKey);
-        if (idx > -1) {
-          customStores[idx].phone = editingStorePhone.value.trim();
-          localStorage.setItem('stanley_custom_stores', JSON.stringify(customStores));
-        }
-      }
-      window.dispatchEvent(new Event('stanley_stores_updated'));
-    } catch (e) {}
 
     triggerToast('Store WhatsApp phone number updated', 'success');
     closeEditStorePhoneModal();
@@ -2250,7 +2230,11 @@ function stopWaPolling() {
 }
 
 async function openWhatsAppQrModal() {
-  const storeId = currentStore.value?.id || currentStore.value?.code || 'SG001';
+  const storeId = currentStore.value?.id || currentStore.value?.code || '';
+  if (!storeId) {
+    triggerToast('Please select a store first', 'error');
+    return;
+  }
   const expectedPhone = currentStoreWhatsappPhone.value || null;
   showWhatsAppQrModal.value = true;
   isConnectingWa.value = true;
@@ -2293,7 +2277,8 @@ function closeWhatsAppQrModal() {
 
 async function disconnectWhatsAppDevice() {
   const store = currentStore.value;
-  const storeId = store?.id || store?.code || 'SG001';
+  const storeId = store?.id || store?.code || '';
+  if (!storeId) return;
   if (!confirm(`Are you sure you want to unlink the WhatsApp device for ${store?.name || 'this store'}?`)) {
     return;
   }
@@ -2333,9 +2318,9 @@ function openTestMessageModal() {
 
 async function sendTestMessage() {
   const store = currentStore.value;
-  const storeId = store?.id || store?.code || 'SG001';
-  if (!testMessagePhone.value.trim() || !testMessageText.value.trim()) {
-    triggerToast('Recipient phone and message are required', 'error');
+  const storeId = store?.id || store?.code || '';
+  if (!storeId) {
+    triggerToast('Please select a store first', 'error');
     return;
   }
 

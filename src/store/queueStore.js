@@ -7,22 +7,8 @@ import { isSameStore, getCanonicalStore } from '../utils/storeResolver.js';
 // Clean empty starting state for production deployment
 const INITIAL_SEED_ORDERS = [];
 
-function getStoredMachines() {
-  try {
-    const data = localStorage.getItem('stanley_machines_state');
-    if (data) return JSON.parse(data);
-  } catch (e) {}
-  return null;
-}
-
 export const useQueueStore = defineStore('queue', {
   state: () => {
-    let stored = getStoredOrders();
-    if (!stored || !Array.isArray(stored)) {
-      stored = INITIAL_SEED_ORDERS;
-      saveStoredOrders(stored);
-    }
-
     const defaultMachines = [
       {
         id: 'machine-01',
@@ -46,16 +32,10 @@ export const useQueueStore = defineStore('queue', {
       }
     ];
 
-    const storedMachines = getStoredMachines();
-    const machines = defaultMachines.map(dm => {
-      const found = storedMachines?.find(sm => sm.id === dm.id);
-      return found ? { ...dm, ...found } : dm;
-    });
-
     return {
-      orders: stored,
+      orders: getStoredOrders(),
       // 2 Physical laser machine stations matching Figma 17:635 & 87:393
-      machines
+      machines: defaultMachines
     };
   },
 
@@ -154,19 +134,50 @@ export const useQueueStore = defineStore('queue', {
   },
 
   actions: {
-    async refreshFromStorage() {
-      // Fetch central network server orders first
-      const remote = await fetchServerOrders();
+    async refreshFromStorage(storeId = null) {
+      // Fetch central cloud server orders
+      const remote = await fetchServerOrders(storeId);
       if (remote && Array.isArray(remote)) {
         this.orders = remote;
-      } else {
-        const fresh = getStoredOrders();
-        if (fresh && Array.isArray(fresh)) {
-          this.orders = fresh;
-        }
       }
-      this.refreshMachinesFromStorage();
+      await this.refreshMachinesFromStorage();
       this.autoAssignMachines();
+    },
+
+    async refreshMachinesFromStorage() {
+      try {
+        if (typeof fetch !== 'undefined') {
+          const res = await fetch('/api/machines');
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+              data.forEach(storedM => {
+                const target = this.machines.find(m => m.id === storedM.id);
+                if (target) {
+                  target.status = storedM.status;
+                  target.currentOrderId = storedM.currentOrderId;
+                  target.timerSeconds = storedM.timerSeconds;
+                  target.currentItemIndex = storedM.currentItemIndex;
+                  if (storedM.isActive !== undefined) target.isActive = storedM.isActive;
+                }
+              });
+            }
+          }
+        }
+      } catch (e) {}
+    },
+
+    async saveMachinesState() {
+      try {
+        broadcastSyncMessage('machines_updated', this.machines);
+        if (typeof fetch !== 'undefined') {
+          await fetch('/api/machines', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.machines)
+          });
+        }
+      } catch (e) {}
     },
 
     initRealtimeSync() {
@@ -197,13 +208,6 @@ export const useQueueStore = defineStore('queue', {
         };
       }
 
-      // Listen to native window storage events across tabs
-      window.addEventListener('storage', (e) => {
-        if (e.key === 'stanley_engraving_orders' || e.key === 'stanley_machines_state' || e.key === 'stanley_product_catalog_order') {
-          this.refreshFromStorage();
-        }
-      });
-
       // Listen to in-app custom event
       window.addEventListener('stanley_orders_updated', () => {
         this.refreshFromStorage();
@@ -222,6 +226,23 @@ export const useQueueStore = defineStore('queue', {
               }
             } catch (err) {}
           });
+          es.addEventListener('machines_updated', (e) => {
+            try {
+              const updated = JSON.parse(e.data);
+              if (Array.isArray(updated)) {
+                updated.forEach(storedM => {
+                  const target = this.machines.find(m => m.id === storedM.id);
+                  if (target) {
+                    target.status = storedM.status;
+                    target.currentOrderId = storedM.currentOrderId;
+                    target.timerSeconds = storedM.timerSeconds;
+                    target.currentItemIndex = storedM.currentItemIndex;
+                    if (storedM.isActive !== undefined) target.isActive = storedM.isActive;
+                  }
+                });
+              }
+            } catch (err) {}
+          });
         } catch (e) {}
       }
 
@@ -231,7 +252,7 @@ export const useQueueStore = defineStore('queue', {
       }, 1500);
     },
 
-    resetDatabase() {
+    async resetDatabase() {
       this.orders = JSON.parse(JSON.stringify(INITIAL_SEED_ORDERS));
       saveStoredOrders(this.orders);
       for (const m of this.machines) {
@@ -240,12 +261,11 @@ export const useQueueStore = defineStore('queue', {
         m.timerSeconds = 0;
         m.currentItemIndex = 0;
       }
-      this.saveMachinesState();
+      await this.saveMachinesState();
       try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.removeItem('stanley_engraving_analytics_logs');
-          localStorage.removeItem('stanley_whatsapp_webhook_logs');
-        }
+        const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        await fetch('/api/orders/clear', { method: 'POST', headers });
       } catch (e) {}
       this.autoAssignMachines();
     },
@@ -302,6 +322,16 @@ export const useQueueStore = defineStore('queue', {
       this.orders.unshift(order);
       saveStoredOrders(this.orders);
       this.autoAssignMachines();
+
+      try {
+        if (typeof fetch !== 'undefined') {
+          fetch('/api/orders/public', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(order)
+          }).catch(() => {});
+        }
+      } catch (e) {}
     },
 
     upsertOrder(order) {
@@ -317,14 +347,43 @@ export const useQueueStore = defineStore('queue', {
         this.orders.unshift(order);
       }
       saveStoredOrders(this.orders);
+
+      try {
+        if (typeof fetch !== 'undefined' && order.order_id) {
+          const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+          fetch(`/api/orders/${encodeURIComponent(order.order_id)}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(order)
+          }).catch(() => {});
+        }
+      } catch (e) {}
     },
 
     updateStatus(orderId, newStatus) {
       const index = this.orders.findIndex(o => o.order_id === orderId || o.short_code === orderId || o.intake_code === orderId);
       if (index !== -1) {
-        this.orders[index].status = newStatus;
-        this.orders[index].updated_at = new Date().toISOString();
+        const target = this.orders[index];
+        target.status = newStatus;
+        target.updated_at = new Date().toISOString();
         saveStoredOrders(this.orders);
+
+        try {
+          if (typeof fetch !== 'undefined') {
+            const targetId = target.order_id || orderId;
+            const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            fetch(`/api/orders/${encodeURIComponent(targetId)}/status`, {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({ status: newStatus })
+            }).catch(() => {});
+          }
+        } catch (e) {}
+
         return this.orders[index];
       }
       return null;
@@ -333,7 +392,9 @@ export const useQueueStore = defineStore('queue', {
     cancelOrder(orderId) {
       const index = this.orders.findIndex(o => o.order_id === orderId || o.short_code === orderId || o.intake_code === orderId);
       if (index !== -1) {
-        this.orders[index].status = 'cancelled';
+        const target = this.orders[index];
+        target.status = 'cancelled';
+        target.updated_at = new Date().toISOString();
         saveStoredOrders(this.orders);
 
         const machine = this.machines.find(m => m.currentOrderId === orderId);
@@ -343,6 +404,20 @@ export const useQueueStore = defineStore('queue', {
           machine.timerSeconds = 0;
           this.autoAssignMachines();
         }
+
+        try {
+          if (typeof fetch !== 'undefined') {
+            const targetId = target.order_id || orderId;
+            const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            fetch(`/api/orders/${encodeURIComponent(targetId)}/status`, {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({ status: 'cancelled' })
+            }).catch(() => {});
+          }
+        } catch (e) {}
       }
     },
 
@@ -354,8 +429,24 @@ export const useQueueStore = defineStore('queue', {
           ...updatedFields,
           updated_at: new Date().toISOString()
         };
+        const target = this.orders[index];
         saveStoredOrders(this.orders);
         this.autoAssignMachines();
+
+        try {
+          if (typeof fetch !== 'undefined') {
+            const targetId = target.order_id || orderId;
+            const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            fetch(`/api/orders/${encodeURIComponent(targetId)}`, {
+              method: 'PUT',
+              headers,
+              body: JSON.stringify(target)
+            }).catch(() => {});
+          }
+        } catch (e) {}
+
         return this.orders[index];
       }
       return null;
@@ -540,6 +631,19 @@ export const useQueueStore = defineStore('queue', {
       saveStoredOrders(this.orders);
       this.autoAssignMachines();
 
+      try {
+        if (typeof fetch !== 'undefined' && order.order_id) {
+          const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+          fetch(`/api/orders/${encodeURIComponent(order.order_id)}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(order)
+          }).catch(() => {});
+        }
+      } catch (e) {}
+
       return {
         success: true,
         order,
@@ -716,9 +820,6 @@ export const useQueueStore = defineStore('queue', {
       } catch (e) {}
     },
 
-    /**
-     * State 1 -> State 2: START ENGRAVING
-     */
     startMachine(machineId) {
       const machine = this.machines.find(m => m.id === machineId);
       if (!machine || !machine.currentOrderId) return;
@@ -732,7 +833,22 @@ export const useQueueStore = defineStore('queue', {
         order.assigned_machine = machine.name;
         order.engraving_started_at = new Date().toISOString();
         saveStoredOrders(this.orders);
+
+        try {
+          if (typeof fetch !== 'undefined') {
+            const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            fetch(`/api/orders/${encodeURIComponent(order.order_id)}`, {
+              method: 'PUT',
+              headers,
+              body: JSON.stringify(order)
+            }).catch(() => {});
+          }
+        } catch (e) {}
       }
+
+      this.saveMachinesState();
     },
 
     /**
@@ -765,6 +881,19 @@ export const useQueueStore = defineStore('queue', {
         order.status = 'ready_for_pickup';
         order.ready_at = new Date().toISOString();
         saveStoredOrders(this.orders);
+
+        try {
+          if (typeof fetch !== 'undefined') {
+            const token = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            fetch(`/api/orders/${encodeURIComponent(order.order_id)}`, {
+              method: 'PUT',
+              headers,
+              body: JSON.stringify(order)
+            }).catch(() => {});
+          }
+        } catch (e) {}
       }
 
       machine.status = 'idle';
@@ -772,6 +901,7 @@ export const useQueueStore = defineStore('queue', {
       machine.currentItemIndex = 0;
       machine.timerSeconds = 0;
 
+      this.saveMachinesState();
       this.autoAssignMachines();
     },
 

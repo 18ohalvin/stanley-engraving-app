@@ -87,7 +87,6 @@ async function seedDefaultMasterData() {
       { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', city: 'Jakarta Selatan', address: 'Pondok Indah Mall 5, Lt 2, Jakarta', phone: '+62 817-5566-7788', total_machines: 2, active_machines: 2, status: 'Online' },
       { id: '002', code: '002', name: 'Stanley Grand Indonesia', city: 'Jakarta Pusat', address: 'Grand Indonesia East Mall, Lt 1, Jakarta', phone: '+62 812-9988-7766', total_machines: 2, active_machines: 2, status: 'Online' },
       { id: '003', code: '003', name: 'Stanley Senayan City', city: 'Jakarta Selatan', address: 'Senayan City Mall, Lt Ground, Jakarta', phone: '+62 813-1122-3344', total_machines: 1, active_machines: 1, status: 'Online' },
-      { id: '004', code: '004', name: 'Stanley Puri Indah Mall', city: 'Jakarta Barat', address: 'Puri Indah Mall, Lt 1, Jakarta Barat', phone: '0812 3456 7890', total_machines: 2, active_machines: 2, status: 'Online' },
       { id: 'SG001', code: 'SG001', name: 'Stanley Singapore Store', city: 'Singapore', address: 'Orchard Road #01-12, Singapore', phone: '+65 8123 4567', total_machines: 1, active_machines: 1, status: 'Online' }
     ];
 
