@@ -121,11 +121,11 @@ export function sendWhatsAppNotification(order, triggerType = 'order_completed')
     const storeName = order.store_name || 'Stanley Store';
 
     if (triggerType === 'order_accepted') {
-      message = `Hi ${order.customer_name}! Pesanan kamu #${ticketCode} telah diterima oleh tim kami di ${storeName}. Mohon menunggu, pesanan kamu akan segera di-engrave. Pantau status: ${origin}/queue/${order.order_id}`;
+      message = `Hi ${order.customer_name}! Your custom Stanley order #${ticketCode} has been received at ${storeName}. Please wait while we engrave your cup. Track status: ${origin}/queue/${order.order_id}`;
     } else if (triggerType === 'queue_threshold') {
-      message = `Hi ${order.customer_name}! Saat ini antrian di ${storeName} sedang ramai. Terima kasih sudah menunggu, kami akan segera memproses pesanan kamu #${ticketCode}. Pantau antrian: ${origin}/queue/${order.order_id}`;
+      message = `Hi ${order.customer_name}! Our store queue at ${storeName} is currently busy. Thank you for your patience, we will process your order #${ticketCode} shortly. Track queue: ${origin}/queue/${order.order_id}`;
     } else {
-      message = `Hi ${order.customer_name}! Pesanan kamu #${ticketCode} sudah selesai dan siap diambil di ${storeName}. Terima kasih telah berbelanja di Stanley! Cek tiket: ${origin}/queue/${order.order_id}`;
+      message = `Hi ${order.customer_name}! Your custom Stanley order #${ticketCode} is engraved and ready for pickup at ${storeName}. Thank you for shopping with Stanley! Check ticket: ${origin}/queue/${order.order_id}`;
     }
   }
 

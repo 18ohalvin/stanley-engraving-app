@@ -113,43 +113,42 @@ async function seedDefaultMasterData() {
     await saveSettingsInDb('size_presets', ['12 Oz', '14 Oz', '16 Oz', '20 Oz', '24 Oz', '30 Oz', '36 Oz', '40 Oz', '48 Oz']);
   }
 
-  // Seed default WhatsApp notification settings if empty
-  const notifCheck = await dbAdapter.get(`SELECT count(*) as count FROM settings WHERE key = ?`, ['whatsapp_notifications']);
-  const notifCount = Number(notifCheck?.count || notifCheck?.COUNT || 0);
-  if (notifCount === 0) {
-    const defaultTemplates = [
-      {
-        id: 'queuing-notification',
-        name: 'Queuing Notification',
-        title: "You're in the Queue",
-        message: 'Hi! Saat ini antrian di store kami lebih dari 10 orang. Terima kasih sudah menunggu. Kami akan segera memproses pesanan kamu.',
-        triggerType: 'queue_threshold',
-        queueThreshold: 10,
-        isActive: true,
-        description: 'Sent when the queue is more than 10 customers.'
-      },
-      {
-        id: 'order-received-notification',
-        name: 'Order Received Notification',
-        title: 'Order Received',
-        message: "Hi {customer_name}! Pesanan kamu #{short_code} telah diterima oleh tim kami di {store_name}. Mohon menunggu, pesanan kamu akan segera di-engrave.",
-        triggerType: 'order_accepted',
-        queueThreshold: 0,
-        isActive: true,
-        description: "Sent when customer's order is accepted."
-      },
-      {
-        id: 'order-completed-notification',
-        name: 'Order Completed Notification',
-        title: 'Order Completed',
-        message: 'Hi {customer_name}! Pesanan kamu #{short_code} sudah selesai dan siap diambil di {store_name}. Terima kasih telah berbelanja di Stanley!',
-        triggerType: 'order_completed',
-        queueThreshold: 0,
-        isActive: true,
-        description: 'Sent when the order is completed.'
-      }
-    ];
+  // Seed default WhatsApp notification settings if empty or migrate legacy Indonesian templates
+  const defaultTemplates = [
+    {
+      id: 'queuing-notification',
+      name: 'Queuing Notification',
+      title: "You're in the Queue",
+      message: 'Hi! Currently our store queue at {store_name} has more than 10 orders. Thank you for your patience, we will begin engraving your custom Stanley soon.',
+      triggerType: 'queue_threshold',
+      queueThreshold: 10,
+      isActive: true,
+      description: 'Sent when the queue is more than 10 customers.'
+    },
+    {
+      id: 'order-received-notification',
+      name: 'Order Received Notification',
+      title: 'Order Received',
+      message: 'Hi {customer_name}! Your custom Stanley order #{short_code} has been received at {store_name}. Please wait while we engrave your cup.',
+      triggerType: 'order_accepted',
+      queueThreshold: 0,
+      isActive: true,
+      description: "Sent when customer's order is accepted."
+    },
+    {
+      id: 'order-completed-notification',
+      name: 'Order Completed Notification',
+      title: 'Order Completed',
+      message: 'Hi {customer_name}! Your custom Stanley order #{short_code} is engraved and ready for pickup at {store_name}. Thank you for shopping with Stanley!',
+      triggerType: 'order_completed',
+      queueThreshold: 0,
+      isActive: true,
+      description: 'Sent when the order is completed.'
+    }
+  ];
 
+  const storedNotifs = await getSettingsFromDb('whatsapp_notifications');
+  if (!storedNotifs) {
     const initialSettings = {
       default: {
         phone: '',
@@ -157,6 +156,35 @@ async function seedDefaultMasterData() {
       }
     };
     await saveSettingsInDb('whatsapp_notifications', initialSettings);
+  } else if (typeof storedNotifs === 'object') {
+    // Check if stored settings contain legacy Indonesian strings and automatically migrate them
+    try {
+      let hasIndonesian = false;
+      for (const storeKey of Object.keys(storedNotifs)) {
+        const storeObj = storedNotifs[storeKey];
+        if (storeObj && Array.isArray(storeObj.profiles)) {
+          for (const p of storeObj.profiles) {
+            if (p && typeof p.message === 'string') {
+              if (p.message.includes('Saat ini antrian di store kami') || p.message.includes('Terima kasih sudah menunggu')) {
+                p.message = 'Hi! Currently our store queue at {store_name} has more than 10 orders. Thank you for your patience, we will begin engraving your custom Stanley soon.';
+                hasIndonesian = true;
+              } else if (p.message.includes('Pesanan kamu #{short_code} telah diterima')) {
+                p.message = 'Hi {customer_name}! Your custom Stanley order #{short_code} has been received at {store_name}. Please wait while we engrave your cup.';
+                hasIndonesian = true;
+              } else if (p.message.includes('sudah selesai dan siap diambil') || p.message.includes('Terima kasih telah berbelanja di Stanley')) {
+                p.message = 'Hi {customer_name}! Your custom Stanley order #{short_code} is engraved and ready for pickup at {store_name}. Thank you for shopping with Stanley!';
+                hasIndonesian = true;
+              }
+            }
+          }
+        }
+      }
+      if (hasIndonesian) {
+        await saveSettingsInDb('whatsapp_notifications', storedNotifs);
+      }
+    } catch (e) {
+      console.warn('Could not check/migrate legacy whatsapp_notifications:', e);
+    }
   }
 
   // Migrate legacy data from data/orders.json if orders table is empty (SQLite local mode)

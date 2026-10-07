@@ -1800,7 +1800,7 @@ const DEFAULT_NOTIFICATION_TEMPLATES = [
     id: 'queuing-notification',
     name: 'Queuing Notification',
     title: "You're in the Queue",
-    message: 'Hi! Saat ini antrian di store kami lebih dari 10 orang. Terima kasih sudah menunggu. Kami akan segera memproses pesanan kamu.',
+    message: 'Hi! Currently our store queue at {store_name} has more than 10 orders. Thank you for your patience, we will begin engraving your custom Stanley soon.',
     triggerType: 'queue_threshold',
     queueThreshold: 10,
     isActive: true,
@@ -1810,7 +1810,7 @@ const DEFAULT_NOTIFICATION_TEMPLATES = [
     id: 'order-received-notification',
     name: 'Order Received Notification',
     title: 'Order Received',
-    message: "Hi {customer_name}! Pesanan kamu #{short_code} telah diterima oleh tim kami di {store_name}. Mohon menunggu, pesanan kamu akan segera di-engrave.",
+    message: 'Hi {customer_name}! Your custom Stanley order #{short_code} has been received at {store_name}. Please wait while we engrave your cup.',
     triggerType: 'order_accepted',
     queueThreshold: 0,
     isActive: true,
@@ -1820,7 +1820,7 @@ const DEFAULT_NOTIFICATION_TEMPLATES = [
     id: 'order-completed-notification',
     name: 'Order Completed Notification',
     title: 'Order Completed',
-    message: 'Hi {customer_name}! Pesanan kamu #{short_code} sudah selesai dan siap diambil di {store_name}. Terima kasih telah berbelanja di Stanley!',
+    message: 'Hi {customer_name}! Your custom Stanley order #{short_code} is engraved and ready for pickup at {store_name}. Thank you for shopping with Stanley!',
     triggerType: 'order_completed',
     queueThreshold: 0,
     isActive: true,
@@ -2019,7 +2019,7 @@ function getTriggerDescription(profile) {
 const livePreviewMessageText = computed(() => {
   const msg = notificationForm.value.message || '';
   if (!msg.trim()) {
-    return 'Hi! Saat ini antrian di store kami lebih dari 10 orang. Terima kasih sudah menunggu. Kami akan segera memproses pesanan kamu.';
+    return 'Hi! Currently our store queue at {store_name} has more than 10 orders. Thank you for your patience, we will begin engraving your custom Stanley soon.';
   }
   const storeName = currentStore.value?.name || 'Stanley Store';
   return msg
