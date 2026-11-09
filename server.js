@@ -29,10 +29,19 @@ import {
   getSettingsFromDb,
   saveSettingsInDb,
   getAllProductsFromDb,
-  saveProductsInDb
+  saveProductsInDb,
+  getActiveQueueOrderIdsForStore,
+  isSameStore
 } from './src/server/db.js';
 
 import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
+import {
+  handleSseConnection,
+  broadcast,
+  broadcastOrderChange,
+  broadcastOrdersResync,
+  isGlobalSession
+} from './src/server/realtime.js';
 import {
   getStoreStatus,
   initStoreWhatsApp,
@@ -110,21 +119,6 @@ const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts from this IP. Please try again later.' }
 });
 
-// Server-Sent Events (SSE) active clients pool
-const sseClients = new Set();
-
-function broadcast(event, data) {
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  for (const client of sseClients) {
-    try {
-      client.write(payload);
-      if (typeof client.flush === 'function') client.flush();
-    } catch (e) {
-      sseClients.delete(client);
-    }
-  }
-}
-
 // Register broadcast handler with WhatsApp manager
 setBroadcastHandler(broadcast);
 
@@ -138,30 +132,46 @@ setInterval(() => {
 // PUBLIC ENDPOINTS (Customer PWA & Ticket View)
 // ----------------------------------------------------
 
-// Real-time SSE Stream Endpoint
+// Real-time SSE Stream Endpoint (tenant-scoped: ?token=<staff token> or ?order=<ticket id>)
 app.get('/api/events', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform, private',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no',
-    'Content-Encoding': 'none',
-    'Access-Control-Allow-Origin': '*'
-  });
-  if (typeof res.flushHeaders === 'function') res.flushHeaders();
-  res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
-  if (typeof res.flush === 'function') res.flush();
-  sseClients.add(res);
-
-  const cleanup = () => {
-    sseClients.delete(res);
-  };
-
-  req.on('close', cleanup);
-  res.on('finish', cleanup);
-  res.on('close', cleanup);
-  res.on('error', cleanup);
+  handleSseConnection(req, res).catch(() => {});
 });
+
+function notifyOrderChange(order, options) {
+  broadcastOrderChange(order, options).catch(err => console.warn('SSE order broadcast failed:', err.message));
+}
+
+// ----------------------------------------------------
+// TENANT ACCESS HELPERS
+// A store's code is its public slug (e.g. /engrave/001); access is decided by
+// the staff session's storeId, never by the slug in the URL alone.
+// ----------------------------------------------------
+async function canAccessStore(session, storeId) {
+  if (!session) return false;
+  if (isGlobalSession(session)) return true;
+  if (!storeId) return false;
+  return isSameStore(session.storeId, storeId);
+}
+
+async function canAccessOrder(session, order) {
+  if (!session) return false;
+  if (isGlobalSession(session)) return true;
+  if (!order) return false;
+  for (const value of [order.store_id, order.store_code, order.store_name]) {
+    if (value && await isSameStore(session.storeId, value)) return true;
+  }
+  return false;
+}
+
+// Non-global staff may never move an order to another store
+function pinOrderStore(session, updated, existing) {
+  if (isGlobalSession(session) || !existing) return updated;
+  return { ...updated, store_id: existing.store_id, store_code: existing.store_code, store_name: existing.store_name };
+}
+
+function forbidden(res) {
+  return res.status(403).json({ error: 'Access denied: this order belongs to another store.' });
+}
 
 // Customer Public Order Submission (Strict Rate Limited)
 app.post('/api/orders/public', publicOrderLimiter, async (req, res) => {
@@ -170,9 +180,23 @@ app.post('/api/orders/public', publicOrderLimiter, async (req, res) => {
     if (!payload || !payload.order_id) {
       return res.status(400).json({ error: 'Order payload must include order_id' });
     }
-    const saved = await upsertSingleOrderInDb(payload);
-    const allOrders = await getAllOrdersFromDb();
-    broadcast('orders_updated', allOrders);
+    // Create-only: a public client can never modify an existing order or skip the queue
+    const existing = await getOrderByIdFromDb(payload.order_id);
+    if (existing && existing.order_id === payload.order_id) {
+      return res.json({ success: true, order: existing });
+    }
+    const newOrder = {
+      ...payload,
+      status: 'pending_dropoff',
+      system_queue_number: null,
+      short_code: null,
+      assigned_machine: null,
+      intake_at: null,
+      engraving_started_at: null,
+      ready_at: null
+    };
+    const saved = await upsertSingleOrderInDb(newOrder);
+    notifyOrderChange(saved);
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -187,21 +211,26 @@ app.get('/api/orders/public/:id', async (req, res) => {
     if (!order) {
       return res.status(404).json({ error: 'Order ticket not found' });
     }
-    res.json(order);
+    // Queue position is computed server-side within the order's own store,
+    // so customers never need the full order list.
+    const queue = await getActiveQueueOrderIdsForStore(order.store_id || order.store_code || order.store_name);
+    const idx = queue.indexOf(order.order_id);
+    res.json({ ...order, queue_ahead: idx > 0 ? idx : 0 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // Zone A Direct Intake Code Lookup endpoint (with store resolution)
-app.get('/api/orders/lookup/:code', async (req, res) => {
+app.get('/api/orders/lookup/:code', requireAuth, async (req, res) => {
   try {
     const rawCode = req.params.code;
     const storeQuery = req.query.storeId || req.query.store || null;
-    const session = await getOptionalStaffSession(req);
-    const activeStore = storeQuery || (session ? session.storeId : null);
+    const session = req.staffSession;
+    const activeStore = isGlobalSession(session) ? (storeQuery || session.storeId) : session.storeId;
 
-    const order = await getOrderByIdFromDb(rawCode, activeStore);
+    const found = await getOrderByIdFromDb(rawCode, activeStore);
+    const order = found && await canAccessOrder(session, found) ? found : null;
     if (!order) {
       return res.status(404).json({ 
         success: false, 
@@ -319,14 +348,12 @@ app.post('/api/stores/:storeId/orders', requireAuth, requireStoreAccess, async (
 
     if (Array.isArray(payload)) {
       await saveAllOrdersToDb(payload, storeId);
-      const allOrders = await getAllOrdersFromDb();
-      broadcast('orders_updated', allOrders);
+      broadcastOrdersResync(storeId);
       return res.json({ success: true, count: payload.length });
     }
 
     const saved = await upsertSingleOrderInDb(payload, storeId);
-    const allOrders = await getAllOrdersFromDb();
-    broadcast('orders_updated', allOrders);
+    notifyOrderChange(saved);
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -346,17 +373,16 @@ app.get('/api/stores/:storeId/orders/:id', requireAuth, requireStoreAccess, asyn
   }
 });
 
-// GET all orders from DB (filtered by staff session storeId if authenticated;
-// customer PII stripped for unauthenticated/public access)
+// GET orders for the logged-in staff member's tenant (all stores for global admins).
+// Customers never list orders; they use GET /api/orders/public/:id for their own ticket.
 app.get('/api/orders', async (req, res) => {
   try {
     const session = await getOptionalStaffSession(req);
-    const orders = await getAllOrdersFromDb(session ? session.storeId : null);
-    if (session) {
-      return res.json(orders);
+    if (!session) {
+      return res.status(401).json({ error: 'Authentication required.' });
     }
-    const sanitized = orders.map(({ phone, email, ...rest }) => rest);
-    res.json(sanitized);
+    const orders = await getAllOrdersFromDb(session.storeId);
+    res.json(orders);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -366,18 +392,26 @@ app.get('/api/orders', async (req, res) => {
 app.post('/api/orders', requireAuth, async (req, res) => {
   try {
     const payload = req.body;
-    const storeId = req.staffSession ? req.staffSession.storeId : null;
+    const session = req.staffSession;
+    const storeId = session ? session.storeId : null;
+
+    if (!isGlobalSession(session)) {
+      for (const o of (Array.isArray(payload) ? payload : [payload])) {
+        const existing = o && o.order_id ? await getOrderByIdFromDb(o.order_id) : null;
+        if (existing && existing.order_id === o.order_id && !(await canAccessOrder(session, existing))) {
+          return forbidden(res);
+        }
+      }
+    }
 
     if (Array.isArray(payload)) {
       await saveAllOrdersToDb(payload, storeId);
-      const allOrders = await getAllOrdersFromDb();
-      broadcast('orders_updated', allOrders);
+      broadcastOrdersResync(storeId);
       return res.json({ success: true, count: payload.length });
     }
 
     const saved = await upsertSingleOrderInDb(payload, storeId);
-    const allOrders = await getAllOrdersFromDb();
-    broadcast('orders_updated', allOrders);
+    notifyOrderChange(saved);
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -385,14 +419,17 @@ app.post('/api/orders', requireAuth, async (req, res) => {
 });
 
 // PUT /api/orders/:id - Update order in DB
-app.put('/api/orders/:id', async (req, res) => {
+app.put('/api/orders/:id', requireAuth, async (req, res) => {
   try {
+    const session = req.staffSession;
     const orderId = req.params.id;
     const existing = await getOrderByIdFromDb(orderId);
-    const updated = { ...(existing || {}), ...req.body, order_id: orderId, updated_at: new Date().toISOString() };
+    if (existing && !(await canAccessOrder(session, existing))) return forbidden(res);
+    let updated = { ...(existing || {}), ...req.body, order_id: orderId, updated_at: new Date().toISOString() };
+    updated = pinOrderStore(session, updated, existing);
+    if (!existing && !(await canAccessOrder(session, updated))) return forbidden(res);
     const saved = await upsertSingleOrderInDb(updated);
-    const allOrders = await getAllOrdersFromDb();
-    broadcast('orders_updated', allOrders);
+    notifyOrderChange(saved);
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -407,11 +444,19 @@ app.patch('/api/orders/:id/status', async (req, res) => {
     if (!status) return res.status(400).json({ error: 'Status is required' });
     const existing = await getOrderByIdFromDb(orderId);
     if (!existing) return res.status(404).json({ error: 'Order not found' });
+
+    const session = await getOptionalStaffSession(req);
+    if (session) {
+      if (!(await canAccessOrder(session, existing))) return forbidden(res);
+    } else {
+      // Customers (holding the ticket link) may only cancel an order not yet handed over
+      const isCustomerCancel = status === 'cancelled' && existing.status === 'pending_dropoff';
+      if (!isCustomerCancel) return res.status(401).json({ error: 'Authentication required.' });
+    }
     existing.status = status;
     existing.updated_at = new Date().toISOString();
     const saved = await upsertSingleOrderInDb(existing);
-    const allOrders = await getAllOrdersFromDb();
-    broadcast('orders_updated', allOrders);
+    notifyOrderChange(saved);
     res.json({ success: true, order: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -419,12 +464,13 @@ app.patch('/api/orders/:id/status', async (req, res) => {
 });
 
 // DELETE single order by ID (Protected / Staff access)
-app.delete('/api/orders/:id', async (req, res) => {
+app.delete('/api/orders/:id', requireAuth, async (req, res) => {
   try {
+    const existing = await getOrderByIdFromDb(req.params.id);
+    if (existing && !(await canAccessOrder(req.staffSession, existing))) return forbidden(res);
     const success = await deleteOrderFromDb(req.params.id);
-    const allOrders = await getAllOrdersFromDb();
-    broadcast('orders_updated', allOrders);
-    res.json({ success, orders: allOrders });
+    if (existing) notifyOrderChange(existing, { removed: true });
+    res.json({ success });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -435,9 +481,11 @@ app.delete('/api/orders/:id', async (req, res) => {
 // ----------------------------------------------------
 
 // GET /api/machines - Get real-time laser machines state across network (with optional store scoping)
-app.get('/api/machines', async (req, res) => {
+app.get('/api/machines', requireAuth, async (req, res) => {
   try {
-    const storeId = req.query.storeId || req.query.store || null;
+    const session = req.staffSession;
+    const storeId = req.query.storeId || req.query.store || (isGlobalSession(session) ? null : session.storeId);
+    if (storeId && !(await canAccessStore(session, storeId))) return forbidden(res);
     let machines = null;
     if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
       machines = await getSettingsFromDb(`machines_${storeId}`);
@@ -452,11 +500,14 @@ app.get('/api/machines', async (req, res) => {
 });
 
 // POST /api/machines - Sync real-time laser machines state to cloud DB (scoped by store)
-app.post('/api/machines', async (req, res) => {
+app.post('/api/machines', requireAuth, async (req, res) => {
   try {
+    const session = req.staffSession;
     const isArrayBody = Array.isArray(req.body);
     const machines = isArrayBody ? req.body : req.body.machines;
-    const storeId = req.query.storeId || req.query.store || (!isArrayBody ? req.body.storeId : null);
+    const storeId = req.query.storeId || req.query.store || (!isArrayBody ? req.body.storeId : null) ||
+      (isGlobalSession(session) ? null : session.storeId);
+    if (storeId && !(await canAccessStore(session, storeId))) return forbidden(res);
 
     if (!Array.isArray(machines)) {
       return res.status(400).json({ error: 'Machines must be an array' });
@@ -475,10 +526,10 @@ app.post('/api/machines', async (req, res) => {
 });
 
 // POST clear all test orders (Protected Admin/Super Admin)
-app.post('/api/orders/clear', requireAuth, async (req, res) => {
+app.post('/api/orders/clear', requireSuperAdmin, async (req, res) => {
   try {
     await clearAllOrdersInDb();
-    broadcast('orders_updated', []);
+    broadcastOrdersResync(null);
     res.json({ success: true, message: 'All orders cleared successfully', orders: [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -489,7 +540,7 @@ app.post('/api/orders/clear', requireAuth, async (req, res) => {
 app.post('/api/reset', requireSuperAdmin, async (req, res) => {
   try {
     await resetAllDatabaseExceptStaff();
-    broadcast('orders_updated', []);
+    broadcastOrdersResync(null);
     res.json({ success: true, orders: [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -729,7 +780,7 @@ app.post('/api/whatsapp/:storeId/send-test', requireAdminAccess, async (req, res
 // POST Dispatch automated notification (Queue, Completion, Pickup)
 const recentServerWhatsAppDispatches = new Map();
 
-app.post('/api/whatsapp/:storeId/dispatch', async (req, res) => {
+app.post('/api/whatsapp/:storeId/dispatch', requireAuth, requireStoreAccess, async (req, res) => {
   try {
     const { recipientPhone, message, orderId, triggerType, customerName, shortCode, storeName, queueNumber } = req.body;
 
@@ -739,6 +790,7 @@ app.post('/api/whatsapp/:storeId/dispatch', async (req, res) => {
         order = await getOrderByIdFromDb(orderId);
       } catch (e) {}
     }
+    if (order && !(await canAccessOrder(req.staffSession, order))) return forbidden(res);
 
     const phone = recipientPhone || order?.phone;
     if (!phone) {

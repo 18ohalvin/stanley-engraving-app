@@ -287,34 +287,16 @@ const displayBookingTime = computed(() => {
   return '-';
 });
 
+// Orders ahead in this order's own store, computed by the server
+// (initial value from the ticket lookup, then live via the realtime 'queue_position' event).
 const queueAheadCount = computed(() => {
   if (!order.value) return 1;
-  // All active orders in the queue sorted strictly by FIFO queue order
-  const activeOrders = queueStore.orders
-    .filter(o => o.status === 'in_queue' || o.status === 'engraving_in_progress')
-    .slice()
-    .sort((a, b) => {
-      const timeA = new Date(a.intake_at || a.created_at || 0).getTime();
-      const timeB = new Date(b.intake_at || b.created_at || 0).getTime();
-      if (timeA !== timeB) return timeA - timeB;
-      const numA = parseInt(a.system_queue_number || a.short_code, 10) || 0;
-      const numB = parseInt(b.system_queue_number || b.short_code, 10) || 0;
-      return numA - numB;
-    });
-
-  const myIndex = activeOrders.findIndex(o => 
-    o.order_id === order.value.order_id || 
-    (o.system_queue_number && o.system_queue_number === order.value.system_queue_number) ||
-    (o.short_code && o.short_code === order.value.short_code)
-  );
-
-  if (myIndex !== -1) {
-    return myIndex;
-  }
-  return 0;
+  const live = queueStore.ticketQueueAhead[order.value.order_id];
+  if (live !== undefined) return live;
+  return Number(order.value.queue_ahead) || 0;
 });
 
-async function fetchOrder() {
+async function fetchOrder({ force = false } = {}) {
   const rawId = route.params.orderId || route.params.ticketId || route.params.code;
   const storeIdParam = route.params.storeId || route.query.storeId || route.query.store;
   if (!rawId || rawId === 'undefined' || rawId === 'null') {
@@ -323,9 +305,11 @@ async function fetchOrder() {
   }
 
   const found = queueStore.getOrderById(rawId);
-  if (found) {
+  if (found && !force) {
     fallbackOrder.value = found;
     isNotFound.value = false;
+    // Locally created orders lack a server queue position; fetch it once in the background.
+    if (found.queue_ahead === undefined) fetchOrder({ force: true });
     return;
   }
 
@@ -357,6 +341,11 @@ async function fetchOrder() {
         if (isMatch) {
           fallbackOrder.value = serverOrder;
           isNotFound.value = false;
+          // Keep the store copy fresh, otherwise a stale local copy would win in `order`
+          queueStore.applyOrderUpsert(serverOrder);
+          if (serverOrder.order_id && serverOrder.queue_ahead !== undefined) {
+            queueStore.ticketQueueAhead = { ...queueStore.ticketQueueAhead, [serverOrder.order_id]: Number(serverOrder.queue_ahead) || 0 };
+          }
           return;
         }
       }
@@ -391,7 +380,8 @@ function startNewOrder() {
 
 function handleVisibilityChange() {
   if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-    fetchOrder();
+    // Realtime events may have been missed while the phone was locked
+    fetchOrder({ force: true });
   }
 }
 

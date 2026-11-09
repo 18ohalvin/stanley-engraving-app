@@ -10,37 +10,78 @@ const INITIAL_SEED_ORDERS = [];
 function isStationControllerContext() {
   if (typeof window === 'undefined' || !window.location || !window.location.pathname) return true;
   const path = window.location.pathname.toLowerCase();
-  // Public customer-facing routes should never act as station controllers
-  if (path.startsWith('/queue') || path.startsWith('/track') || path === '/' || path.includes('customize')) {
+  // Public customer-facing routes (landing, engraving steps, tickets) never act as station controllers
+  if (
+    path === '/' ||
+    /^\/(queue|ticket|q|track|engrave)(\/|$)/.test(path) ||
+    /^\/step-\d/.test(path) ||
+    path.includes('customize')
+  ) {
     return false;
   }
   return true;
 }
 
+function protectLocalProgress(local, remoteOrder) {
+  if (!local) return remoteOrder;
+  // Protect ready_for_pickup from being downgraded by stale server state
+  if (local.status === 'ready_for_pickup' && remoteOrder.status !== 'ready_for_pickup') {
+    return { ...remoteOrder, status: 'ready_for_pickup', ready_at: local.ready_at || remoteOrder.ready_at };
+  }
+  // Protect in_queue from being downgraded to pending_dropoff
+  if (local.status === 'in_queue' && remoteOrder.status === 'pending_dropoff') {
+    return {
+      ...remoteOrder,
+      status: 'in_queue',
+      intake_at: local.intake_at || remoteOrder.intake_at,
+      system_queue_number: local.system_queue_number || remoteOrder.system_queue_number,
+      short_code: local.short_code || remoteOrder.short_code
+    };
+  }
+  return remoteOrder;
+}
+
 function mergeOrdersPreservingLocalProgress(existingOrders, incomingOrders) {
   if (!Array.isArray(incomingOrders)) return existingOrders;
   if (!Array.isArray(existingOrders) || existingOrders.length === 0) return incomingOrders;
-
-  return incomingOrders.map(remoteOrder => {
-    const local = existingOrders.find(o => o.order_id === remoteOrder.order_id);
-    if (!local) return remoteOrder;
-    // Protect ready_for_pickup from being downgraded by stale server state
-    if (local.status === 'ready_for_pickup' && remoteOrder.status !== 'ready_for_pickup') {
-      return { ...remoteOrder, status: 'ready_for_pickup', ready_at: local.ready_at || remoteOrder.ready_at };
-    }
-    // Protect in_queue from being downgraded to pending_dropoff
-    if (local.status === 'in_queue' && remoteOrder.status === 'pending_dropoff') {
-      return {
-        ...remoteOrder,
-        status: 'in_queue',
-        intake_at: local.intake_at || remoteOrder.intake_at,
-        system_queue_number: local.system_queue_number || remoteOrder.system_queue_number,
-        short_code: local.short_code || remoteOrder.short_code
-      };
-    }
-    return remoteOrder;
-  });
+  const localById = new Map(existingOrders.map(o => [o.order_id, o]));
+  return incomingOrders.map(remoteOrder => protectLocalProgress(localById.get(remoteOrder.order_id), remoteOrder));
 }
+
+function getStaffToken() {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Which realtime feed this tab should subscribe to:
+ *  - logged-in staff on a station/admin page: their tenant's feed
+ *  - customer on a ticket page: only that ticket
+ *  - any other customer page: public catalogue events only
+ */
+function getRealtimeEventsUrl() {
+  if (typeof window === 'undefined' || !window.location) return '/api/events';
+  const token = getStaffToken();
+  if (token && isStationControllerContext()) {
+    return `/api/events?token=${encodeURIComponent(token)}`;
+  }
+  // /queue|/ticket|/q  :orderId  or  :storeId/:orderId
+  const ticketMatch = window.location.pathname.match(/^\/(?:queue|ticket|q)\/(?:([^/]+)\/)?([^/]+)\/?$/i);
+  if (ticketMatch) {
+    const params = new URLSearchParams({ order: decodeURIComponent(ticketMatch[2]) });
+    if (ticketMatch[1]) params.set('store', decodeURIComponent(ticketMatch[1]));
+    return `/api/events?${params.toString()}`;
+  }
+  return '/api/events';
+}
+
+// Module-level SSE connection (one per tab)
+let sseInstance = null;
+let sseUrl = null;
+let sseReconnectTimer = null;
 
 export const useQueueStore = defineStore('queue', {
   state: () => {
@@ -69,6 +110,8 @@ export const useQueueStore = defineStore('queue', {
 
     return {
       orders: getStoredOrders(),
+      // Customer ticket view: server-computed number of orders ahead, keyed by order_id
+      ticketQueueAhead: {},
       // 2 Physical laser machine stations matching Figma 17:635 & 87:393
       machines: defaultMachines
     };
@@ -170,6 +213,8 @@ export const useQueueStore = defineStore('queue', {
 
   actions: {
     async refreshFromStorage(storeId = null) {
+      // Only logged-in staff may list orders; customer pages load just their own ticket.
+      if (!getStaffToken() || !isStationControllerContext()) return;
       const targetStore = storeId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
       // Fetch central cloud server orders
       const remote = await fetchServerOrders(targetStore);
@@ -206,7 +251,10 @@ export const useQueueStore = defineStore('queue', {
         if (typeof window !== 'undefined' && window.location && typeof fetch !== 'undefined') {
           const storeId = targetStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
           const storeParam = storeId && storeId !== '*' && storeId !== 'HQ Central' ? `?storeId=${encodeURIComponent(storeId)}` : '';
-          const res = await fetch(`/api/machines${storeParam}`);
+          const token = getStaffToken();
+          const res = await fetch(`/api/machines${storeParam}`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
           if (res.ok) {
             const data = await res.json();
             const list = Array.isArray(data) ? data : (data?.machines || []);
@@ -237,12 +285,152 @@ export const useQueueStore = defineStore('queue', {
         broadcastSyncMessage('machines_updated', { storeId, machines: this.machines });
         if (typeof window !== 'undefined' && window.location && typeof fetch !== 'undefined') {
           const storeParam = storeId && storeId !== '*' && storeId !== 'HQ Central' ? `?storeId=${encodeURIComponent(storeId)}` : '';
+          const token = getStaffToken();
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
           fetch(`/api/machines${storeParam}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ machines: this.machines, storeId })
           }).catch(() => {});
         }
+      } catch (e) {}
+    },
+
+    applyMachinesPayload(list) {
+      if (!Array.isArray(list)) return;
+      list.forEach(storedM => {
+        const target = this.machines.find(m => m.id === storedM.id);
+        if (target) {
+          target.status = storedM.status || 'idle';
+          target.currentOrderId = storedM.currentOrderId || null;
+          target.timerSeconds = storedM.timerSeconds || 0;
+          target.currentItemIndex = storedM.currentItemIndex || 0;
+          if (storedM.isActive !== undefined) target.isActive = storedM.isActive;
+        }
+      });
+    },
+
+    // Merge a single order delta pushed from the server
+    applyOrderUpsert(order) {
+      if (!order || !order.order_id) return;
+      const index = this.orders.findIndex(o => o.order_id === order.order_id);
+      if (index === -1) {
+        this.orders = [order, ...this.orders];
+      } else {
+        const next = this.orders.slice();
+        next[index] = protectLocalProgress(this.orders[index], order);
+        this.orders = next;
+      }
+      this.afterRemoteOrdersChange();
+    },
+
+    applyOrderRemoved(orderId) {
+      if (!orderId) return;
+      const next = this.orders.filter(o => o.order_id !== orderId);
+      if (next.length === this.orders.length) return;
+      this.orders = next;
+      this.afterRemoteOrdersChange();
+    },
+
+    afterRemoteOrdersChange() {
+      if (isStationControllerContext() && getStaffToken()) {
+        const targetStore = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null;
+        this.autoAssignMachines(targetStore);
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('stanley_orders_updated', { detail: this.orders }));
+      }
+    },
+
+    /**
+     * (Re)connect the SSE feed if the scope changed (route change, login, logout).
+     * Called on startup and after every route navigation.
+     */
+    syncRealtimeScope() {
+      if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
+      const url = getRealtimeEventsUrl();
+      if (sseInstance && sseUrl === url) return;
+      const scopeChanged = sseUrl !== url;
+      const wasStaffScope = Boolean(sseUrl && sseUrl.includes('token='));
+      this.connectRealtime(url);
+      // Leaving a staff scope (logout): drop that tenant's orders from this device's memory
+      if (wasStaffScope && !url.includes('token=')) {
+        this.orders = [];
+      }
+      // Entering a staff scope (e.g. right after login): load that tenant's orders once.
+      if (scopeChanged && url.includes('token=')) {
+        this.refreshFromStorage();
+      }
+    },
+
+    connectRealtime(url) {
+      if (sseInstance) {
+        sseInstance.close();
+        sseInstance = null;
+      }
+      if (sseReconnectTimer) {
+        clearTimeout(sseReconnectTimer);
+        sseReconnectTimer = null;
+      }
+      sseUrl = url;
+
+      try {
+        const source = new EventSource(url);
+        sseInstance = source;
+
+        const on = (event, handler) => {
+          source.addEventListener(event, (e) => {
+            try {
+              handler(JSON.parse(e.data));
+            } catch (err) {}
+          });
+        };
+
+        on('order_upsert', (order) => this.applyOrderUpsert(order));
+        on('order_removed', (data) => this.applyOrderRemoved(data && data.order_id));
+        on('orders_resync', () => this.refreshFromStorage());
+        on('queue_position', (data) => {
+          if (data && data.order_id) {
+            this.ticketQueueAhead = { ...this.ticketQueueAhead, [data.order_id]: Number(data.queue_ahead) || 0 };
+          }
+        });
+        on('machines_updated', (rawData) => {
+          const list = Array.isArray(rawData) ? rawData : (rawData?.machines || []);
+          const eventStoreId = rawData?.storeId;
+          const localStoreId = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null;
+          if (eventStoreId && localStoreId && !isSameStore(eventStoreId, localStoreId)) {
+            return; // Global admins receive every store's machines; keep only the active store's
+          }
+          this.applyMachinesPayload(list);
+          window.dispatchEvent(new CustomEvent('stanley_machines_updated', { detail: list }));
+        });
+
+        const forward = {
+          products_updated: 'stanley_products_updated',
+          stores_updated: 'stanley_stores_updated',
+          settings_updated: 'stanley_settings_updated',
+          staff_updated: 'stanley_staff_updated',
+          whatsapp_status: 'stanley_whatsapp_status'
+        };
+        Object.entries(forward).forEach(([event, windowEvent]) => {
+          on(event, (detail) => window.dispatchEvent(new CustomEvent(windowEvent, { detail })));
+        });
+
+        source.onerror = () => {
+          if (sseInstance !== source) return;
+          source.close();
+          sseInstance = null;
+          if (!sseReconnectTimer) {
+            sseReconnectTimer = setTimeout(() => {
+              sseReconnectTimer = null;
+              // Re-evaluate scope in case the token expired or the route changed meanwhile
+              this.connectRealtime(getRealtimeEventsUrl());
+              // Catch up on anything missed while disconnected
+              this.refreshFromStorage();
+            }, 3000);
+          }
+        };
       } catch (e) {}
     },
 
@@ -251,7 +439,7 @@ export const useQueueStore = defineStore('queue', {
 
       this.refreshFromStorage();
 
-      // Listen to cross-tab zero-latency BroadcastChannel
+      // Listen to cross-tab zero-latency BroadcastChannel (same device only)
       const channel = getBroadcastChannel();
       if (channel) {
         channel.onmessage = (event) => {
@@ -269,118 +457,12 @@ export const useQueueStore = defineStore('queue', {
             if (eventStoreId && localStoreId && !isSameStore(eventStoreId, localStoreId)) {
               return; // Ignore other store's machines!
             }
-            if (Array.isArray(list)) {
-              list.forEach(storedM => {
-                const target = this.machines.find(m => m.id === storedM.id);
-                if (target) {
-                  target.status = storedM.status || 'idle';
-                  target.currentOrderId = storedM.currentOrderId || null;
-                  target.timerSeconds = storedM.timerSeconds || 0;
-                  target.currentItemIndex = storedM.currentItemIndex || 0;
-                  if (storedM.isActive !== undefined) target.isActive = storedM.isActive;
-                }
-              });
-            }
+            this.applyMachinesPayload(list);
           }
         };
       }
 
-
-      // Listen to real-time events broadcasted across devices over LAN/WiFi via SSE with auto-reconnect
-      let sseInstance = null;
-      let reconnectTimer = null;
-      const connectSSE = () => {
-        if (typeof EventSource === 'undefined') return;
-        try {
-          if (sseInstance) {
-            sseInstance.close();
-            sseInstance = null;
-          }
-          if (reconnectTimer) {
-            clearTimeout(reconnectTimer);
-            reconnectTimer = null;
-          }
-          sseInstance = new EventSource('/api/events');
-          sseInstance.addEventListener('orders_updated', (e) => {
-            try {
-              const updated = JSON.parse(e.data);
-              if (Array.isArray(updated)) {
-                this.orders = mergeOrdersPreservingLocalProgress(this.orders, updated);
-                if (isStationControllerContext()) {
-                  const targetStore = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null;
-                  this.autoAssignMachines(targetStore);
-                }
-                window.dispatchEvent(new CustomEvent('stanley_orders_updated', { detail: this.orders }));
-              }
-            } catch (err) {}
-          });
-          sseInstance.addEventListener('machines_updated', (e) => {
-            try {
-              const rawData = JSON.parse(e.data);
-              const list = Array.isArray(rawData) ? rawData : (rawData?.machines || []);
-              const eventStoreId = rawData?.storeId;
-              const localStoreId = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null;
-              if (eventStoreId && localStoreId && !isSameStore(eventStoreId, localStoreId)) {
-                return; // Ignore other store's machines!
-              }
-              if (Array.isArray(list)) {
-                list.forEach(storedM => {
-                  const target = this.machines.find(m => m.id === storedM.id);
-                  if (target) {
-                    target.status = storedM.status || 'idle';
-                    target.currentOrderId = storedM.currentOrderId || null;
-                    target.timerSeconds = storedM.timerSeconds || 0;
-                    target.currentItemIndex = storedM.currentItemIndex || 0;
-                    if (storedM.isActive !== undefined) target.isActive = storedM.isActive;
-                  }
-                });
-                window.dispatchEvent(new CustomEvent('stanley_machines_updated', { detail: list }));
-              }
-            } catch (err) {}
-          });
-          sseInstance.addEventListener('products_updated', (e) => {
-            try {
-              const updated = JSON.parse(e.data);
-              window.dispatchEvent(new CustomEvent('stanley_products_updated', { detail: updated }));
-            } catch (err) {}
-          });
-          sseInstance.addEventListener('stores_updated', (e) => {
-            try {
-              const updated = JSON.parse(e.data);
-              window.dispatchEvent(new CustomEvent('stanley_stores_updated', { detail: updated }));
-            } catch (err) {}
-          });
-          sseInstance.addEventListener('settings_updated', (e) => {
-            try {
-              const updated = JSON.parse(e.data);
-              window.dispatchEvent(new CustomEvent('stanley_settings_updated', { detail: updated }));
-            } catch (err) {}
-          });
-          sseInstance.addEventListener('staff_updated', (e) => {
-            try {
-              const updated = JSON.parse(e.data);
-              window.dispatchEvent(new CustomEvent('stanley_staff_updated', { detail: updated }));
-            } catch (err) {}
-          });
-          sseInstance.addEventListener('whatsapp_status', (e) => {
-            try {
-              const updated = JSON.parse(e.data);
-              window.dispatchEvent(new CustomEvent('stanley_whatsapp_status', { detail: updated }));
-            } catch (err) {}
-          });
-          sseInstance.onerror = () => {
-            if (sseInstance) {
-              sseInstance.close();
-              sseInstance = null;
-            }
-            if (!reconnectTimer) {
-              reconnectTimer = setTimeout(connectSSE, 3000);
-            }
-          };
-        } catch (e) {}
-      };
-
-      connectSSE();
+      this.syncRealtimeScope();
 
       // Clean up SSE connection before page unload/refresh to free browser socket immediately
       window.addEventListener('beforeunload', () => {
@@ -390,24 +472,26 @@ export const useQueueStore = defineStore('queue', {
         }
       });
 
-      // Synchronize immediately when staff returns to the station tab
+      // Synchronize when staff returns to the station tab (visibilitychange + focus often
+      // fire together, so coalesce them into a single fetch)
+      let lastFocusRefresh = 0;
+      const refreshOnReturn = () => {
+        if (!isStationControllerContext()) return;
+        const now = Date.now();
+        if (now - lastFocusRefresh < 2000) return;
+        lastFocusRefresh = now;
+        this.refreshFromStorage();
+      };
       if (typeof document !== 'undefined') {
         document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible' && isStationControllerContext()) {
-            this.refreshFromStorage();
-          }
+          if (document.visibilityState === 'visible') refreshOnReturn();
         });
-        window.addEventListener('focus', () => {
-          if (isStationControllerContext()) {
-            this.refreshFromStorage();
-          }
-        });
+        window.addEventListener('focus', refreshOnReturn);
       }
 
-      // Gentle background fail-safe sync (every 15s) strictly for active station controllers
-      // Prevents customer mobile devices from polling all store orders continuously
+      // Gentle background fail-safe sync (every 15s) strictly for logged-in station controllers
       setInterval(() => {
-        if (isStationControllerContext()) {
+        if (isStationControllerContext() && document.visibilityState !== 'hidden') {
           this.refreshFromStorage();
         }
       }, 15000);
@@ -483,16 +567,7 @@ export const useQueueStore = defineStore('queue', {
       this.orders.unshift(order);
       saveStoredOrders(this.orders);
       this.autoAssignMachines();
-
-      try {
-        if (typeof fetch !== 'undefined') {
-          fetch('/api/orders/public', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(order)
-          }).catch(() => {});
-        }
-      } catch (e) {}
+      // Persisted by the caller (engravingStore.submitOrder awaits POST /api/orders/public)
     },
 
     upsertOrder(order) {

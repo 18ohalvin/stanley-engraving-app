@@ -140,9 +140,12 @@ export function sendWhatsAppNotification(order, triggerType = 'order_completed')
   if (typeof window !== 'undefined' && window.location && window.location.origin && order.phone) {
     const storeId = order.store_id || order.store_code || order.store || 'SG001';
     const dispatchUrl = new URL(`/api/whatsapp/${encodeURIComponent(storeId)}/dispatch`, window.location.origin).toString();
+    const staffToken = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_staff_token') : null;
+    const dispatchHeaders = { 'Content-Type': 'application/json' };
+    if (staffToken) dispatchHeaders['Authorization'] = `Bearer ${staffToken}`;
     fetch(dispatchUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: dispatchHeaders,
       body: JSON.stringify({
         recipientPhone: order.phone,
         orderId: order.order_id,

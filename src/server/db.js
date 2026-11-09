@@ -240,6 +240,25 @@ const KNOWN_STORES = [
   { id: 'SG001', code: 'SG001', name: 'Stanley Singapore Store', aliases: ['sg001', 'sg-001', 'singapore', 'singapore store'] }
 ];
 
+// In-memory cache of the stores table. getCanonicalStore() runs on almost every
+// tenant-scoped request, so re-reading the whole table each time is wasteful.
+const STORES_CACHE_TTL_MS = 60 * 1000;
+let storesRowsCache = null;
+let storesCacheExpiresAt = 0;
+
+export function invalidateStoresCache() {
+  storesRowsCache = null;
+  storesCacheExpiresAt = 0;
+}
+
+async function getStoreRowsCached() {
+  if (storesRowsCache && Date.now() < storesCacheExpiresAt) return storesRowsCache;
+  const rows = await dbAdapter.query(`SELECT id, code, name, phone FROM stores`);
+  storesRowsCache = rows || [];
+  storesCacheExpiresAt = Date.now() + STORES_CACHE_TTL_MS;
+  return storesRowsCache;
+}
+
 export async function getCanonicalStore(inputStr) {
   if (!inputStr) return null;
   const raw = String(inputStr).trim();
@@ -248,7 +267,7 @@ export async function getCanonicalStore(inputStr) {
   const clean = lower.replace(/[^a-z0-9]/g, '');
 
   try {
-    const rows = await dbAdapter.query(`SELECT id, code, name, phone FROM stores`);
+    const rows = await getStoreRowsCached();
     for (const store of rows) {
       const sId = (store.id || '').toLowerCase();
       const sCode = (store.code || '').toLowerCase();
@@ -359,16 +378,50 @@ export async function getNextQueueNumberFromDb(storeId, dateStr = null) {
   return String(nextNum).padStart(4, '0');
 }
 
+// All spellings a store may be recorded under in the orders table (id, code, name, aliases).
+async function getStoreAliasList(storeId) {
+  const canonical = await getCanonicalStore(storeId);
+  const aliases = canonical ? [canonical.id, canonical.code, canonical.name, ...(canonical.aliases || [])] : [storeId];
+  return [...new Set([
+    ...aliases.map(a => String(a).trim().toLowerCase()),
+    ...aliases.map(a => String(a).trim().toUpperCase())
+  ])].filter(Boolean);
+}
+
+/**
+ * Active queue (in_queue + engraving_in_progress) of the store an order belongs to,
+ * as order_ids sorted FIFO. Used to tell a customer how many orders are ahead of theirs
+ * without ever shipping other customers' orders to their device.
+ */
+export async function getActiveQueueOrderIdsForStore(storeId) {
+  if (!storeId) return [];
+  const cleanAliases = await getStoreAliasList(storeId);
+  if (cleanAliases.length === 0) return [];
+  const placeholders = cleanAliases.map(() => '?').join(',');
+  const rows = await dbAdapter.query(`
+    SELECT order_id, intake_at, created_at, system_queue_number, short_code FROM orders
+    WHERE status IN ('in_queue', 'engraving_in_progress')
+      AND (store_id IN (${placeholders}) OR store_code IN (${placeholders}) OR store_name IN (${placeholders}))
+  `, [...cleanAliases, ...cleanAliases, ...cleanAliases]);
+
+  return rows
+    .slice()
+    .sort((a, b) => {
+      const timeA = new Date(a.intake_at || a.created_at || 0).getTime();
+      const timeB = new Date(b.intake_at || b.created_at || 0).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      const numA = parseInt(a.system_queue_number || a.short_code, 10) || 0;
+      const numB = parseInt(b.system_queue_number || b.short_code, 10) || 0;
+      return numA - numB;
+    })
+    .map(r => r.order_id);
+}
+
 export async function getAllOrdersFromDb(storeId) {
   let rows;
 
   if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
-    const canonical = await getCanonicalStore(storeId);
-    const aliases = canonical ? [canonical.id, canonical.code, canonical.name, ...(canonical.aliases || [])] : [storeId];
-    const cleanAliases = [...new Set([
-      ...aliases.map(a => String(a).trim().toLowerCase()),
-      ...aliases.map(a => String(a).trim().toUpperCase())
-    ])].filter(Boolean);
+    const cleanAliases = await getStoreAliasList(storeId);
 
     if (cleanAliases.length > 0) {
       // Fast SQL query utilizing indexed store_id column and case-insensitive alias matching
@@ -591,6 +644,7 @@ export async function deleteOrderFromDb(orderId) {
 export async function resetAllDatabaseExceptStaff() {
   await dbAdapter.run(`DELETE FROM orders`);
   await dbAdapter.run(`DELETE FROM stores`);
+  invalidateStoresCache();
   await dbAdapter.run(`DELETE FROM settings`);
   await dbAdapter.run(`DELETE FROM analytics_logs`);
   await dbAdapter.run(`DELETE FROM auth_sessions`);
@@ -842,11 +896,13 @@ export async function saveStoreInDb(store) {
     ]);
   }
 
+  invalidateStoresCache();
   return dbAdapter.get(`SELECT * FROM stores WHERE id = ? OR code = ?`, [storeId, storeCode]);
 }
 
 export async function deleteStoreFromDb(id) {
   const res = await dbAdapter.run(`DELETE FROM stores WHERE id = ? OR code = ?`, [id, id]);
+  invalidateStoresCache();
   return res.changes > 0;
 }
 

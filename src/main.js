@@ -16,3 +16,8 @@ app.mount('#app');
 // Initialize Cross-Device Real-time Synchronization
 const queueStore = useQueueStore();
 queueStore.initRealtimeSync();
+
+// Re-scope the realtime feed on navigation (customer ticket ↔ staff station, login, logout)
+router.afterEach(() => {
+  queueStore.syncRealtimeScope();
+});
