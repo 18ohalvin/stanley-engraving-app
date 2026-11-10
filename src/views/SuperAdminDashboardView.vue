@@ -824,6 +824,7 @@
 </template>
 
 <script setup>
+import { toLocalDateKey } from '../utils/formatters.js';
 import logoBlack from '../assets/images/logo-black.png';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
@@ -943,7 +944,7 @@ const operatingHoursList = computed(() => {
 });
 
 // Selected Date State (Initialized to local Today)
-const todayStr = new Date().toISOString().split('T')[0];
+const todayStr = toLocalDateKey(new Date());
 const selectedDate = ref(todayStr);
 const tempSelectedDate = ref(todayStr);
 const currentCalendarMonth = ref(new Date());
@@ -970,17 +971,18 @@ const maxAvailableHour = computed(() => {
 
 // Helper to extract operating hour from an order
 function getOrderOperatingHour(order) {
-  if (order.booking_time) {
-    const parts = String(order.booking_time).split(':');
-    const h = parseInt(parts[0], 10);
-    if (!isNaN(h) && h >= OPENING_HOUR && h <= CLOSING_HOUR) return h;
-  }
+  // Prefer the real timestamp (converted to local time); booking_time is only a fallback
   if (order.created_at) {
     const d = new Date(order.created_at);
     if (!isNaN(d.getTime())) {
       const h = d.getHours();
       return Math.min(Math.max(h, OPENING_HOUR), CLOSING_HOUR);
     }
+  }
+  if (order.booking_time) {
+    const parts = String(order.booking_time).split(':');
+    const h = parseInt(parts[0], 10);
+    if (!isNaN(h) && h >= OPENING_HOUR && h <= CLOSING_HOUR) return h;
   }
   return 10;
 }
@@ -990,20 +992,7 @@ function getOrderDateStr(order) {
   if (!order) return '';
   const raw = order.created_at || order.intake_at || order.ready_at || order.createdAt;
   if (!raw) return '';
-  if (typeof raw === 'string') {
-    const match = raw.match(/^\d{4}-\d{2}-\d{2}/);
-    if (match) return match[0];
-  }
-  try {
-    const d = new Date(raw);
-    if (!isNaN(d.getTime())) {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-  } catch (e) {}
-  return '';
+  return toLocalDateKey(raw);
 }
 
 function isOrderInSelectedDate(order) {
@@ -1012,7 +1001,7 @@ function isOrderInSelectedDate(order) {
   if (!orderDate) return false;
 
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
+  const today = toLocalDateKey(now);
 
   if (selectedDate.value === 'today') {
     return orderDate === today;
@@ -1021,14 +1010,14 @@ function isOrderInSelectedDate(order) {
   if (selectedDate.value === 'yesterday') {
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    const yestStr = d.toISOString().split('T')[0];
+    const yestStr = toLocalDateKey(d);
     return orderDate === yestStr;
   }
 
   if (selectedDate.value === 'last7days') {
     const past7 = new Date();
     past7.setDate(past7.getDate() - 6);
-    const startStr = past7.toISOString().split('T')[0];
+    const startStr = toLocalDateKey(past7);
     return orderDate >= startStr && orderDate <= today;
   }
 
@@ -1608,7 +1597,7 @@ const formattedSelectedDate = computed(() => {
   if (selectedDate.value === 'today') return 'Today';
   if (selectedDate.value === 'yesterday') return 'Yesterday';
 
-  const todayDate = new Date().toISOString().split('T')[0];
+  const todayDate = toLocalDateKey(new Date());
   const d = new Date(selectedDate.value + 'T00:00:00');
   if (isNaN(d.getTime())) return selectedDate.value;
 
@@ -1661,7 +1650,7 @@ const calendarDays = computed(() => {
     days.push({ dayNumber: '', dateString: `prev-${i}`, isCurrentMonth: false });
   }
 
-  const realTodayStr = new Date().toISOString().split('T')[0];
+  const realTodayStr = toLocalDateKey(new Date());
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     days.push({
@@ -1676,7 +1665,7 @@ const calendarDays = computed(() => {
 });
 
 function openDatePickerModal() {
-  const realTodayStr = new Date().toISOString().split('T')[0];
+  const realTodayStr = toLocalDateKey(new Date());
   tempSelectedDate.value = selectedDate.value || realTodayStr;
   if (selectedDate.value && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate.value)) {
     const parts = selectedDate.value.split('-');
@@ -1712,13 +1701,13 @@ function selectCalendarDate(dateStr) {
 function applyPreset(presetId) {
   tempActivePreset.value = presetId;
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
+  const today = toLocalDateKey(now);
   if (presetId === 'today') {
     tempSelectedDate.value = today;
   } else if (presetId === 'yesterday') {
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    tempSelectedDate.value = d.toISOString().split('T')[0];
+    tempSelectedDate.value = toLocalDateKey(d);
   } else if (presetId === 'last7days') {
     tempSelectedDate.value = 'last7days';
   } else if (presetId === 'thismonth') {

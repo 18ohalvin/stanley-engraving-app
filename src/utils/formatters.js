@@ -45,6 +45,29 @@ export function generateShortCode() {
 }
 
 /**
+ * Local calendar date key (YYYY-MM-DD) in the device's timezone.
+ * Never use `toISOString().split('T')[0]` for this: that is the UTC date,
+ * which is still "yesterday" in Jakarta until 07:00.
+ * A bare 'YYYY-MM-DD' string is already a date key and is returned as-is.
+ */
+export function toLocalDateKey(input = new Date()) {
+  if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+  const d = input instanceof Date ? input : new Date(input);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * HH:MM in the device's timezone from an ISO timestamp / Date. '' when invalid.
+ */
+export function formatClockTime(input) {
+  if (!input) return '';
+  const d = input instanceof Date ? input : new Date(input);
+  if (isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
  * Returns formatted 24h or 12h time string (e.g. 10:21)
  */
 export function formatBookingTime(date = new Date()) {

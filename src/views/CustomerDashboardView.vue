@@ -149,6 +149,7 @@
                   <th class="col-no">No</th>
                   <th class="col-name">Nama</th>
                   <th class="col-id">ID</th>
+                  <th class="col-confirmed">Confirmed</th>
                   <th class="col-email">Email</th>
                   <th class="col-wa">Whatsapp</th>
                   <th class="col-stanley">Stanley</th>
@@ -183,6 +184,22 @@
                       class="cell-id"
                     >
                       <span class="id-tag">{{ formatTicketId(order) }}</span>
+                    </td>
+
+                    <!-- Confirmed At (time the intake code was verified at the counter) -->
+                    <td 
+                      :rowspan="(order.items && order.items.length > 1) ? order.items.length : 1" 
+                      class="cell-confirmed"
+                      :title="order.intake_at ? formatConfirmedFull(order.intake_at) : ''"
+                    >
+                      <template v-if="order.intake_at">
+                        <span class="confirmed-time">{{ formatClockTime(order.intake_at) }}</span>
+                        <span v-if="!isSameLocalDay(order.intake_at, order.created_at)" class="confirmed-date">
+                          {{ formatConfirmedDate(order.intake_at) }}
+                        </span>
+                      </template>
+                      <span v-else-if="order.status === 'pending_dropoff'" class="confirmed-waiting">Waiting</span>
+                      <span v-else class="confirmed-waiting">—</span>
                     </td>
 
                     <!-- Email -->
@@ -282,7 +299,7 @@
 
                 <!-- Empty State -->
                 <tr v-if="displayedOrders.length === 0">
-                  <td colspan="9" class="empty-table-cell">
+                  <td colspan="10" class="empty-table-cell">
                     <div class="empty-table-content">
                       <p class="empty-title">No customer orders found</p>
                       <span class="empty-subtitle">
@@ -527,6 +544,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';
 import { FONT_OPTIONS } from '../store/engravingStore.js';
 import { getCanonicalStore } from '../utils/storeResolver.js';
+import { formatClockTime, toLocalDateKey } from '../utils/formatters.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -814,6 +832,24 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('storage', handleStorageUpdate);
 });
+
+// Confirmed (intake verified) timestamp helpers — always rendered in the device's local time
+function isSameLocalDay(a, b) {
+  if (!a || !b) return true;
+  return toLocalDateKey(a) === toLocalDateKey(b);
+}
+
+function formatConfirmedDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(d);
+}
+
+function formatConfirmedFull(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return `Confirmed ${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(d)}, ${formatClockTime(d)}`;
+}
 
 function formatTicketId(rowOrOrder) {
   if (!rowOrOrder) return '-';
@@ -1461,12 +1497,34 @@ async function confirmDelete() {
 .col-no { width: 50px; }
 .col-name { min-width: 160px; }
 .col-id { width: 110px; }
+.col-confirmed { width: 110px; }
 .col-email { min-width: 190px; }
 .col-wa { min-width: 150px; }
 .col-stanley { min-width: 150px; }
 .col-position { min-width: 120px; }
 .col-custom { min-width: 180px; }
 .col-action { width: 120px; }
+
+.cell-confirmed {
+  white-space: nowrap;
+}
+
+.confirmed-time {
+  display: block;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.confirmed-date {
+  display: block;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.confirmed-waiting {
+  font-size: 13px;
+  opacity: 0.5;
+}
 
 .id-tag {
   font-family: inherit;

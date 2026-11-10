@@ -195,6 +195,7 @@
 </template>
 
 <script setup>
+import { formatClockTime } from '../utils/formatters.js';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import CTAButton from '../components/CTAButton.vue';
@@ -273,18 +274,8 @@ const maskedPhone = computed(() => {
 });
 
 const displayBookingTime = computed(() => {
-  if (order.value?.booking_time) return order.value.booking_time;
-  if (order.value?.created_at) {
-    try {
-      const d = new Date(order.value.created_at);
-      if (!isNaN(d.getTime())) {
-        const hours = String(d.getHours()).padStart(2, '0');
-        const minutes = String(d.getMinutes()).padStart(2, '0');
-        return `${hours}:${minutes}`;
-      }
-    } catch (e) {}
-  }
-  return '-';
+  // Format from the timestamp on this device; server-side booking_time used to be rendered in UTC
+  return formatClockTime(order.value?.created_at) || order.value?.booking_time || '-';
 });
 
 // Orders ahead in this order's own store, computed by the server

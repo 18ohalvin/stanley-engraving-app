@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { getStoredOrders, saveStoredOrders, fetchServerOrders, getBroadcastChannel, broadcastSyncMessage } from '../utils/storage.js';
 import { logEngravingAnalytics, sendWhatsAppNotification } from '../utils/analyticsService.js';
-import { formatSystemQueueNumber } from '../utils/formatters.js';
+import { formatSystemQueueNumber, toLocalDateKey } from '../utils/formatters.js';
 import { isSameStore, getCanonicalStore } from '../utils/storeResolver.js';
 
 // Clean empty starting state for production deployment
@@ -518,23 +518,8 @@ export const useQueueStore = defineStore('queue', {
     getNextSystemQueueNumber(targetStoreId = null) {
       const storeId = targetStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
       
-      const getYYYYMMDD = (dateInput) => {
-        if (!dateInput) return new Date().toISOString().split('T')[0];
-        if (typeof dateInput === 'string') {
-          const match = dateInput.match(/^\d{4}-\d{2}-\d{2}/);
-          if (match) return match[0];
-        }
-        try {
-          const d = new Date(dateInput);
-          if (!isNaN(d.getTime())) {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-          }
-        } catch (e) {}
-        return new Date().toISOString().split('T')[0];
-      };
+      // Local business day of this station device (not the UTC day)
+      const getYYYYMMDD = (dateInput) => toLocalDateKey(dateInput || new Date());
 
       const todayStr = getYYYYMMDD(new Date());
 

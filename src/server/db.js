@@ -1,3 +1,4 @@
+import { formatClockTime, localDateKey, utcRangeForLocalDay, getStoreTimeZone } from './time.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -331,32 +332,17 @@ export async function isSameStore(storeA, storeB) {
 }
 
 export async function getNextQueueNumberFromDb(storeId, dateStr = null) {
-  const getYYYYMMDD = (dateInput) => {
-    if (!dateInput) return new Date().toISOString().split('T')[0];
-    if (typeof dateInput === 'string') {
-      const match = dateInput.match(/^\d{4}-\d{2}-\d{2}/);
-      if (match) return match[0];
-    }
-    try {
-      const d = new Date(dateInput);
-      if (!isNaN(d.getTime())) {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      }
-    } catch (e) {}
-    return new Date().toISOString().split('T')[0];
-  };
-
-  const dateVal = getYYYYMMDD(dateStr);
+  // Queue numbers restart every local business day of the store (not the UTC day)
+  const timeZone = getStoreTimeZone(storeId);
+  const dateVal = localDateKey(dateStr, timeZone);
+  const [dayStart, dayEnd] = utcRangeForLocalDay(dateVal, timeZone);
 
   const rows = await dbAdapter.query(`
     SELECT system_queue_number, short_code, store_id, store_code, store_name, created_at
     FROM orders
-    WHERE created_at LIKE ?
+    WHERE created_at >= ? AND created_at < ?
       AND status IN ('in_queue', 'engraving_in_progress', 'ready_for_pickup')
-  `, [`${dateVal}%`]);
+  `, [dayStart, dayEnd]);
 
   let highest = 0;
   for (const r of rows) {
@@ -443,7 +429,7 @@ export async function getAllOrdersFromDb(storeId) {
 
   return rows.map(r => ({
     ...r,
-    booking_time: r.booking_time || (r.created_at ? new Date(r.created_at).toTimeString().slice(0, 5) : ''),
+    booking_time: r.booking_time || formatClockTime(r.created_at, getStoreTimeZone(r.store_id, r.store_code, r.store_name)),
     items: r.items_json ? (typeof r.items_json === 'string' ? JSON.parse(r.items_json) : r.items_json) : [],
     durationSeconds: r.duration_seconds
   }));
@@ -624,7 +610,7 @@ export async function getOrderByIdFromDb(idOrCode, storeId) {
 
   return {
     ...row,
-    booking_time: row.booking_time || (row.created_at ? new Date(row.created_at).toTimeString().slice(0, 5) : ''),
+    booking_time: row.booking_time || formatClockTime(row.created_at, getStoreTimeZone(row.store_id, row.store_code, row.store_name)),
     items: row.items_json ? (typeof row.items_json === 'string' ? JSON.parse(row.items_json) : row.items_json) : [],
     durationSeconds: row.duration_seconds
   };
