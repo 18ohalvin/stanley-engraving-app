@@ -39,12 +39,12 @@ export function setStorePhoneResolver(resolver) {
   storePhoneResolver = resolver;
 }
 
-export function normalizePhoneDigits(phone, defaultCountryCode = '62') {
+export function normalizePhoneDigits(phone, defaultCountryCode = '65') {
   if (!phone) return '';
   const raw = String(phone).trim();
   if (!raw) return '';
 
-  const cleanDefaultCode = String(defaultCountryCode || '62').replace(/\D/g, '') || '62';
+  const cleanDefaultCode = String(defaultCountryCode || '65').replace(/\D/g, '') || '65';
 
   // If raw string starts with '+', keep the explicit international country code
   if (raw.startsWith('+')) {
@@ -70,7 +70,7 @@ export function normalizePhoneDigits(phone, defaultCountryCode = '62') {
     digits = '62' + digits.slice(3);
   }
 
-  // 3. Handle Indonesian mobile numbers starting directly with '8' (e.g. 8176530000, 81277208270)
+  // 3. Mobile numbers typed without a country code but starting with '8' (e.g. 8176530000)
   if (digits.startsWith('8') && digits.length >= 9 && digits.length <= 13) {
     digits = (cleanDefaultCode === '65' ? '65' : '62') + digits;
   }
@@ -105,7 +105,7 @@ export function arePhonesMatching(phoneA, phoneB) {
 /**
  * Format any international or local phone number to WhatsApp JID (@s.whatsapp.net)
  */
-export function formatToWhatsAppJid(phone, defaultCountryCode = '62') {
+export function formatToWhatsAppJid(phone, defaultCountryCode = '65') {
   if (!phone) return null;
   let digits = normalizePhoneDigits(phone, defaultCountryCode);
   if (!digits || digits.length < 8) return null;
@@ -402,12 +402,8 @@ export async function sendStoreWhatsAppMessage(storeId, recipientPhone, messageT
     };
   }
 
-  // Infer default country code from store id or recipient phone
-  let defaultCountry = '62';
-  const phoneStr = String(recipientPhone || '').trim();
-  if (String(storeId).toUpperCase().includes('SG') || phoneStr.startsWith('+65') || phoneStr.startsWith('65')) {
-    defaultCountry = '65';
-  }
+  // Singapore region: numbers without an explicit country code are Singaporean
+  const defaultCountry = '65';
 
   const jid = formatToWhatsAppJid(recipientPhone, defaultCountry);
 

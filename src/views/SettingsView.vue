@@ -1071,7 +1071,7 @@
                   v-model="staffForm.whatsapp" 
                   type="tel" 
                   class="product-name-underline-input" 
-                  placeholder="+62 812-xxxx-xxxx" 
+                  placeholder="+65 8xxx xxxx" 
                 />
               </div>
 
@@ -1616,7 +1616,7 @@
                 required 
               />
               <span class="param-helper-text" style="display:block; margin-top: 6px; font-size: 11px; color: #6B7280;">
-                Include country code (e.g. +65 for Singapore, +62 for Indonesia)
+                Include country code (e.g. +65 for Singapore)
               </span>
             </div>
 
@@ -1985,7 +1985,7 @@ const currentStoreWhatsappPhone = computed(() => {
 
 const currentStoreProfiles = computed(() => {
   const store = currentStore.value;
-  const key = store?.id || store?.code || '004';
+  const key = store?.id || store?.code || 'default';
   const storeData = whatsappSettings.value[key] || whatsappSettings.value['default'];
   if (storeData && Array.isArray(storeData.profiles)) {
     return storeData.profiles;
@@ -2087,7 +2087,7 @@ function closeNotificationModal() {
 }
 
 async function saveNotificationProfileForm() {
-  const key = currentStore.value?.id || currentStore.value?.code || '004';
+  const key = currentStore.value?.id || currentStore.value?.code || 'default';
   if (!whatsappSettings.value[key]) {
     whatsappSettings.value[key] = {
       phone: currentStoreWhatsappPhone.value,
@@ -2525,7 +2525,7 @@ const DEVELOPER_ACCOUNT = {
   idCode: 'devsosco01',
   name: 'Developer Access',
   username: 'devsosco01',
-  whatsapp: '+62 812-3456-7890',
+  whatsapp: '',
   role: 'Super Admin',
   store: 'HQ Central',
   status: 'Active',

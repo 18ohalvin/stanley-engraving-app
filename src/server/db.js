@@ -98,7 +98,7 @@ async function seedDefaultMasterData() {
       'devsosco01',
       'Developer Access',
       'devsosco01',
-      '+62 812-3456-7890',
+      '',
       bcrypt.hashSync(seedPin, 10),
       'Super Admin',
       'HQ Central',
@@ -117,11 +117,9 @@ async function seedDefaultMasterData() {
   const storeCheck = await dbAdapter.get(`SELECT count(*) as count FROM stores`);
   const storeCount = Number(storeCheck?.count || storeCheck?.COUNT || 0);
   if (storeCount === 0) {
+    // Fresh databases start with the Singapore flagship store; add others from Store List
     const defaultStores = [
-      { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', city: 'Jakarta Selatan', address: 'Pondok Indah Mall 5, Lt 2, Jakarta', phone: '+62 817-5566-7788', total_machines: 2, active_machines: 2, status: 'Online' },
-      { id: '002', code: '002', name: 'Stanley Grand Indonesia', city: 'Jakarta Pusat', address: 'Grand Indonesia East Mall, Lt 1, Jakarta', phone: '+62 812-9988-7766', total_machines: 2, active_machines: 2, status: 'Online' },
-      { id: '003', code: '003', name: 'Stanley Senayan City', city: 'Jakarta Selatan', address: 'Senayan City Mall, Lt Ground, Jakarta', phone: '+62 813-1122-3344', total_machines: 1, active_machines: 1, status: 'Online' },
-      { id: 'SG001', code: 'SG001', name: 'Stanley Singapore Store', city: 'Singapore', address: 'Orchard Road #01-12, Singapore', phone: '+65 8123 4567', total_machines: 1, active_machines: 1, status: 'Online' }
+      { id: 'SG001', code: 'SG001', name: 'Stanley1913 Jewel', city: 'Singapore', address: 'Jewel Changi Airport, Singapore', phone: '', total_machines: 2, active_machines: 2, status: 'Online' }
     ];
 
     const now = new Date().toISOString();
@@ -237,10 +235,7 @@ async function seedDefaultMasterData() {
 // ORDERS QUERIES (Multi-Tenancy Data Isolated)
 // ----------------------------------------------------
 const KNOWN_STORES = [
-  { id: '001', code: '001', name: 'Stanley Pondok Indah Mall', aliases: ['001', 'eg-021', 'eg021', 'stanley pondok indah mall', 'stanley pondok indah mall 5', 'pondok indah mall', 'pim'] },
-  { id: '002', code: '002', name: 'Stanley Grand Indonesia', aliases: ['002', 'eg-022', 'eg022', 'stanley grand indonesia', 'grand indonesia', 'gi'] },
-  { id: '003', code: '003', name: 'Stanley Senayan City', aliases: ['003', 'eg-023', 'eg023', 'stanley senayan city', 'senayan city'] },
-  { id: 'SG001', code: 'SG001', name: 'Stanley Singapore Store', aliases: ['sg001', 'sg-001', 'singapore', 'singapore store'] }
+  { id: 'SG001', code: 'SG001', name: 'Stanley1913 Jewel', aliases: ['sg001', 'sg-001', 'jewel', 'stanley1913 jewel', 'stanley1913jewel'] }
 ];
 
 // In-memory cache of the stores table. getCanonicalStore() runs on almost every
@@ -310,7 +305,7 @@ export async function getCanonicalStore(inputStr) {
           id: store.id,
           code: store.code || store.id,
           name: store.name,
-          phone: store.phone || '+62 817-5566-7788',
+          phone: store.phone || '',
           aliases: [sId, sCode, sName, sIdClean, sCodeClean, sNameClean]
         };
       }
@@ -426,6 +421,31 @@ export async function getActiveQueueOrderIdsForStore(storeId) {
       return numA - numB;
     })
     .map(r => r.order_id);
+}
+
+export async function orderIdExistsInDb(orderId) {
+  if (!orderId) return false;
+  const row = await dbAdapter.get(`SELECT order_id FROM orders WHERE order_id = ?`, [orderId]);
+  return Boolean(row);
+}
+
+/**
+ * Is this intake code already held by an open order (not yet completed/cancelled)
+ * of the given store? Intake codes only need to be unique within one store.
+ */
+export async function isIntakeCodeInUseInStore(intakeCode, storeId) {
+  if (!intakeCode || !storeId) return false;
+  const cleanAliases = await getStoreAliasList(storeId);
+  if (cleanAliases.length === 0) return false;
+  const placeholders = cleanAliases.map(() => '?').join(',');
+  const row = await dbAdapter.get(`
+    SELECT order_id FROM orders
+    WHERE intake_code = ?
+      AND status IN ('pending_dropoff', 'in_queue', 'engraving_in_progress')
+      AND (store_id IN (${placeholders}) OR store_code IN (${placeholders}) OR store_name IN (${placeholders}))
+    LIMIT 1
+  `, [String(intakeCode).toUpperCase(), ...cleanAliases, ...cleanAliases, ...cleanAliases]);
+  return Boolean(row);
 }
 
 export async function getAllOrdersFromDb(storeId) {
@@ -611,8 +631,24 @@ export async function getOrderByIdFromDb(idOrCode, storeId) {
     ORDER BY created_at DESC LIMIT 10
   `;
   const params = [cleanUpper, `%${cleanUpper}`, cleanUpper, subCode, cleanUpper, subCode, cleanUpper];
-  
-  const rows = await dbAdapter.query(sql, params);
+
+  // Codes are only unique per store: when a store is given, search inside that store
+  // first so another store's (or an older) order with the same code never shadows it.
+  let rows = [];
+  if (storeId && storeId !== '*' && storeId !== 'HQ Central') {
+    const storeAliases = await getStoreAliasList(storeId);
+    if (storeAliases.length > 0) {
+      const ph = storeAliases.map(() => '?').join(',');
+      rows = await dbAdapter.query(`
+        SELECT * FROM (${sql.replace(/ORDER BY created_at DESC LIMIT 10\s*$/, '')}) scoped
+        WHERE store_id IN (${ph}) OR store_code IN (${ph}) OR store_name IN (${ph})
+        ORDER BY created_at DESC LIMIT 10
+      `, [...params, ...storeAliases, ...storeAliases, ...storeAliases]);
+    }
+  }
+  if (!rows || rows.length === 0) {
+    rows = await dbAdapter.query(sql, params);
+  }
   if (!rows || rows.length === 0) return null;
   
   // Prioritize exact order_id match if available
@@ -675,7 +711,7 @@ export async function resetAllDatabaseExceptStaff() {
       'devsosco01',
       'Developer Access',
       'devsosco01',
-      '+62 812-3456-7890',
+      '',
       bcrypt.hashSync(seedPin, 10),
       'Super Admin',
       'HQ Central',
@@ -901,7 +937,7 @@ export async function saveStoreInDb(store) {
       storeId,
       storeCode,
       storeName,
-      store.city || 'Jakarta',
+      store.city || 'Singapore',
       store.address || '',
       store.phone || '',
       totalMachines,

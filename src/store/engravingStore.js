@@ -136,7 +136,7 @@ export const useEngravingStore = defineStore('engraving', {
       // Customer metadata
       customer: {
         name: '',
-        countryCode: '+62',
+        countryCode: '+65',
         phone: '',
         email: ''
       }
@@ -321,7 +321,11 @@ export const useEngravingStore = defineStore('engraving', {
       const bookingTime = formatBookingTime(now);
       const fullPhone = formatPhoneNumber(this.customer.countryCode, this.customer.phone);
 
-      const targetStoreId = this.selectedStoreId || 'EG-021';
+      // Every order belongs to the store whose QR/link opened the form (by store code)
+      const targetStoreId = this.selectedStoreId;
+      if (!targetStoreId) {
+        throw new Error('No store selected. Please scan the QR code at the store to start your order.');
+      }
       const canonical = getCanonicalStore(targetStoreId);
       const storeIdVal = canonical ? canonical.id : targetStoreId;
       const storeCodeVal = canonical ? canonical.code : targetStoreId;
@@ -360,24 +364,27 @@ export const useEngravingStore = defineStore('engraving', {
         }))
       };
 
-      // Save locally in Pinia & localStorage
-      queueStore.addOrder(orderPayload);
-
-      // Direct HTTP POST sync to backend SQLite database
-      try {
-        if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.startsWith('http')) {
-          const endpoint = new URL('/api/orders/public', window.location.origin).toString();
-          await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(orderPayload)
-          });
+      // Persist on the server first: it validates the store code and may assign a
+      // different intake code / order id if the drawn one is already taken.
+      let savedOrder = orderPayload;
+      const inBrowser = typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.startsWith('http');
+      if (inBrowser) {
+        const endpoint = new URL('/api/orders/public', window.location.origin).toString();
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderPayload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.order) {
+          throw new Error(data.error || 'Could not submit your order. Please try again.');
         }
-      } catch (e) {
-        // Ignore test runner or network sync errors
+        savedOrder = { ...orderPayload, ...data.order };
       }
 
-      return orderPayload;
+      // Keep a local copy so the ticket page opens instantly
+      queueStore.addOrder(savedOrder);
+      return savedOrder;
     },
 
     clearAll() {
@@ -385,7 +392,7 @@ export const useEngravingStore = defineStore('engraving', {
       this.items = [];
       this.customer = {
         name: '',
-        countryCode: '+62',
+        countryCode: '+65',
         phone: '',
         email: ''
       };

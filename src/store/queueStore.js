@@ -13,7 +13,7 @@ function isStationControllerContext() {
   // Public customer-facing routes (landing, engraving steps, tickets) never act as station controllers
   if (
     path === '/' ||
-    /^\/(queue|ticket|q|track|engrave)(\/|$)/.test(path) ||
+    /^\/(queue|ticket|q|track|engrave|store-not-found)(\/|$)/.test(path) ||
     /^\/step-\d/.test(path) ||
     path.includes('customize')
   ) {

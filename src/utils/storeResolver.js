@@ -5,32 +5,11 @@
 
 export const KNOWN_STORES = [
   {
-    id: '001',
-    code: '001',
-    name: 'Stanley Pondok Indah Mall',
-    phone: '+62 817-5566-7788',
-    aliases: ['001', 'eg-021', 'eg021', 'stanley pondok indah mall', 'stanley pondok indah mall 5', 'pondok indah mall', 'pondok indah mall 5', 'pim', 'pim 5']
-  },
-  {
-    id: '002',
-    code: '002',
-    name: 'Stanley Grand Indonesia',
-    phone: '+62 812-9988-7766',
-    aliases: ['002', 'eg-022', 'eg022', 'stanley grand indonesia', 'grand indonesia', 'gi']
-  },
-  {
-    id: '003',
-    code: '003',
-    name: 'Stanley Senayan City',
-    phone: '+62 813-4455-6677',
-    aliases: ['003', 'eg-023', 'eg023', 'stanley senayan city', 'senayan city', 'sencity']
-  },
-  {
     id: 'SG001',
     code: 'SG001',
-    name: 'Stanley Singapore Store',
-    phone: '+65 8123 4567',
-    aliases: ['sg001', 'sg-001', 'singapore', 'singapore store']
+    name: 'Stanley1913 Jewel',
+    phone: '',
+    aliases: ['sg001', 'sg-001', 'jewel', 'stanley1913 jewel', 'stanley1913jewel']
   }
 ];
 
@@ -78,6 +57,35 @@ export function loadStoreDirectory(force = false) {
     })
     .catch(() => readCachedDirectory());
   return storeDirectoryPromise;
+}
+
+/**
+ * Strict lookup in the live directory only (no hardcoded fallback, no echo of
+ * the input). Matches a store by code, id or name. Returns null when unknown.
+ */
+export function findDirectoryStore(slug) {
+  if (!slug) return null;
+  const lower = String(slug).trim().toLowerCase();
+  const clean = lower.replace(/[^a-z0-9]/g, '');
+  if (!lower) return null;
+  for (const store of readCachedDirectory()) {
+    if (!store) continue;
+    const values = [store.code, store.id, store.name].map(v => String(v || '').trim().toLowerCase());
+    if (values.some(v => v && (v === lower || (clean && v.replace(/[^a-z0-9]/g, '') === clean)))) {
+      return { id: store.id, code: store.code || store.id, name: store.name || store.code || store.id };
+    }
+  }
+  // Legacy aliases on already-printed QR codes (e.g. EG-021 -> 001), only if that code is a live store
+  const legacy = KNOWN_STORES.find(k => k.aliases.includes(lower) || (clean && k.aliases.includes(clean)));
+  if (legacy) {
+    const live = readCachedDirectory().find(st => st && String(st.code || st.id || '').toLowerCase() === legacy.code.toLowerCase());
+    if (live) return { id: live.id, code: live.code || live.id, name: live.name || live.code };
+  }
+  return null;
+}
+
+export function hasStoreDirectory() {
+  return readCachedDirectory().length > 0;
 }
 
 export function getCanonicalStore(inputStr) {

@@ -33,7 +33,9 @@ import {
   getActiveQueueOrderIdsForStore,
   isSameStore,
   resolveStoreCodeFromDb,
-  getCanonicalStore
+  getCanonicalStore,
+  orderIdExistsInDb,
+  isIntakeCodeInUseInStore
 } from './src/server/db.js';
 
 import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
@@ -139,6 +141,14 @@ app.get('/api/events', (req, res) => {
   handleSseConnection(req, res).catch(() => {});
 });
 
+// Same alphabet as the customer app (no confusable 0/1/I/O)
+const INTAKE_CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+function generateServerIntakeCode() {
+  let code = '';
+  for (let i = 0; i < 3; i++) code += INTAKE_CODE_CHARS[Math.floor(Math.random() * INTAKE_CODE_CHARS.length)];
+  return code;
+}
+
 function notifyOrderChange(order, options) {
   broadcastOrderChange(order, options).catch(err => console.warn('SSE order broadcast failed:', err.message));
 }
@@ -182,18 +192,43 @@ app.post('/api/orders/public', publicOrderLimiter, async (req, res) => {
     if (!payload || !payload.order_id) {
       return res.status(400).json({ error: 'Order payload must include order_id' });
     }
-    // Create-only: a public client can never modify an existing order or skip the queue
-    const existing = await getOrderByIdFromDb(payload.order_id);
-    if (existing && existing.order_id === payload.order_id) {
-      return res.json({ success: true, order: existing });
-    }
-    // Stamp the order with the store's canonical code/id/name from the database
+    // Every order must belong to a real store, identified by its CODE
     const requestedStore = payload.store_code || payload.store_id || payload.store_name;
     const storeCode = await resolveStoreCodeFromDb(requestedStore);
-    const storeInfo = storeCode ? await getCanonicalStore(storeCode) : null;
+    if (!storeCode || storeCode === '*' || storeCode === 'HQ Central') {
+      return res.status(400).json({ error: `Unknown store "${requestedStore || ''}". Please scan the QR code at the store.` });
+    }
+    const storeInfo = await getCanonicalStore(storeCode);
+
+    // Create-only: a public client can never modify an existing order or skip the queue.
+    // A retry of the very same submission returns the order it already created.
+    const existing = await getOrderByIdFromDb(payload.order_id);
+    if (existing && existing.order_id === payload.order_id) {
+      const sameSubmission = existing.store_code === storeInfo.code &&
+        String(existing.phone || '') === String(payload.phone || '') &&
+        String(existing.customer_name || '') === String(payload.customer_name || '');
+      if (sameSubmission) return res.json({ success: true, order: existing });
+    }
+
+    // Intake codes are unique among the store's open orders, and order ids are
+    // globally unique (two stores could otherwise draw the same code on the same day).
+    let intakeCode = String(payload.intake_code || '').toUpperCase() || generateServerIntakeCode();
+    let orderId = String(payload.order_id);
+    const datePrefix = orderId.includes('-') ? orderId.slice(0, orderId.lastIndexOf('-')) : '';
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const taken = (await orderIdExistsInDb(orderId)) || (await isIntakeCodeInUseInStore(intakeCode, storeInfo.code));
+      if (!taken) break;
+      intakeCode = generateServerIntakeCode();
+      orderId = datePrefix ? `${datePrefix}-${intakeCode}` : `${orderId}-${intakeCode}`;
+    }
+
     const newOrder = {
       ...payload,
-      ...(storeInfo ? { store_id: storeInfo.id, store_code: storeInfo.code, store_name: storeInfo.name } : {}),
+      order_id: orderId,
+      intake_code: intakeCode,
+      store_id: storeInfo.id,
+      store_code: storeInfo.code,
+      store_name: storeInfo.name,
       status: 'pending_dropoff',
       system_queue_number: null,
       short_code: null,

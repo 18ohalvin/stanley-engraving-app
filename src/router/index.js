@@ -12,6 +12,9 @@ const CustomerDashboardView = () => import('../views/CustomerDashboardView.vue')
 const SuperAdminDashboardView = () => import('../views/SuperAdminDashboardView.vue');
 const StoreListView = () => import('../views/StoreListView.vue');
 const SettingsView = () => import('../views/SettingsView.vue');
+const StoreNotFoundView = () => import('../views/StoreNotFoundView.vue');
+import { loadStoreDirectory, findDirectoryStore, hasStoreDirectory } from '../utils/storeResolver.js';
+import { useEngravingStore } from '../store/engravingStore.js';
 
 const routes = [
   {
@@ -135,6 +138,12 @@ const routes = [
     meta: { fullWidth: true, requiresAuth: true, requiresSuperAdmin: true }
   },
   {
+    path: '/store-not-found',
+    name: 'store-not-found',
+    component: StoreNotFoundView,
+    meta: { isMobileFlow: true }
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/'
   }
@@ -149,31 +158,99 @@ const router = createRouter({
 });
 
 // Navigation Guard: Enforce PIN Authentication & Role Access
-router.beforeEach((to, from, next) => {
+// Customer form routes without a store slug -> their /engrave/:storeId equivalent
+const LEGACY_FORM_ROUTES = {
+  'landing': 'engrave-store',
+  'step-1': 'engrave-store-step-1',
+  'step-2': 'engrave-store-step-2',
+  'step-3': 'engrave-store-step-3',
+  'step-4': 'engrave-store-step-4',
+  'step-5': 'engrave-store-step-5'
+};
+
+// Staff pages that are scoped to one store via /<page>/:storeId
+const STORE_SCOPED_STAFF_PAGES = {
+  'engraver-dashboard': '/engraver',
+  'customer-dashboard': '/dashboard'
+};
+
+/** Resolve a slug to its store CODE using the live directory (null if unknown). */
+async function resolveStoreCode(slug) {
+  if (!slug) return null;
+  await loadStoreDirectory();
+  const store = findDirectoryStore(slug);
+  if (store) return store.code;
+  // Directory unavailable (offline / API down): don't block, keep the slug as-is
+  return hasStoreDirectory() ? null : String(slug);
+}
+
+router.beforeEach(async (to) => {
   const isAuthenticated = typeof localStorage !== 'undefined' && localStorage.getItem('stanley_staff_authenticated') === 'true';
   const role = typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_role') : null;
 
   // Protect staff and admin pages
   if (to.meta.requiresAuth) {
     if (!isAuthenticated) {
-      return next({ path: '/login', query: { redirect: to.fullPath } });
+      return { path: '/login', query: { redirect: to.fullPath } };
     }
 
     // Enforce Super Admin role on admin management pages
     if (to.meta.requiresSuperAdmin && role !== 'super_admin') {
-      return next({ path: '/engraver' });
+      return { path: '/engraver' };
     }
   }
 
   // Redirect logged in staff away from /login page to their default dashboard
   if (to.path === '/login' && isAuthenticated) {
-    if (role === 'super_admin') {
-      return next('/admin');
-    }
-    return next('/engraver');
+    return role === 'super_admin' ? '/admin' : '/engraver';
   }
 
-  next();
+  // 1. Customer form: the slug must be a real store, written as its CODE
+  if (typeof to.name === 'string' && to.name.startsWith('engrave-store')) {
+    const slug = String(to.params.storeId || '');
+    const code = await resolveStoreCode(slug);
+    if (!code) {
+      return { name: 'store-not-found', query: { store: slug } };
+    }
+    if (code !== slug) {
+      return { name: to.name, params: { ...to.params, storeId: code }, query: to.query, hash: to.hash, replace: true };
+    }
+    return true;
+  }
+
+  // 2. Form opened without a store slug: continue in the store already chosen, else ask for the QR
+  if (LEGACY_FORM_ROUTES[to.name]) {
+    let chosen = '';
+    try { chosen = useEngravingStore().selectedStoreId; } catch (e) {}
+    const code = chosen ? await resolveStoreCode(chosen) : null;
+    if (code) {
+      return { name: LEGACY_FORM_ROUTES[to.name], params: { storeId: code }, query: to.query, replace: true };
+    }
+    return { name: 'store-not-found' };
+  }
+
+  // 3. Store staff only ever work in their own store: /engraver/<own code>, /dashboard/<own code>
+  const staffBase = STORE_SCOPED_STAFF_PAGES[to.name];
+  if (staffBase && isAuthenticated) {
+    const requested = to.params.storeId ? String(to.params.storeId) : '';
+    if (role !== 'super_admin') {
+      const ownRaw = localStorage.getItem('stanley_user_store') || '';
+      const ownCode = (await resolveStoreCode(ownRaw)) || ownRaw;
+      if (ownCode && ownCode !== ownRaw) {
+        try { localStorage.setItem('stanley_user_store', ownCode); } catch (e) {}
+      }
+      if (ownCode && requested !== ownCode) {
+        return { path: `${staffBase}/${encodeURIComponent(ownCode)}`, query: to.query, replace: true };
+      }
+    } else if (requested) {
+      const code = await resolveStoreCode(requested);
+      if (code && code !== requested) {
+        return { path: `${staffBase}/${encodeURIComponent(code)}`, query: to.query, replace: true };
+      }
+    }
+  }
+
+  return true;
 });
 
 export default router;

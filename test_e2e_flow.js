@@ -130,8 +130,13 @@ assert(engravingStore.customer.phone === '81234567890', 'Customer phone set');
 assert(engravingStore.customer.email === 'alvin@example.com', 'Customer email set');
 assert(engravingStore.isCustomerValid === true, 'Customer validity check passed');
 
-// Submit Order
+// Submit Order: an order can only be created for a store (opened via its QR / store code)
+let noStoreError = null;
+try { await engravingStore.submitOrder(); } catch (e) { noStoreError = e; }
+assert(noStoreError !== null, 'Submitting without a store code is rejected');
+engravingStore.setStoreId('SG001');
 const submittedOrder = await engravingStore.submitOrder();
+assert(submittedOrder.store_code === 'SG001', 'Order is bound to the store code it was opened from');
 assert(Boolean(submittedOrder.order_id), 'Order generated with unique order_id');
 assert(submittedOrder.status === 'pending_dropoff', 'Order starts in pending_dropoff status');
 assert(submittedOrder.items.length === 2, 'Order contains both customized items');
@@ -567,7 +572,7 @@ await clearAllOrdersInDb();
 
 // 4. SQLite Store Network Storage & Retrieval
 const initialStores = await getAllStoresFromDb();
-assert(initialStores.length >= 4, 'Default network stores seeded in SQLite database');
+assert(initialStores.some(st => st.code === 'SG001'), 'Default SG001 store seeded in SQLite database');
 const newStoreDb = {
   id: 'EG-TEST',
   code: 'EG-TEST',
@@ -787,20 +792,25 @@ assert(crossLookup.success === false, 'Cross-store lookup BSP on EG-021 is rejec
 assert(crossLookup.message.includes('(SG001)'), 'Cross-store lookup error message explicitly mentions target store SG001');
 
 console.log('\n--- 11. Testing Store Phone Resolution & Queue Ticket WhatsApp Support Link ---');
-const { getStorePhone } = await import('./src/utils/storeResolver.js');
+const { getStorePhone, setStoreDirectory } = await import('./src/utils/storeResolver.js');
 
-const phonePim = getStorePhone('001');
-assert(phonePim === '+62 817-5566-7788', 'Pondok Indah Mall 001 resolves phone +62 817-5566-7788');
+// Every device loads the live store directory (from /api/network/stores); simulate it here
+setStoreDirectory([
+  { id: 'SG001', code: 'SG001', name: 'Stanley1913 Jewel', phone: '+65 6123 4567' },
+  { id: 'SG002', code: 'SG002', name: 'Stanley1913 Orchard', phone: '+65 6234 5678' }
+]);
 
-const phoneGi = getStorePhone('002');
-assert(phoneGi === '+62 812-9988-7766', 'Grand Indonesia 002 resolves phone +62 812-9988-7766');
+const phoneJewel = getStorePhone('SG001');
+assert(phoneJewel === '+65 6123 4567', 'Jewel SG001 resolves phone from the live store directory');
 
-const phoneSg = getStorePhone('SG001');
-assert(phoneSg === '+65 8123 4567', 'Singapore Store SG001 resolves phone +65 8123 4567');
+const phoneOrchard = getStorePhone('Stanley1913 Orchard');
+assert(phoneOrchard === '+65 6234 5678', 'Orchard resolves phone when referenced by store name');
 
-let cleanDigits = phonePim.replace(/\D/g, '');
-if (cleanDigits.startsWith('0')) cleanDigits = '62' + cleanDigits.slice(1);
-assert(cleanDigits === '6281755667788', 'Phone digits cleaned for WhatsApp wa.me link');
+const phoneUnknown = getStorePhone('SG999');
+assert(phoneUnknown === '', 'Unknown store has no phone (no hardcoded fallback number)');
+
+const cleanDigits = phoneJewel.replace(/\D/g, '');
+assert(cleanDigits === '6561234567', 'Phone digits cleaned for WhatsApp wa.me link');
 
 console.log('\n--- 12. Testing Multi-Customer Concurrent Ticket Isolation & No Swapping ---');
 // Create Customer Alice
@@ -869,31 +879,31 @@ assert(remappedOrder[0].name === 'Product First in DB', 'After Settings drag-reo
 assert(remappedOrder[1].name === 'Product Second in DB', 'After Settings drag-reorder, Step 1 #2 updates to Product Second in DB');
 
 console.log('\n--- 14. Testing Independent Store Form Link Unique Intake Code Recognition ---');
-// 1. Submit order for Store 001 (Stanley Pondok Indah Mall) via store link alias
+// 1. Submit order for Store SG002 (Stanley1913 Orchard) via its store link
 const orderPimStore = {
   order_id: '130826-P9K',
   intake_code: 'P9K',
   short_code: null,
   system_queue_number: null,
   customer_name: 'David Beckham',
-  phone: '+62817000111',
+  phone: '+6581700011',
   email: 'david@example.com',
-  store_id: '001',
-  store_code: '001',
-  store_name: 'Stanley Pondok Indah Mall',
+  store_id: 'SG002',
+  store_code: 'SG002',
+  store_name: 'Stanley1913 Orchard',
   status: 'pending_dropoff',
   items: [{ text: 'BECKHAM', model: 'IceFlow', size: '30 Oz' }]
 };
 queueStore.addOrder(orderPimStore);
 await upsertSingleOrderInDb(orderPimStore);
 
-// Engraver at Pondok Indah Mall (using alias 'EG-021' or 'Pondok Indah Mall')
-const lookupResPim = await queueStore.lookupIntakeOrder('P9K', 'EG-021');
-assert(lookupResPim.success === true, 'Intake code P9K recognized by admin dashboard at store EG-021');
+// Engraver at Orchard (using its code written differently, or its name)
+const lookupResPim = await queueStore.lookupIntakeOrder('P9K', 'sg-002');
+assert(lookupResPim.success === true, 'Intake code P9K recognized by engraver at store SG002');
 assert(lookupResPim.order.customer_name === 'David Beckham', 'Lookup returns matching customer name David Beckham');
 
 // Engraver using store name 'Stanley Pondok Indah Mall'
-const lookupResPimName = await queueStore.lookupIntakeOrder('P9K', 'Stanley Pondok Indah Mall');
+const lookupResPimName = await queueStore.lookupIntakeOrder('P9K', 'Stanley1913 Orchard');
 assert(lookupResPimName.success === true, 'Intake code P9K recognized when queried by store name');
 
 // 3. Test Singapore Store SG-001 (User reported: queue.stanley1913.sg/engrave/SG-001 -> ticket 310826-3R5 -> engraver/SG-001)

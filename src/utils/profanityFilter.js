@@ -1,9 +1,9 @@
-// Basic profanity filter for English & Indonesian retail environments
+// Basic profanity filter for engraving text (English and Malay, an official language of Singapore)
 const BLOCKLIST = [
   // English common profanities
   'fuck', 'shit', 'bitch', 'asshole', 'cunt', 'dick', 'cock', 'pussy', 'bastard', 'slut', 'whore',
   'fag', 'nigger', 'nigga', 'faggot', 'retard', 'porn', 'sex', 'nude', 'penis', 'vagina', 'boobs', 'tit',
-  // Indonesian common profanities
+  // Malay common profanities (also blocks the same words in Indonesian)
   'anjing', 'babi', 'bangsat', 'kontol', 'memek', 'jembut', 'itil', 'pantek', 'puki', 'pepek',
   'bajingan', 'kampang', 'taek', 'tae', 'asu', 'bodoh', 'tolol', 'goblok', 'idiot', 'lonte', 'perek'
 ];

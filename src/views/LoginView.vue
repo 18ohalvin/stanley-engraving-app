@@ -149,15 +149,18 @@
               Only registered staff accounts and the Developer Master Account can access the staff dashboards. Contact IT Support below if you've lost access.
             </p>
             <div class="support-channel-list">
-              <div class="support-channel-item">
+              <div v-if="SUPPORT_WHATSAPP" class="support-channel-item">
                 <span class="channel-label">WhatsApp IT Support:</span>
-                <button type="button" class="support-wa-btn" @click="contactITSupport">
-                  Chat on WhatsApp (+62 812-3456-7890)
+                <button type="button" class="support-wa-btn" @click="openSupportWhatsApp">
+                  Chat on WhatsApp (+{{ SUPPORT_WHATSAPP }})
                 </button>
               </div>
-              <div class="support-channel-item">
+              <div v-if="SUPPORT_EMAIL" class="support-channel-item">
                 <span class="channel-label">Retail Support Email:</span>
-                <strong>it-support@stanley1913.id</strong>
+                <strong>{{ SUPPORT_EMAIL }}</strong>
+              </div>
+              <div v-if="!SUPPORT_WHATSAPP && !SUPPORT_EMAIL" class="support-channel-item">
+                <span class="channel-label">Please contact your store manager for access.</span>
               </div>
             </div>
           </div>
@@ -199,10 +202,21 @@ const isFormValid = computed(() => {
   return storeId.value.trim().length > 0 && pin.value.trim().length > 0;
 });
 
-function contactITSupport() {
-  const phone = '6281234567890';
+// Support contacts are configured per deployment (VITE_SUPPORT_WHATSAPP digits incl. country code, VITE_SUPPORT_EMAIL)
+const SUPPORT_WHATSAPP = String(import.meta.env.VITE_SUPPORT_WHATSAPP || '').replace(/\D/g, '');
+const SUPPORT_EMAIL = String(import.meta.env.VITE_SUPPORT_EMAIL || '').trim();
+
+function openSupportWhatsApp() {
   const text = encodeURIComponent('Hi Stanley IT Support, I need assistance accessing the Stanley Engraving System.');
-  window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+  window.open(`https://wa.me/${SUPPORT_WHATSAPP}?text=${text}`, '_blank');
+}
+
+function contactITSupport() {
+  if (SUPPORT_WHATSAPP) {
+    openSupportWhatsApp();
+  } else {
+    showSupportModal.value = true;
+  }
 }
 
 async function handleSignIn() {

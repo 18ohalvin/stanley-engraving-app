@@ -407,7 +407,7 @@
                   v-model="newStoreForm.name" 
                   type="text" 
                   class="product-name-underline-input" 
-                  placeholder="e.g. Stanley Pondok Indah Mall 3" 
+                  placeholder="e.g. Stanley1913 Jewel" 
                   required 
                 />
               </div>
@@ -420,7 +420,7 @@
                   v-model="newStoreForm.city" 
                   type="text" 
                   class="product-name-underline-input" 
-                  placeholder="e.g. Jakarta Selatan" 
+                  placeholder="e.g. Singapore" 
                   required 
                 />
               </div>
@@ -447,7 +447,7 @@
                 v-model="newStoreForm.address" 
                 type="text" 
                 class="product-name-underline-input" 
-                placeholder="e.g. Grand Indonesia West Mall, Level 2, Jakarta Pusat" 
+                placeholder="e.g. Jewel Changi Airport, #02-201, Singapore" 
               />
             </div>
 
@@ -457,7 +457,7 @@
                 v-model="newStoreForm.phone" 
                 type="tel" 
                 class="product-name-underline-input" 
-                placeholder="e.g. +62 817-5566-7788" 
+                placeholder="e.g. +65 8123 4567" 
               />
             </div>
 
@@ -611,7 +611,7 @@
                   v-model="editStoreForm.name" 
                   type="text" 
                   class="product-name-underline-input" 
-                  placeholder="e.g. Grand Indonesia" 
+                  placeholder="e.g. Stanley1913 Jewel" 
                   required 
                 />
               </div>
@@ -624,7 +624,7 @@
                   v-model="editStoreForm.city" 
                   type="text" 
                   class="product-name-underline-input" 
-                  placeholder="e.g. Jakarta Pusat" 
+                  placeholder="e.g. Singapore" 
                   required 
                 />
               </div>
@@ -651,7 +651,7 @@
                 v-model="editStoreForm.address" 
                 type="text" 
                 class="product-name-underline-input" 
-                placeholder="e.g. Grand Indonesia West Mall, Level 2, Jakarta Pusat" 
+                placeholder="e.g. Jewel Changi Airport, #02-201, Singapore" 
               />
             </div>
 
@@ -661,7 +661,7 @@
                 v-model="editStoreForm.phone" 
                 type="tel" 
                 class="product-name-underline-input" 
-                placeholder="e.g. +62 817-5566-7788" 
+                placeholder="e.g. +65 8123 4567" 
               />
             </div>
 
@@ -875,7 +875,7 @@ const selectedDetailStore = ref(null);
 const newStoreForm = ref({
   code: '',
   name: '',
-  city: 'Jakarta',
+  city: 'Singapore',
   totalMachines: 1,
   address: '',
   assignedStaffIds: []
@@ -885,7 +885,7 @@ const editStoreForm = ref({
   id: '',
   code: '',
   name: '',
-  city: 'Jakarta',
+  city: 'Singapore',
   totalMachines: 1,
   address: '',
   assignedStaffIds: []
@@ -897,7 +897,7 @@ const DEVELOPER_ACCOUNT = {
   idCode: 'devsosco01',
   name: 'Developer Access',
   username: 'devsosco01',
-  whatsapp: '+62 812-3456-7890',
+  whatsapp: '',
   role: 'Super Admin',
   store: 'HQ Central',
   status: 'Active',
@@ -1259,7 +1259,7 @@ const storeList = computed(() => {
       ...override,
       code: store.code || override.code || store.id || 'STORE',
       name: store.name || override.name || 'Stanley Store',
-      city: store.city || override.city || 'Jakarta',
+      city: store.city || override.city || 'Singapore',
       address: store.address || override.address || '',
       phone: store.phone || override.phone || '',
       status: store.status || override.status || 'Online',
@@ -1288,7 +1288,7 @@ function handleOpenAddStore() {
   newStoreForm.value = {
     code: '',
     name: '',
-    city: 'Jakarta',
+    city: 'Singapore',
     totalMachines: 1,
     address: '',
     phone: '',
@@ -1307,7 +1307,7 @@ function handleOpenEditStore(store) {
 
   // Extract city from address if possible
   const addressParts = (store.address || '').split(',').map(s => s.trim());
-  const cityGuess = addressParts.length > 1 ? addressParts[addressParts.length - 1] : 'Jakarta';
+  const cityGuess = addressParts.length > 1 ? addressParts[addressParts.length - 1] : 'Singapore';
 
   // Get currently assigned admins for this store
   const currentAdmins = getStoreAdmins(store);
@@ -1375,7 +1375,7 @@ async function saveEditStore() {
       id: storeId,
       code: storeCode,
       name: storeName,
-      city: editStoreForm.value.city || 'Jakarta',
+      city: editStoreForm.value.city || 'Singapore',
       address: editStoreForm.value.address || '',
       phone: editStoreForm.value.phone || '',
       total_machines: editStoreForm.value.totalMachines || 1,
@@ -1461,8 +1461,8 @@ async function saveNewStore() {
       id: newStoreId,
       code: storeCode,
       name: storeName,
-      city: newStoreForm.value.city || 'Jakarta',
-      address: newStoreForm.value.address || `${newStoreForm.value.city}, Indonesia`,
+      city: newStoreForm.value.city || 'Singapore',
+      address: newStoreForm.value.address || `${newStoreForm.value.city || 'Singapore'}`,
       phone: newStoreForm.value.phone || '',
       currentQueue: 0,
       estWaitTime: '0 Minutes',
@@ -1535,7 +1535,7 @@ async function saveNewStore() {
     } catch (e) {}
 
     showAddStoreModal.value = false;
-    newStoreForm.value = { code: '', name: '', city: 'Jakarta', totalMachines: 1, address: '', phone: '', assignedStaffIds: [] };
+    newStoreForm.value = { code: '', name: '', city: 'Singapore', totalMachines: 1, address: '', phone: '', assignedStaffIds: [] };
     triggerToast(`Store "${storeName}" added successfully.`);
   } catch (err) {
     console.error('Failed to add store:', err);
@@ -1593,8 +1593,10 @@ function getStoreAdmins(store) {
 }
 
 function openWhatsApp(phone, staffName, storeName) {
-  const cleanPhone = (phone || '082909012901').replace(/[^0-9]/g, '');
-  const intlPhone = cleanPhone.startsWith('0') ? '62' + cleanPhone.slice(1) : cleanPhone;
+  const cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
+  if (!cleanPhone) return;
+  // Numbers are stored with their country code; a bare 8-digit local number is Singaporean
+  const intlPhone = cleanPhone.length === 8 ? '65' + cleanPhone : cleanPhone;
   const message = encodeURIComponent(`Hi ${staffName}, contacting you regarding Stanley ${storeName} engraving operations.`);
   window.open(`https://wa.me/${intlPhone}?text=${message}`, '_blank');
 }

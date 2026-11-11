@@ -5,9 +5,9 @@
 
 export const COUNTRY_CODES = [
   // Frequently Used / Regional
-  { name: 'Indonesia', code: 'ID', dialCode: '+62', flag: '🇮🇩', popular: true },
   { name: 'Singapore', code: 'SG', dialCode: '+65', flag: '🇸🇬', popular: true },
   { name: 'Malaysia', code: 'MY', dialCode: '+60', flag: '🇲🇾', popular: true },
+  { name: 'Indonesia', code: 'ID', dialCode: '+62', flag: '🇮🇩', popular: true },
   { name: 'United States', code: 'US', dialCode: '+1', flag: '🇺🇸', popular: true },
   { name: 'Australia', code: 'AU', dialCode: '+61', flag: '🇦🇺', popular: true },
   { name: 'United Kingdom', code: 'GB', dialCode: '+44', flag: '🇬🇧', popular: true },

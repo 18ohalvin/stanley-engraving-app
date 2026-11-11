@@ -251,9 +251,6 @@ const maskedPhone = computed(() => {
     } else {
       digits = raw.replace(/\D/g, '');
     }
-  } else if (raw.startsWith('0')) {
-    prefix = '+62';
-    digits = raw.replace(/^0+/, '');
   } else {
     digits = raw.replace(/\D/g, '');
   }

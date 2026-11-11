@@ -148,6 +148,7 @@
 
       <!-- Submit CTA Button (Fill color #D2D2D2 when disabled) -->
       <div class="bottom-action">
+        <p v-if="submitError" class="submit-error" role="alert">{{ submitError }}</p>
         <CTAButton
           label="Submit Engraving Order"
           :disabled="!isFormValid"
@@ -286,10 +287,11 @@ onMounted(() => {
 });
 
 const customerName = ref(engravingStore.customer.name || '');
-const countryCode = ref(engravingStore.customer.countryCode || '+62');
+const countryCode = ref(engravingStore.customer.countryCode || '+65');
 const phoneNumber = ref(engravingStore.customer.phone || '');
 const email = ref(engravingStore.customer.email || '');
 const isSubmitting = ref(false);
+const submitError = ref('');
 
 // Country Picker Modal State
 const isCountryModalOpen = ref(false);
@@ -380,10 +382,12 @@ async function submitOrder() {
     email: email.value.trim()
   });
 
+  submitError.value = '';
   try {
     const order = await engravingStore.submitOrder();
     if (order && order.order_id) {
-      const storeParam = route.params.storeId || order.store_code || order.store_id;
+      // The ticket URL always carries the store CODE the server assigned
+      const storeParam = order.store_code || route.params.storeId || order.store_id;
       if (storeParam) {
         router.push(`/queue/${encodeURIComponent(storeParam)}/${order.order_id}`);
       } else {
@@ -392,6 +396,7 @@ async function submitOrder() {
     }
   } catch (err) {
     console.error('Error submitting order:', err);
+    submitError.value = err?.message || 'Could not submit your order. Please try again.';
   } finally {
     isSubmitting.value = false;
   }
@@ -399,6 +404,14 @@ async function submitOrder() {
 </script>
 
 <style scoped>
+.submit-error {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #c0392b;
+  text-align: center;
+}
+
 .step-page {
   position: relative;
   width: 100%;
