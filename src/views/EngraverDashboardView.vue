@@ -414,7 +414,7 @@
                   <span class="log-badge">✓ {{ log.status.toUpperCase() }}</span>
                 </div>
                 <p class="log-msg">{{ log.message }}</p>
-                <span class="log-time">{{ new Date(log.timestamp).toLocaleTimeString() }}</span>
+                <span class="log-time">{{ formatClockTime(log.timestamp) }}</span>
               </div>
             </div>
           </div>
@@ -431,6 +431,7 @@
 </template>
 
 <script setup>
+import { formatClockTime } from '../utils/formatters.js';
 import logoBlack from '../assets/images/logo-black.png';
 import stationReadyCup from '../assets/images/station-ready-cup.png';
 import { ref, computed, onMounted, onUnmounted } from 'vue';

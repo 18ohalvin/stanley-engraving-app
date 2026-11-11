@@ -824,7 +824,7 @@
 </template>
 
 <script setup>
-import { toLocalDateKey } from '../utils/formatters.js';
+import { toLocalDateKey, getZonedHour } from '../utils/formatters.js';
 import logoBlack from '../assets/images/logo-black.png';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
@@ -952,7 +952,7 @@ const tempActivePreset = ref('today');
 
 // Current Live Hour
 const currentLiveHour = computed(() => {
-  return new Date().getHours();
+  return getZonedHour(new Date());
 });
 
 // Check if currently viewing Today
@@ -973,11 +973,8 @@ const maxAvailableHour = computed(() => {
 function getOrderOperatingHour(order) {
   // Prefer the real timestamp (converted to local time); booking_time is only a fallback
   if (order.created_at) {
-    const d = new Date(order.created_at);
-    if (!isNaN(d.getTime())) {
-      const h = d.getHours();
-      return Math.min(Math.max(h, OPENING_HOUR), CLOSING_HOUR);
-    }
+    const h = getZonedHour(order.created_at);
+    if (!isNaN(h)) return Math.min(Math.max(h, OPENING_HOUR), CLOSING_HOUR);
   }
   if (order.booking_time) {
     const parts = String(order.booking_time).split(':');
@@ -1022,7 +1019,7 @@ function isOrderInSelectedDate(order) {
   }
 
   if (selectedDate.value === 'thismonth') {
-    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const currentYearMonth = toLocalDateKey(now).slice(0, 7);
     return orderDate.startsWith(currentYearMonth);
   }
 

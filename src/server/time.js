@@ -5,18 +5,14 @@
  * bucketed by "day" must be converted to the store's own timezone explicitly.
  * Timestamps themselves are always stored as ISO-8601 UTC strings.
  */
-export const DEFAULT_TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Jakarta';
+// The app runs on a Singapore domain: every store uses SGT unless APP_TIMEZONE overrides it.
+export const DEFAULT_TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Singapore';
 
 /**
- * Timezone of a store. Singapore stores (code SG…, or "singapore" in id/name)
- * run on Asia/Singapore; everything else on APP_TIMEZONE (default Asia/Jakarta).
+ * Timezone of a store. Single business timezone for now; kept as one function so
+ * a per-store timezone column can be wired in here later.
  */
-export function getStoreTimeZone(...storeValues) {
-  for (const value of storeValues) {
-    const v = String(value || '').trim().toLowerCase();
-    if (!v) continue;
-    if (v.startsWith('sg') || v.includes('singapore')) return 'Asia/Singapore';
-  }
+export function getStoreTimeZone() {
   return DEFAULT_TIMEZONE;
 }
 

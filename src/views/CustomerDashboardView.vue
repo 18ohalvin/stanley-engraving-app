@@ -147,7 +147,7 @@
               <thead>
                 <tr class="table-header-row">
                   <th class="col-no">No</th>
-                  <th class="col-name">Nama</th>
+                  <th class="col-name">Name</th>
                   <th class="col-id">ID</th>
                   <th class="col-confirmed">Confirmed</th>
                   <th class="col-email">Email</th>
@@ -160,7 +160,7 @@
               </thead>
               <tbody>
                 <template v-for="(order, orderIdx) in displayedOrders" :key="order.order_id">
-                  <!-- Primary Row for Order (Contains Rowspan for NO, NAMA, ID, EMAIL, WA, ACTION) -->
+                  <!-- Primary Row for Order (Contains Rowspan for NO, NAME, ID, CONFIRMED, EMAIL, WA, ACTION) -->
                   <tr class="table-data-row fade-in">
                     <!-- No -->
                     <td 
@@ -170,7 +170,7 @@
                       {{ orderIdx + 1 }}
                     </td>
 
-                    <!-- Nama -->
+                    <!-- Name -->
                     <td 
                       :rowspan="(order.items && order.items.length > 1) ? order.items.length : 1" 
                       class="cell-name font-medium"
@@ -544,7 +544,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useQueueStore } from '../store/queueStore.js';
 import { FONT_OPTIONS } from '../store/engravingStore.js';
 import { getCanonicalStore } from '../utils/storeResolver.js';
-import { formatClockTime, toLocalDateKey } from '../utils/formatters.js';
+import { formatClockTime, toLocalDateKey, calendarKey, todayCalendarDate, APP_TIMEZONE } from '../utils/formatters.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -587,15 +587,15 @@ const fontOptions = FONT_OPTIONS;
 // --- ADVANCED GOOGLE STANDARD DATE PICKER STATE ---
 const showDatePickerModal = ref(false);
 const filterMode = ref('today'); // 'today' | 'yesterday' | 'last7' | 'thisMonth' | 'custom' | 'all'
-const selectedDate = ref(new Date()); // Default to Today
+const selectedDate = ref(todayCalendarDate()); // Default to Today (SGT)
 const activePreset = ref('today');
 
 // Calendar View State for Navigator
-const viewYear = ref(new Date().getFullYear());
-const viewMonth = ref(new Date().getMonth());
+const viewYear = ref(todayCalendarDate().getFullYear());
+const viewMonth = ref(todayCalendarDate().getMonth());
 
 // Temporary Dialog State before clicking Apply
-const tempSelectedDate = ref(new Date());
+const tempSelectedDate = ref(todayCalendarDate());
 const tempActivePreset = ref('today');
 
 const datePresets = [
@@ -605,6 +605,13 @@ const datePresets = [
   { id: 'thisMonth', label: 'This Month' },
   { id: 'all', label: 'All Time' }
 ];
+
+// Calendar Dates are day labels; order timestamps are converted to the SGT business day
+function isOrderOnDay(order, calendarDate) {
+  const ts = order.created_at || order.intake_at;
+  if (!ts || !calendarDate) return false;
+  return toLocalDateKey(ts) === calendarKey(calendarDate);
+}
 
 function isSameDay(d1, d2) {
   if (!d1 || !d2) return false;
@@ -652,7 +659,7 @@ const currentMonthYearLabel = computed(() => {
 });
 
 function openDatePickerModal() {
-  tempSelectedDate.value = selectedDate.value ? new Date(selectedDate.value) : new Date();
+  tempSelectedDate.value = selectedDate.value ? new Date(selectedDate.value) : todayCalendarDate();
   tempActivePreset.value = activePreset.value;
   if (tempSelectedDate.value) {
     viewYear.value = tempSelectedDate.value.getFullYear();
@@ -680,7 +687,7 @@ function nextMonth() {
 }
 
 function goToToday() {
-  const now = new Date();
+  const now = todayCalendarDate();
   viewYear.value = now.getFullYear();
   viewMonth.value = now.getMonth();
   tempSelectedDate.value = new Date(now);
@@ -689,7 +696,7 @@ function goToToday() {
 
 function applyPreset(presetId) {
   tempActivePreset.value = presetId;
-  const now = new Date();
+  const now = todayCalendarDate();
   if (presetId === 'today') {
     tempSelectedDate.value = new Date(now);
     viewYear.value = now.getFullYear();
@@ -712,7 +719,7 @@ function applyPreset(presetId) {
 function selectCalendarDate(dayObj) {
   if (!dayObj.isCurrentMonth && dayObj.dayNumber === null) return;
   tempSelectedDate.value = new Date(dayObj.fullDate);
-  const now = new Date();
+  const now = todayCalendarDate();
   tempActivePreset.value = isSameDay(dayObj.fullDate, now) ? 'today' : 'custom';
 }
 
@@ -739,7 +746,7 @@ const calendarDays = computed(() => {
   const days = [];
   const year = viewYear.value;
   const month = viewMonth.value;
-  const today = new Date();
+  const today = todayCalendarDate();
 
   // First day index (0 = Sun, 1 = Mon...)
   const firstDayIndex = new Date(year, month, 1).getDay();
@@ -765,10 +772,7 @@ const calendarDays = computed(() => {
   for (let d = 1; d <= totalDays; d++) {
     const dateObj = new Date(year, month, d);
     // Check if any active order was created or intake on this day
-    const hasOrder = queueStore.orders.some(o => {
-      const orderDate = new Date(o.created_at || o.intake_at || 0);
-      return isSameDay(orderDate, dateObj);
-    });
+    const hasOrder = queueStore.orders.some(o => isOrderOnDay(o, dateObj));
 
     days.push({
       dayNumber: d,
@@ -842,13 +846,13 @@ function isSameLocalDay(a, b) {
 function formatConfirmedDate(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(d);
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: APP_TIMEZONE }).format(d);
 }
 
 function formatConfirmedFull(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return `Confirmed ${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(d)}, ${formatClockTime(d)}`;
+  return `Confirmed ${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: APP_TIMEZONE }).format(d)}, ${formatClockTime(d)} SGT`;
 }
 
 function formatTicketId(rowOrOrder) {
@@ -895,22 +899,19 @@ const displayedOrders = computed(() => {
 
   // 2. Date Filter
   if (filterMode.value === 'today' && selectedDate.value) {
-    orders = orders.filter(o => isSameDay(new Date(o.created_at || o.intake_at || 0), selectedDate.value));
+    orders = orders.filter(o => isOrderOnDay(o, selectedDate.value));
   } else if (filterMode.value === 'yesterday' && selectedDate.value) {
-    orders = orders.filter(o => isSameDay(new Date(o.created_at || o.intake_at || 0), selectedDate.value));
+    orders = orders.filter(o => isOrderOnDay(o, selectedDate.value));
   } else if (filterMode.value === 'last7') {
-    const cutoff = new Date();
+    const cutoff = todayCalendarDate();
     cutoff.setDate(cutoff.getDate() - 7);
-    cutoff.setHours(0, 0, 0, 0);
-    orders = orders.filter(o => new Date(o.created_at || o.intake_at || 0) >= cutoff);
+    const cutoffKey = calendarKey(cutoff);
+    orders = orders.filter(o => toLocalDateKey(o.created_at || o.intake_at || 0) >= cutoffKey);
   } else if (filterMode.value === 'thisMonth') {
-    const now = new Date();
-    orders = orders.filter(o => {
-      const d = new Date(o.created_at || o.intake_at || 0);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    });
+    const monthKey = toLocalDateKey(new Date()).slice(0, 7);
+    orders = orders.filter(o => toLocalDateKey(o.created_at || o.intake_at || 0).startsWith(monthKey));
   } else if (filterMode.value === 'custom' && selectedDate.value) {
-    orders = orders.filter(o => isSameDay(new Date(o.created_at || o.intake_at || 0), selectedDate.value));
+    orders = orders.filter(o => isOrderOnDay(o, selectedDate.value));
   }
 
   // 3. Search Query Filter

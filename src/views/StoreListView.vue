@@ -1352,6 +1352,12 @@ async function saveEditStore() {
   const storeId = editStoreForm.value.id;
   const storeName = editStoreForm.value.name.trim();
   const storeCode = editStoreForm.value.code.trim().toUpperCase();
+  // Snapshot before saving, so staff bound to the old code/name can still be recognised
+  const previousStore = customStores.value.find(s => s.id === storeId) || {};
+  const storeRefs = [storeCode, storeId, storeName, previousStore.code, previousStore.name]
+    .filter(Boolean)
+    .map(v => String(v).toLowerCase().trim());
+  const belongsToThisStore = (value) => Boolean(value) && storeRefs.includes(String(value).toLowerCase().trim());
 
   try {
     // 1. Save Store Metadata Overrides
@@ -1412,10 +1418,10 @@ async function saveEditStore() {
     
     for (const u of masterStaffUsers.value) {
       if (assignedIds.includes(u.id)) {
-        u.store = storeName;
+        u.store = storeCode; // staff are bound to the store CODE, never its display name
         u.staffId = storeCode;
         u.idCode = storeCode;
-      } else if (u.store === storeName || (u.store && u.store.toLowerCase().trim() === storeName.toLowerCase().trim())) {
+      } else if (belongsToThisStore(u.store)) {
         u.store = '';
       }
       
@@ -1509,7 +1515,7 @@ async function saveNewStore() {
     const assignedIds = newStoreForm.value.assignedStaffIds || [];
     for (const u of masterStaffUsers.value) {
       if (assignedIds.includes(u.id)) {
-        u.store = storeName;
+        u.store = storeCode; // staff are bound to the store CODE, never its display name
         u.staffId = storeCode;
         u.idCode = storeCode;
 
@@ -1574,7 +1580,7 @@ function getStoreAdmins(store) {
     const userStore = (u.store || '').toLowerCase().trim();
     const userStaffId = (u.staffId || u.idCode || '').toLowerCase().trim();
 
-    if (userStore && (userStore === storeNameLower || userStore.includes(storeNameLower) || storeNameLower.includes(userStore))) {
+    if (userStore && (userStore === storeCodeLower || userStore === storeNameLower || userStore.includes(storeNameLower) || storeNameLower.includes(userStore))) {
       return true;
     }
     if (userStaffId && userStaffId === storeCodeLower) {

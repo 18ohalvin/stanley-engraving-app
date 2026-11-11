@@ -34,6 +34,52 @@ export const KNOWN_STORES = [
   }
 ];
 
+// ----------------------------------------------------
+// Live store directory (from the database)
+// The store CODE is the stable tenant key; names can be renamed by admins.
+// Every device loads the directory on startup so code <-> name resolution
+// never depends on the hardcoded fallback list above.
+// ----------------------------------------------------
+let storeDirectory = null;
+let storeDirectoryPromise = null;
+
+function readCachedDirectory() {
+  if (storeDirectory) return storeDirectory;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('stanley_custom_stores');
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) storeDirectory = parsed;
+    }
+  } catch (e) {}
+  return storeDirectory || [];
+}
+
+export function setStoreDirectory(list) {
+  if (!Array.isArray(list)) return;
+  storeDirectory = list;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
+    }
+  } catch (e) {}
+}
+
+/** Fetch the store directory from the server (deduplicated; `force` re-fetches). */
+export function loadStoreDirectory(force = false) {
+  if (storeDirectoryPromise && !force) return storeDirectoryPromise;
+  if (typeof fetch === 'undefined' || typeof window === 'undefined') return Promise.resolve(readCachedDirectory());
+  storeDirectoryPromise = fetch('/api/network/stores')
+    .then(res => (res.ok ? res.json() : null))
+    .then(data => {
+      const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : null);
+      if (list) setStoreDirectory(list);
+      return readCachedDirectory();
+    })
+    .catch(() => readCachedDirectory());
+  return storeDirectoryPromise;
+}
+
 export function getCanonicalStore(inputStr) {
   if (!inputStr) return null;
   const raw = String(inputStr).trim();
@@ -41,38 +87,29 @@ export function getCanonicalStore(inputStr) {
   const lower = raw.toLowerCase();
   const clean = lower.replace(/[^a-z0-9]/g, '');
 
-  // 1. Check custom stores saved in localStorage
-  try {
-    if (typeof localStorage !== 'undefined') {
-      const rawCustom = localStorage.getItem('stanley_custom_stores');
-      if (rawCustom) {
-        const customStores = JSON.parse(rawCustom);
-        if (Array.isArray(customStores)) {
-          for (const store of customStores) {
-            const sId = (store.id || '').toLowerCase();
-            const sCode = (store.code || '').toLowerCase();
-            const sName = (store.name || '').toLowerCase();
-            const sIdClean = sId.replace(/[^a-z0-9]/g, '');
-            const sCodeClean = sCode.replace(/[^a-z0-9]/g, '');
-            const sNameClean = sName.replace(/[^a-z0-9]/g, '');
+  // 1. Check the live store directory (database), cached in memory
+  for (const store of readCachedDirectory()) {
+    if (!store) continue;
+    const sId = String(store.id || '').toLowerCase();
+    const sCode = String(store.code || '').toLowerCase();
+    const sName = String(store.name || '').toLowerCase();
+    const sIdClean = sId.replace(/[^a-z0-9]/g, '');
+    const sCodeClean = sCode.replace(/[^a-z0-9]/g, '');
+    const sNameClean = sName.replace(/[^a-z0-9]/g, '');
 
-            if (
-              sId === lower || sCode === lower || sName === lower ||
-              sIdClean === clean || sCodeClean === clean || sNameClean === clean
-            ) {
-              return {
-                id: store.id,
-                code: store.code || store.id,
-                name: store.name,
-                phone: store.phone || '',
-                aliases: [sId, sCode, sName, sIdClean, sCodeClean, sNameClean]
-              };
-            }
-          }
-        }
-      }
+    if (
+      sId === lower || sCode === lower || sName === lower ||
+      (clean && (sIdClean === clean || sCodeClean === clean || sNameClean === clean))
+    ) {
+      return {
+        id: store.id,
+        code: store.code || store.id,
+        name: store.name,
+        phone: store.phone || '',
+        aliases: [sId, sCode, sName, sIdClean, sCodeClean, sNameClean]
+      };
     }
-  } catch (e) {}
+  }
 
   // 2. Check against known store database
   for (const store of KNOWN_STORES) {
@@ -135,18 +172,10 @@ export function getStorePhone(storeInput) {
           }
         }
       }
-      const rawCustom = localStorage.getItem('stanley_custom_stores');
-      if (rawCustom) {
-        const customStores = JSON.parse(rawCustom);
-        for (const s of customStores) {
-          if (isSameStore(s.id, storeInput) || isSameStore(s.code, storeInput) || isSameStore(s.name, storeInput)) {
-            if (s.phone) return s.phone;
-          }
-        }
-      }
     }
   } catch (e) {}
 
+  // Live store directory first (via getCanonicalStore), then the hardcoded fallback
   const canonical = getCanonicalStore(storeInput);
   if (canonical && canonical.phone) return canonical.phone;
   return '';

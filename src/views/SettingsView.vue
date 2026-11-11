@@ -373,7 +373,7 @@
                       {{ user.role || 'Staff Store' }}
                     </span>
                   </td>
-                  <td class="user-td col-store">{{ user.store || '-' }}</td>
+                  <td class="user-td col-store">{{ storeLabel(user.store) }}</td>
                   <td class="user-td col-status">
                     <span class="user-status-text" :class="{ 'is-inactive': user.status === 'Inactive' }">
                       {{ user.status || 'Active' }}
@@ -1083,8 +1083,8 @@
                     class="product-name-underline-input staff-select-input"
                   >
                     <option value="">HQ Central / Unassigned</option>
-                    <option v-for="loc in AVAILABLE_STORE_LOCATIONS" :key="loc" :value="loc">
-                      {{ loc }}
+                    <option v-for="loc in AVAILABLE_STORE_LOCATIONS" :key="loc.code" :value="loc.code">
+                      {{ loc.name }} ({{ loc.code }})
                     </option>
                   </select>
                   <div class="select-chevron-icon">
@@ -1275,7 +1275,7 @@
                     <textarea 
                       v-model="notificationForm.message" 
                       class="wa-message-textarea"
-                      placeholder="e.g. Hai! Saat ini antrian di toko kami lebih dari 10 orang. Mohon menunggu sebentar ya, terima kasih atas pengertiannya!"
+                      placeholder="e.g. Hi! Our store queue currently has more than 10 orders. Thank you for your patience, we will begin engraving your custom Stanley soon."
                       maxlength="500"
                       rows="4"
                       required
@@ -1662,6 +1662,8 @@
 </template>
 
 <script setup>
+import { formatClockTime } from '../utils/formatters.js';
+import { getCanonicalStore } from '../utils/storeResolver.js';
 import logoBlack from '../assets/images/logo-black.png';
 import productStep1 from '../assets/images/product-step1.png';
 import productStep2 from '../assets/images/product-step2.png';
@@ -1778,6 +1780,20 @@ const ALL_POSITION_OPTIONS = ['Vertical', 'Horizontal'];
 const storeLocationsList = ref([]);
 const rawNetworkStores = ref([]);
 
+// Staff are assigned by store CODE (stable); the name is only the label
+function toStoreOptions(list) {
+  return (list || [])
+    .filter(s => s && (s.code || s.id))
+    .map(s => ({ code: s.code || s.id, name: s.name || s.code || s.id }));
+}
+
+function storeLabel(storeRef) {
+  if (!storeRef) return '-';
+  if (storeRef === '*' || storeRef === 'HQ Central') return storeRef;
+  const info = getCanonicalStore(storeRef);
+  return info && info.name && info.name !== storeRef ? `${info.name} (${info.code})` : storeRef;
+}
+
 const AVAILABLE_STORE_LOCATIONS = computed(() => {
   if (storeLocationsList.value.length > 0) {
     return storeLocationsList.value;
@@ -1787,7 +1803,7 @@ const AVAILABLE_STORE_LOCATIONS = computed(() => {
     if (custom) {
       const parsed = JSON.parse(custom);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(s => s && s.name).filter(Boolean);
+        return toStoreOptions(parsed);
       }
     }
   } catch (e) {}
@@ -2028,10 +2044,7 @@ const livePreviewMessageText = computed(() => {
     .replace(/\{queue_number\}/gi, 'A-012');
 });
 
-const previewCurrentTime = computed(() => {
-  const now = new Date();
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-});
+const previewCurrentTime = computed(() => formatClockTime(new Date()));
 
 function insertVariableTag(tagKey) {
   notificationForm.value.message = (notificationForm.value.message || '') + tagKey;
@@ -2402,7 +2415,7 @@ async function loadStoreLocations() {
       const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
       if (list.length > 0) {
         rawNetworkStores.value = list;
-        storeLocationsList.value = list.map(s => s && s.name).filter(Boolean);
+        storeLocationsList.value = toStoreOptions(list);
         localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
         syncStorePhonesToWhatsAppSettings();
       }
@@ -2678,7 +2691,7 @@ function handleStoresUpdate(e) {
     const list = Array.isArray(data) ? data : (data && Array.isArray(data.stores) ? data.stores : []);
     if (list.length > 0) {
       rawNetworkStores.value = list;
-      storeLocationsList.value = list.map(s => s && s.name).filter(Boolean);
+      storeLocationsList.value = toStoreOptions(list);
       localStorage.setItem('stanley_custom_stores', JSON.stringify(list));
       syncStorePhonesToWhatsAppSettings();
     } else {
@@ -2794,7 +2807,7 @@ const filteredStaffUsers = computed(() => {
       (u.username && String(u.username).toLowerCase().includes(q)) || 
       (u.whatsapp && String(u.whatsapp).toLowerCase().includes(q)) || 
       (u.role && String(u.role).toLowerCase().includes(q)) || 
-      (u.store && String(u.store).toLowerCase().includes(q))
+      (u.store && storeLabel(u.store).toLowerCase().includes(q))
     )
   );
 });
@@ -3229,7 +3242,7 @@ function openAddStaffModal() {
     whatsapp: '',
     pin: '',
     role: 'Staff Store',
-    store: storeOptions.length > 0 ? storeOptions[0] : '',
+    store: storeOptions.length > 0 ? storeOptions[0].code : '',
     status: 'Active'
   };
   showStaffModal.value = true;
@@ -3249,7 +3262,8 @@ function openEditStaffModal(user) {
     whatsapp: user.whatsapp || '',
     pin: '',
     role: user.role || 'Staff Store',
-    store: user.store || '',
+    // Legacy accounts may still hold a store name: show them under the store's code
+    store: user.store && user.store !== 'HQ Central' && user.store !== '*' ? (getCanonicalStore(user.store)?.code || user.store) : (user.store || ''),
     status: user.status || 'Active'
   };
   showStaffModal.value = true;

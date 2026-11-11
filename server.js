@@ -31,7 +31,9 @@ import {
   getAllProductsFromDb,
   saveProductsInDb,
   getActiveQueueOrderIdsForStore,
-  isSameStore
+  isSameStore,
+  resolveStoreCodeFromDb,
+  getCanonicalStore
 } from './src/server/db.js';
 
 import { requireAuth, requireSuperAdmin, requireStoreAccess } from './src/server/authMiddleware.js';
@@ -185,8 +187,13 @@ app.post('/api/orders/public', publicOrderLimiter, async (req, res) => {
     if (existing && existing.order_id === payload.order_id) {
       return res.json({ success: true, order: existing });
     }
+    // Stamp the order with the store's canonical code/id/name from the database
+    const requestedStore = payload.store_code || payload.store_id || payload.store_name;
+    const storeCode = await resolveStoreCodeFromDb(requestedStore);
+    const storeInfo = storeCode ? await getCanonicalStore(storeCode) : null;
     const newOrder = {
       ...payload,
+      ...(storeInfo ? { store_id: storeInfo.id, store_code: storeInfo.code, store_name: storeInfo.name } : {}),
       status: 'pending_dropoff',
       system_queue_number: null,
       short_code: null,
@@ -275,22 +282,27 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid PIN for this staff account. Please try again.' });
     }
 
+    // The session is bound to the store CODE (stable), not its display name
+    const storeCode = (await resolveStoreCodeFromDb(staff.store)) || staff.store || '';
+    const storeInfo = storeCode && storeCode !== '*' && storeCode !== 'HQ Central' ? await getCanonicalStore(storeCode) : null;
+
     // Create persistent auth session in DB
-    const session = await createAuthSessionInDb(staff);
+    const session = await createAuthSessionInDb({ ...staff, store: storeCode });
 
     res.json({
       success: true,
       token: session.token,
       expiresAt: session.expiresAt,
-      storeId: staff.store || '',
+      storeId: storeCode,
       user: {
         id: staff.id,
         staffId: staff.staffId,
         username: staff.username,
         name: staff.name,
         role: staff.role,
-        store: staff.store,
-        storeId: staff.store,
+        store: storeCode,
+        storeId: storeCode,
+        storeName: storeInfo ? storeInfo.name : storeCode,
         isDeveloper: staff.isDeveloper
       }
     });
@@ -819,13 +831,10 @@ app.post('/api/whatsapp/:storeId/dispatch', requireAuth, requireStoreAccess, asy
       }
     }
 
-    // Check if incoming client message contains legacy Indonesian phrases or is missing
-    const hasIndonesian = /pesanan|antrian|telah diterima|siap diambil|terima kasih sudah menunggu|terima kasih telah berbelanja/i.test(message || '');
-
     let finalMessage = '';
 
-    // Always prioritize central database templates for automated triggers or if Indonesian text was passed
-    if (!message || hasIndonesian || triggerType) {
+    // Always prioritize central database templates for automated triggers
+    if (!message || triggerType) {
       try {
         const waSettings = (await getSettingsFromDb('whatsapp_notifications')) || {};
         const storeKey = req.params.storeId || order?.store_id || order?.store_code || 'default';
@@ -846,9 +855,9 @@ app.post('/api/whatsapp/:storeId/dispatch', requireAuth, requireStoreAccess, asy
       }
     }
 
-    // Safety fallback to canonical English notification if not resolved or still contains legacy phrases
-    if (!finalMessage || /pesanan|antrian|telah diterima|siap diambil/i.test(finalMessage)) {
-      if (message && !hasIndonesian) {
+    // Fallback: the caller's own message, otherwise the canonical notification text
+    if (!finalMessage) {
+      if (message) {
         finalMessage = message;
       } else {
         const host = req.get('host') || 'localhost:3000';

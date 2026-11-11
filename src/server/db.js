@@ -43,9 +43,42 @@ export const DEFAULT_PRODUCT_CATALOG = [
 ];
 
 // Initialize database schema tables & seed master data
-export async function initDatabase() {
-  await dbAdapter.init();
-  await seedDefaultMasterData();
+// db.js auto-initialises on import and server.js also calls initDatabase();
+// share one run so the seed never executes twice concurrently on an empty DB.
+let initDatabasePromise = null;
+export function initDatabase() {
+  if (!initDatabasePromise) {
+    initDatabasePromise = (async () => {
+      await dbAdapter.init();
+      await seedDefaultMasterData();
+      await normalizeStaffStoreCodes();
+    })();
+    initDatabasePromise.catch(() => { initDatabasePromise = null; });
+  }
+  return initDatabasePromise;
+}
+
+/**
+ * One-time-safe migration: staff used to be bound to a store by display NAME,
+ * which breaks as soon as a store is renamed. Rewrite every resolvable value to
+ * the store CODE. Unresolvable values are left untouched.
+ */
+async function normalizeStaffStoreCodes() {
+  try {
+    const staff = await dbAdapter.query(`SELECT id, store FROM staff_users`);
+    let changed = 0;
+    for (const row of staff) {
+      if (!row.store) continue;
+      const code = await resolveStoreCodeFromDb(row.store);
+      if (code && code !== row.store) {
+        await dbAdapter.run(`UPDATE staff_users SET store = ? WHERE id = ?`, [code, row.id]);
+        changed++;
+      }
+    }
+    if (changed > 0) console.log(`✓ Normalized ${changed} staff store assignment(s) to store codes`);
+  } catch (e) {
+    console.warn('Could not normalize staff store codes:', e.message);
+  }
 }
 
 async function seedDefaultMasterData() {
@@ -114,7 +147,7 @@ async function seedDefaultMasterData() {
     await saveSettingsInDb('size_presets', ['12 Oz', '14 Oz', '16 Oz', '20 Oz', '24 Oz', '30 Oz', '36 Oz', '40 Oz', '48 Oz']);
   }
 
-  // Seed default WhatsApp notification settings if empty or migrate legacy Indonesian templates
+  // Seed default WhatsApp notification settings if empty
   const defaultTemplates = [
     {
       id: 'queuing-notification',
@@ -157,37 +190,6 @@ async function seedDefaultMasterData() {
       }
     };
     await saveSettingsInDb('whatsapp_notifications', initialSettings);
-  } else if (typeof storedNotifs === 'object') {
-    // Check if stored settings contain legacy Indonesian strings and automatically migrate them
-    try {
-      let hasIndonesian = false;
-      const indonesianRegex = /pesanan|antrian|telah diterima|siap diambil|terima kasih sudah menunggu|terima kasih telah berbelanja/i;
-      for (const storeKey of Object.keys(storedNotifs)) {
-        const storeObj = storedNotifs[storeKey];
-        if (storeObj && Array.isArray(storeObj.profiles)) {
-          for (const p of storeObj.profiles) {
-            if (p && typeof p.message === 'string' && indonesianRegex.test(p.message)) {
-              if (p.triggerType === 'queue_threshold') {
-                p.message = 'Hi! Currently our store queue at {store_name} has more than 10 orders. Thank you for your patience, we will begin engraving your custom Stanley soon.';
-                hasIndonesian = true;
-              } else if (p.triggerType === 'order_accepted') {
-                p.message = 'Hi {customer_name}! Your custom Stanley order #{short_code} has been received at {store_name}. Please wait while we engrave your cup.';
-                hasIndonesian = true;
-              } else if (p.triggerType === 'order_completed') {
-                p.message = 'Hi {customer_name}! Your custom Stanley order #{short_code} is engraved and ready for pickup at {store_name}. Thank you for shopping with Stanley!';
-                hasIndonesian = true;
-              }
-            }
-          }
-        }
-      }
-      if (hasIndonesian) {
-        await saveSettingsInDb('whatsapp_notifications', storedNotifs);
-        console.log('✓ Successfully migrated legacy Indonesian WhatsApp templates in database to English');
-      }
-    } catch (e) {
-      console.warn('Could not check/migrate legacy whatsapp_notifications:', e);
-    }
   }
 
   // Migrate legacy data from data/orders.json if orders table is empty (SQLite local mode)
@@ -258,6 +260,29 @@ async function getStoreRowsCached() {
   storesRowsCache = rows || [];
   storesCacheExpiresAt = Date.now() + STORES_CACHE_TTL_MS;
   return storesRowsCache;
+}
+
+/**
+ * Resolve any store reference (code, id, or current/old display name) to the
+ * store's CODE as stored in the database. The code is the stable tenant key;
+ * names can be renamed by admins at any time.
+ * Returns '*' / 'HQ Central' unchanged, and null when no store matches.
+ */
+export async function resolveStoreCodeFromDb(value) {
+  if (value === undefined || value === null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (raw === '*' || raw === 'HQ Central') return raw;
+  const lower = raw.toLowerCase();
+  const clean = lower.replace(/[^a-z0-9]/g, '');
+  const rows = await getStoreRowsCached();
+  for (const store of rows) {
+    const candidates = [store.code, store.id, store.name].map(v => String(v || '').trim().toLowerCase());
+    if (candidates.some(c => c && (c === lower || (clean && c.replace(/[^a-z0-9]/g, '') === clean)))) {
+      return store.code || store.id;
+    }
+  }
+  return null;
 }
 
 export async function getCanonicalStore(inputStr) {
@@ -711,6 +736,10 @@ export async function saveStaffUserInDb(user) {
 
   const staffIdVal = (user.staffId || user.idCode || user.id || `STF-${Date.now()}`).trim().toUpperCase();
   const existing = await dbAdapter.get(`SELECT * FROM staff_users WHERE id = ? OR staff_id = ? OR LOWER(username) = LOWER(?)`, [user.id || '', staffIdVal, user.username || user.name || '']);
+  // Staff are bound to a store by its CODE (admin UIs may still send a display name)
+  if (user.store) {
+    user = { ...user, store: (await resolveStoreCodeFromDb(user.store)) || String(user.store).trim() };
+  }
   const now = new Date().toISOString();
   const newPin = (user.pin || '').trim();
 

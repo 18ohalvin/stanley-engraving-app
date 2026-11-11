@@ -784,7 +784,7 @@ queueStore.addOrder(orderSG);
 
 const crossLookup = await queueStore.lookupIntakeOrder('BSP', 'EG-021');
 assert(crossLookup.success === false, 'Cross-store lookup BSP on EG-021 is rejected');
-assert(crossLookup.message.includes('submitted for Store "SG001"'), 'Cross-store lookup error message explicitly mentions target store SG001');
+assert(crossLookup.message.includes('(SG001)'), 'Cross-store lookup error message explicitly mentions target store SG001');
 
 console.log('\n--- 11. Testing Store Phone Resolution & Queue Ticket WhatsApp Support Link ---');
 const { getStorePhone } = await import('./src/utils/storeResolver.js');

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { getStoredOrders, saveStoredOrders, fetchServerOrders, getBroadcastChannel, broadcastSyncMessage } from '../utils/storage.js';
 import { logEngravingAnalytics, sendWhatsAppNotification } from '../utils/analyticsService.js';
 import { formatSystemQueueNumber, toLocalDateKey } from '../utils/formatters.js';
-import { isSameStore, getCanonicalStore } from '../utils/storeResolver.js';
+import { isSameStore, getCanonicalStore, loadStoreDirectory } from '../utils/storeResolver.js';
 
 // Clean empty starting state for production deployment
 const INITIAL_SEED_ORDERS = [];
@@ -756,15 +756,20 @@ export const useQueueStore = defineStore('queue', {
 
       const targetStore = activeStoreId || (typeof localStorage !== 'undefined' ? localStorage.getItem('stanley_user_store') : null);
       if (targetStore && targetStore !== '*' && targetStore !== 'HQ Central') {
-        const orderStore = order.store_id || order.store_code || order.store_name;
+        // Compare by store CODE using the live directory (names may have been renamed)
+        await loadStoreDirectory();
+        const orderStore = order.store_code || order.store_id || order.store_name;
         if (orderStore) {
-          const match = isSameStore(order.store_id, targetStore) || 
-                        isSameStore(order.store_code, targetStore) || 
+          const match = isSameStore(order.store_code, targetStore) ||
+                        isSameStore(order.store_id, targetStore) ||
                         isSameStore(order.store_name, targetStore);
           if (!match) {
+            const orderInfo = getCanonicalStore(orderStore);
+            const stationInfo = getCanonicalStore(targetStore);
+            const label = (info, fallback) => (info ? `${info.name} (${info.code})` : fallback);
             return {
               success: false,
-              message: `Order #${cleanCode} was submitted for Store "${orderStore}". Cannot process at Store "${targetStore}".`
+              message: `Order #${cleanCode} was submitted for ${label(orderInfo, orderStore)}. Cannot process at ${label(stationInfo, targetStore)}.`
             };
           }
         }
